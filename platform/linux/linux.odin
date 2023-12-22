@@ -5,6 +5,8 @@ package platform
 import xlib "vendor:x11/xlib"
 import "core:sys/unix"
 import "core:path/filepath"
+import "core:fmt"
+foreign import X11xcb "system:X11-xcb"
 // foreign import xcb "system:libxcb.so"
 foreign import xcb "system:xcb"
 foreign import xlib2 "system:X11"
@@ -24,7 +26,7 @@ _xcb_xid :: struct {
 
 xcb_keycode_t:: distinct u8
 
-_xcb_setup_t :: struct {
+xcb_setup_t :: struct {
 	status: u8,
 	pad0: u8,
 	protocol_major_version: u16,
@@ -162,7 +164,7 @@ _xcb_out :: struct {
 
 xcb_connection_t :: struct {
 	has_error: i32,
-	setup: ^_xcb_setup_t,
+	setup: ^xcb_setup_t,
 	fd: i32,
 	iolock: unix.pthread_mutex_t,
 	in_: _xcb_in,
@@ -174,17 +176,22 @@ xcb_connection_t :: struct {
 @(default_calling_convention="c")
 foreign xcb {
 	xcb_connection_has_error :: proc(^xcb_connection_t) -> i32 ---
+	xcb_get_setup :: proc(^xcb_connection_t) -> ^xcb_setup_t ---
 }
 
 @(default_calling_convention="c")
-foreign xlib2 {
+foreign X11xcb {
 	XGetXCBConnection :: proc(^xlib.Display) -> ^xcb_connection_t ---
 }
 platform_setup :: proc() {
 	display: ^xlib.Display = xlib.XOpenDisplay(nil)
 	xlib.XAutoRepeatOff(display)
 	connection: ^xcb_connection_t = XGetXCBConnection(display)
-	if (xcb_connection_has_error(connection)== 0) {
+	// @TODO use or_error
+	if (xcb_connection_has_error(connection) == 1) {
 		panic("")
 	}
+
+	setup : ^xcb_setup_t = xcb_get_setup(connection)
+    
 }
