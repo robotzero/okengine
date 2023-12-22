@@ -1,0 +1,23 @@
+version: '3'
+
+  #tasks:
+  #build:
+  #	cmds:
+  #   - odin build testbed -out:bin/testbed -o:debug 
+  #  generates:
+  #    - bin/testbed
+  #	sources:
+  #	  - testbed/**/*.odin
+  #	method: none
+  #	silent: true
+
+tasks:
+  build:
+    cmds:
+     - odin build testbed -out:bin/testbed -o:none -debug
+    generates:
+      - bin/testbed
+    sources: 
+      - testbed/**/*.odin    
+    method: none
+    silent: true  
