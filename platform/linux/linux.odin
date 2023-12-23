@@ -54,19 +54,19 @@ xcb_setup_t :: struct {
 }
 
 node :: struct {
-	next: ^node,
+	next: [^]node,
 	key: u32,
 	data: rawptr,
 }
 
 _xcb_map :: struct {
-	head: ^node,
-	tail: ^^node,
+	head: [^]node,
+	tail: [^]^node,
 }
 
 reply_list :: struct {
 	reply: rawptr,
-	next: ^reply_list,
+	next: [^]reply_list,
 }
 
 xcb_generic_event_t :: struct {
@@ -78,29 +78,29 @@ xcb_generic_event_t :: struct {
 }
 
 event_list :: struct {
-	event: ^xcb_generic_event_t,
-	next: ^event_list,
+	event: [^]xcb_generic_event_t,
+	next: [^]event_list,
 }
 
 reader_list :: struct {
 	request: u64,
-	data: ^unix.pthread_cond_t,
-	next: ^reader_list,
+	data: [^]unix.pthread_cond_t,
+	next: [^]reader_list,
 }
 
 xcb_special_event :: struct {
-	next: ^xcb_special_event,
+	next: [^]xcb_special_event,
 	extension: u8,
 	eid: u32,
 	stamp: ^u32,
-	events: ^event_list,
-	events_tail: ^^event_list,
+	events: [^]event_list,
+	events_tail: [^]^event_list,
 	special_event_cond: unix.pthread_cond_t,
 }
 
 special_list :: struct {
-	se: ^xcb_special_event,
-	next: ^special_list,
+	se: [^]xcb_special_event,
+	next: [^]special_list,
 }
 
 Workarounds :: enum {
@@ -140,11 +140,6 @@ xcb_big_requests_enable_cookie_t :: struct {
 	sequence: u32,
 }
 
-Blah :: union {
-	xcb_big_requests_enable_cookie_t,
-	u32,
-}
-
 pending_reply :: struct {
 	first_request: u64,
 	last_request: u64,
@@ -160,16 +155,16 @@ _xcb_in :: struct {
 	request_expected: u64,
 	request_read: u64,
 	request_completed: u64,
-	current_reply: ^reply_list,
-	current_reply_tail: ^^reply_list, 
-	replies: ^_xcb_map,
-	events: ^event_list,
-	events_tail: ^^event_list,
-	readers: ^reader_list,
-	special_waiters: ^special_list,
-	pending_replies: ^pending_reply,
-	pending_replies_tail: ^^pending_reply,
-	special_events: ^xcb_special_event,
+	current_reply: [^]reply_list,
+	current_reply_tail: [^]^reply_list, 
+	replies: [^]_xcb_map,
+	events: [^]event_list,
+	events_tail: [^]^event_list,
+	readers: [^]reader_list,
+	special_waiters: [^]special_list,
+	pending_replies: [^]pending_reply,
+	pending_replies_tail: [^]^pending_reply,
+	special_events: [^]xcb_special_event,
 }
 
 _xcb_out :: struct {
@@ -177,14 +172,17 @@ _xcb_out :: struct {
 	writing: i32,
 	socket_cond: unix.pthread_cond_t,
 	return_socket: proc "c" (closure: rawptr),
-	socket_clousure: rawptr,
+	socket_closure: rawptr,
 	queue: [16384]b8,
 	queue_len: i32,
 	request: u64,
 	request_written: u64,
 	reqlenlock: unix.pthread_mutex_t,
 	maximum_request_length_tag: Lazy_reply_tag,
-	maximum_request_length: Blah,
+	maximum_request_length: struct #raw_union {
+		cookie: xcb_big_requests_enable_cookie_t,
+	    value: u32,
+	},
 }
 
 xcb_connection_t :: struct {
@@ -218,7 +216,7 @@ xcb_screen_t :: struct {
 }
 
 xcb_screen_iterator_t :: struct {
-	data: ^xcb_screen_t,
+	data: [^]xcb_screen_t,
 	rem: i32,
 	index: i32,
 }
