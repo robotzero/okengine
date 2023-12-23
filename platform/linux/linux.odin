@@ -28,7 +28,15 @@ xcb_keycode_t :: distinct u8
 xcb_window_t :: distinct uint
 xcb_colormap_t :: distinct uint
 xcb_visualid_t :: distinct uint
-xcb_atom_t :: distinct uint
+xcb_atom_t :: distinct rawptr
+
+xcb_intern_atom_reply_t :: struct {
+	response_type: u8,
+	pad0: u8,
+	sequence: u16,
+	length: u32,
+	atom: xcb_atom_t,
+}
 
 xcb_setup_t :: struct {
 	status: u8,
@@ -140,6 +148,10 @@ xcb_big_requests_enable_cookie_t :: struct {
 	sequence: u32,
 }
 
+xcb_intern_atom_cooke_t :: struct {
+	sequence: uint,
+}
+
 pending_reply :: struct {
 	first_request: u64,
 	last_request: u64,
@@ -236,6 +248,9 @@ foreign xcb {
 	xcb_map_window :: proc(^xcb_connection_t, xcb_window_t) ---
 	xcb_flush :: proc(^xcb_connection_t) -> i32  ---
 	xcb_destroy_window :: proc(^xcb_connection_t, xcb_window_t) ---
+	xcb_change_property :: proc(^xcb_connection_t, u8, xcb_window_t, xcb_atom_t, xcb_atom_t, u8, u32, rawptr) ---
+	xcb_intern_atom_reply :: proc(^xcb_connection_t, xcb_intern_atom_cooke_t, ^^xcb_generic_error_t) -> ^xcb_intern_atom_reply_t ---
+	xcb_intern_atom :: proc(^xcb_connection_t, u8, u16, cstring) -> xcb_intern_atom_cooke_t ---
 }
 
 @(default_calling_convention="c", private)
@@ -254,6 +269,17 @@ internal_state :: struct {
 
 platform_state :: struct {
 	internal_state: rawptr,
+}
+
+xcb_generic_error_t :: struct {
+	response_type: u8,
+	error_code: u8,
+	sequence: u16,
+	resource_id: u32,
+	minor_code: u16,
+	major_code: u8,
+	pad0: u8,
+	pad: [5]u32,
 }
 
 platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x: i16, y: i16, width: u16, height: u16) -> bool {
@@ -276,13 +302,21 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
 	state.screen = it.data
 	state.window = xcb_generate_id(state.connection)
 	event_mask := mask.XCB_CW_BACK_PIXEL | mask.XCB_CW_EVENT_MASK
-	// event_mask := xcb_cw_t.XCB_CW_BACK_PIXEL
+	// event_mask := xcb_cw_t.XCB_CW_BACK_PIX.
 	event_values := mask2.XCB_EVENT_MASK_BUTTON_PRESS | mask2.XCB_EVENT_MASK_BUTTON_RELEASE |
                        mask2.XCB_EVENT_MASK_KEY_PRESS | mask2.XCB_EVENT_MASK_KEY_RELEASE |
                        mask2.XCB_EVENT_MASK_EXPOSURE | mask2.XCB_EVENT_MASK_POINTER_MOTION |
                        mask2.XCB_EVENT_MASK_STRUCTURE_NOTIFY
 	value_list : []u32 = {state.screen.black_pixel, 0}
     cookie: xcb_void_cookie = xcb_create_window(state.connection, 0, state.window, state.screen.root, x, y, width, height, 0, 1, state.screen.root_visual, 11, &value_list)
+	xcb_change_property(state.connection, XCB_PROP_MODE_REPLACE, state.window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, len(application_name), application_name)
+	wm_delete_cookie : xcb_intern_atom_cooke_t = xcb_intern_atom(state.connection, 0, len("WM_DELETE_WINDOW"), "DELETE_WINDOW")
+	wm_protocols_cookie: xcb_intern_atom_cooke_t = xcb_intern_atom(state.connection, 0, len("WM_PROTOCOLS"), "WM_PROTOCOLS")
+	wm_delete_reply: ^xcb_intern_atom_reply_t = xcb_intern_atom_reply(state.connection, wm_delete_cookie, nil)
+	wm_protocols_reply: ^xcb_intern_atom_reply_t = xcb_intern_atom_reply(state.connection, wm_protocols_cookie, nil)
+	state.wm_delete_win = wm_delete_reply.atom
+	state.wm_protocols = wm_protocols_reply.atom
+	xcb_change_property(state.connection, XCB_PROP_MODE_REPLACE, state.window, wm_protocols_reply.atom, 4, 32, 1, &wm_delete_reply.atom)
 	xcb_map_window(state.connection, state.window)
 	stream_result: i32 = xcb_flush(state.connection)
 	if stream_result <= 0 {
