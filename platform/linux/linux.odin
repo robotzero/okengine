@@ -6,8 +6,8 @@ import xlib "vendor:x11/xlib"
 import "core:sys/unix"
 import "core:path/filepath"
 import "core:fmt"
+// import l "../engine/core/logger"
 foreign import X11xcb "system:X11-xcb"
-// foreign import xcb "system:libxcb.so"
 foreign import xcb "system:xcb"
 foreign import xlib2 "system:X11"
 
@@ -24,7 +24,11 @@ _xcb_xid :: struct {
 	inc: i32,
 }
 
-xcb_keycode_t:: distinct u8
+xcb_keycode_t :: distinct u8
+xcb_window_t :: distinct uint
+xcb_colormap_t :: distinct uint
+xcb_visualid_t :: distinct uint
+xcb_atom_t :: distinct uint
 
 xcb_setup_t :: struct {
 	status: u8,
@@ -111,6 +115,27 @@ Lazy_reply_tag :: enum {
 	LAZY_FORCED,
 }
 
+xcb_cw_t :: enum u32 {
+  XCB_CW_BACK_PIXMAP = 0, XCB_CW_BACK_PIXEL = 1, XCB_CW_BORDER_PIXMAP = 2, XCB_CW_BORDER_PIXEL = 3,
+  XCB_CW_BIT_GRAVITY = 4, XCB_CW_WIN_GRAVITY = 5, XCB_CW_BACKING_STORE = 6, XCB_CW_BACKING_PLANES = 7,
+  XCB_CW_BACKING_PIXEL = 8, XCB_CW_OVERRIDE_REDIRECT = 9, XCB_CW_SAVE_UNDER = 10, XCB_CW_EVENT_MASK = 11,
+  XCB_CW_DONT_PROPAGATE = 12, XCB_CW_COLORMAP = 13, XCB_CW_CURSOR = 14,
+}
+
+mask :: bit_set[xcb_cw_t; u32]
+
+xcb_event_mask_t :: enum u32 {
+  XCB_EVENT_MASK_NO_EVENT = 0, XCB_EVENT_MASK_KEY_PRESS = 1, XCB_EVENT_MASK_KEY_RELEASE = 2, XCB_EVENT_MASK_BUTTON_PRESS = 3,
+  XCB_EVENT_MASK_BUTTON_RELEASE = 3, XCB_EVENT_MASK_ENTER_WINDOW = 4, XCB_EVENT_MASK_LEAVE_WINDOW = 5, XCB_EVENT_MASK_POINTER_MOTION = 6,
+  XCB_EVENT_MASK_POINTER_MOTION_HINT = 7, XCB_EVENT_MASK_BUTTON_1_MOTION = 8, XCB_EVENT_MASK_BUTTON_2_MOTION = 9, XCB_EVENT_MASK_BUTTON_3_MOTION = 10,
+  XCB_EVENT_MASK_BUTTON_4_MOTION = 11, XCB_EVENT_MASK_BUTTON_5_MOTION = 12, XCB_EVENT_MASK_BUTTON_MOTION = 13, XCB_EVENT_MASK_KEYMAP_STATE = 14,
+  XCB_EVENT_MASK_EXPOSURE = 16, XCB_EVENT_MASK_VISIBILITY_CHANGE = 17, XCB_EVENT_MASK_STRUCTURE_NOTIFY = 18, XCB_EVENT_MASK_RESIZE_REDIRECT = 19,
+  XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY = 20, XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT = 21, XCB_EVENT_MASK_FOCUS_CHANGE = 22, XCB_EVENT_MASK_PROPERTY_CHANGE = 23,
+  XCB_EVENT_MASK_COLOR_MAP_CHANGE = 24, XCB_EVENT_MASK_OWNER_GRAB_BUTTON = 25,
+}
+
+mask2 :: bit_set[xcb_event_mask_t; u32]
+
 xcb_big_requests_enable_cookie_t :: struct {
 	sequence: u32,
 }
@@ -173,25 +198,106 @@ xcb_connection_t :: struct {
 	// xid: _xcb_xid,
 }
 
-@(default_calling_convention="c")
+xcb_screen_t :: struct {
+	root: xcb_window_t,
+	default_color_map: xcb_colormap_t,
+	white_pixel: u32,
+	black_pixel: u32,
+	current_input_masks: u32,
+	width_in_pixels: u16,
+	height_in_pixels: u16,
+	width_in_millimeters: u16,
+	height_in_millimeters: u16,
+	min_installed_maps: u16,
+	max_installed_maps: u16,
+	root_visual: xcb_visualid_t,
+	backing_stores: u8,
+	save_unders: u8,
+	root_depth: u8,
+	allowed_depths_len: u8,
+}
+
+xcb_screen_iterator_t :: struct {
+	data: ^xcb_screen_t,
+	rem: i32,
+	index: i32,
+}
+
+xcb_void_cookie :: struct {
+	sequence: uint,
+}
+
+@(default_calling_convention="c", private)
 foreign xcb {
 	xcb_connection_has_error :: proc(^xcb_connection_t) -> i32 ---
 	xcb_get_setup :: proc(^xcb_connection_t) -> ^xcb_setup_t ---
+	xcb_setup_roots_iterator :: proc(^xcb_setup_t) -> xcb_screen_iterator_t ---
+	xcb_screen_next :: proc(^xcb_screen_iterator_t) ---
+	xcb_generate_id :: proc(^xcb_connection_t) -> xcb_window_t ---
+	xcb_create_window :: proc(^xcb_connection_t, u8, xcb_window_t, xcb_window_t, i16, i16, u16, u16, u16, u16, xcb_visualid_t, u32, rawptr) -> xcb_void_cookie ---
+	xcb_map_window :: proc(^xcb_connection_t, xcb_window_t) ---
+	xcb_flush :: proc(^xcb_connection_t) -> i32  ---
+	xcb_destroy_window :: proc(^xcb_connection_t, xcb_window_t) ---
 }
 
-@(default_calling_convention="c")
+@(default_calling_convention="c", private)
 foreign X11xcb {
 	XGetXCBConnection :: proc(^xlib.Display) -> ^xcb_connection_t ---
 }
-platform_setup :: proc() {
-	display: ^xlib.Display = xlib.XOpenDisplay(nil)
-	xlib.XAutoRepeatOff(display)
-	connection: ^xcb_connection_t = XGetXCBConnection(display)
+
+internal_state :: struct {
+	display: ^xlib.Display,
+	connection: ^xcb_connection_t,
+	window: xcb_window_t,
+	screen: ^xcb_screen_t,
+    wm_protocols: xcb_atom_t,
+	wm_delete_win: xcb_atom_t,
+}
+
+platform_state :: struct {
+	internal_state: rawptr,
+}
+
+platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x: i16, y: i16, width: u16, height: u16) -> bool {
+	plat_state.internal_state = new(internal_state)
+	state : ^internal_state = transmute(^internal_state)plat_state.internal_state
+	state.display = xlib.XOpenDisplay(nil)
+	// xlib.XAutoRepeatOff(state.display)
+	state.connection = XGetXCBConnection(state.display)
 	// @TODO use or_error
-	if (xcb_connection_has_error(connection) == 1) {
-		panic("")
+	if (xcb_connection_has_error(state.connection) == 1) {
+		return false
 	}
 
-	setup : ^xcb_setup_t = xcb_get_setup(connection)
-    
+	setup : ^xcb_setup_t = xcb_get_setup(state.connection)
+    it : xcb_screen_iterator_t = xcb_setup_roots_iterator(setup)
+	screen_p: i32 = 0
+	for s := screen_p; s > 0; s =- 1 {
+		xcb_screen_next(&it)
+	}
+	state.screen = it.data
+	state.window = xcb_generate_id(state.connection)
+	event_mask := mask.XCB_CW_BACK_PIXEL | mask.XCB_CW_EVENT_MASK
+	// event_mask := xcb_cw_t.XCB_CW_BACK_PIXEL
+	event_values := mask2.XCB_EVENT_MASK_BUTTON_PRESS | mask2.XCB_EVENT_MASK_BUTTON_RELEASE |
+                       mask2.XCB_EVENT_MASK_KEY_PRESS | mask2.XCB_EVENT_MASK_KEY_RELEASE |
+                       mask2.XCB_EVENT_MASK_EXPOSURE | mask2.XCB_EVENT_MASK_POINTER_MOTION |
+                       mask2.XCB_EVENT_MASK_STRUCTURE_NOTIFY
+	value_list : []u32 = {state.screen.black_pixel, 0}
+    cookie: xcb_void_cookie = xcb_create_window(state.connection, 0, state.window, state.screen.root, x, y, width, height, 0, 1, state.screen.root_visual, 11, &value_list)
+	xcb_map_window(state.connection, state.window)
+	stream_result: i32 = xcb_flush(state.connection)
+	if stream_result <= 0 {
+		// l.fatal("An error occured when flushing the stream: %d", stream_result)
+		return false
+	}
+	return true
+}
+
+platform_shutdown :: proc(plat_state: ^platform_state) {
+	fmt.println("PLATFORM SHUTDOWN")
+	state: ^internal_state = transmute(^internal_state)plat_state.internal_state
+	xlib.XAutoRepeatOn(state.display)
+	xcb_destroy_window(state.connection, state.window)
+	defer free(plat_state.internal_state)
 }
