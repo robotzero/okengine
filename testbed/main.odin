@@ -50,8 +50,9 @@ main :: proc() {
 		l.log_fatal("Fail")
 	}
 
-	for {
-		pl.platform_pump_messages(&state)
+	for pl.platform_pump_messages(&state) == true {
+		l.log_info("STILL ALIVE")
 	}
+
 	defer pl.platform_shutdown(&state)
 }
