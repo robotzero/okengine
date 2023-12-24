@@ -49,5 +49,9 @@ main :: proc() {
 	if ok:= pl.platform_setup(&state, "OK Engine Testbed", 100, 100, 1280, 720); !ok {
 		l.log_fatal("Fail")
 	}
+
+	for {
+		pl.platform_pump_messages(&state)
+	}
 	defer pl.platform_shutdown(&state)
 }

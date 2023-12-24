@@ -28,7 +28,7 @@ xcb_keycode_t :: distinct u8
 xcb_window_t :: distinct uint
 xcb_colormap_t :: distinct uint
 xcb_visualid_t :: distinct uint
-xcb_atom_t :: distinct rawptr
+xcb_atom_t :: distinct uint
 
 xcb_intern_atom_reply_t :: struct {
 	response_type: u8,
@@ -197,6 +197,21 @@ _xcb_out :: struct {
 	},
 }
 
+xcb_client_message_data :: struct {
+	data8: [20]u8,
+	data16: [10]u16,
+	data32: [5]u32,
+}
+
+xcb_client_message_event_t :: struct {
+	response_type: u8,
+	format: u8,
+	sequence: u16,
+	window: xcb_window_t,
+	type: xcb_atom_t,
+	data: xcb_client_message_data,
+}
+
 xcb_connection_t :: struct {
 	has_error: i32,
 	setup: ^xcb_setup_t,
@@ -251,6 +266,7 @@ foreign xcb {
 	xcb_change_property :: proc(^xcb_connection_t, u8, xcb_window_t, xcb_atom_t, xcb_atom_t, u8, u32, rawptr) ---
 	xcb_intern_atom_reply :: proc(^xcb_connection_t, xcb_intern_atom_cooke_t, ^^xcb_generic_error_t) -> ^xcb_intern_atom_reply_t ---
 	xcb_intern_atom :: proc(^xcb_connection_t, u8, u16, cstring) -> xcb_intern_atom_cooke_t ---
+	xcb_poll_for_event :: proc(^xcb_connection_t) -> ^xcb_generic_event_t ---
 }
 
 @(default_calling_convention="c", private)
@@ -284,6 +300,7 @@ xcb_generic_error_t :: struct {
 
 platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x: i16, y: i16, width: u16, height: u16) -> bool {
 	plat_state.internal_state = new(internal_state)
+	length:= cast(u32)len(application_name)
 	state : ^internal_state = transmute(^internal_state)plat_state.internal_state
 	state.display = xlib.XOpenDisplay(nil)
 	// xlib.XAutoRepeatOff(state.display)
@@ -309,7 +326,7 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
                        mask2.XCB_EVENT_MASK_STRUCTURE_NOTIFY
 	value_list : []u32 = {state.screen.black_pixel, 0}
     cookie: xcb_void_cookie = xcb_create_window(state.connection, 0, state.window, state.screen.root, x, y, width, height, 0, 1, state.screen.root_visual, 11, &value_list)
-	xcb_change_property(state.connection, XCB_PROP_MODE_REPLACE, state.window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, len(application_name), application_name)
+	xcb_change_property(state.connection, XCB_PROP_MODE_REPLACE, state.window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, length, transmute(rawptr)(application_name))
 	wm_delete_cookie : xcb_intern_atom_cooke_t = xcb_intern_atom(state.connection, 0, len("WM_DELETE_WINDOW"), "DELETE_WINDOW")
 	wm_protocols_cookie: xcb_intern_atom_cooke_t = xcb_intern_atom(state.connection, 0, len("WM_PROTOCOLS"), "WM_PROTOCOLS")
 	wm_delete_reply: ^xcb_intern_atom_reply_t = xcb_intern_atom_reply(state.connection, wm_delete_cookie, nil)
@@ -324,6 +341,30 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
 		return false
 	}
 	return true
+}
+
+platform_pump_messages :: proc(plat_state: ^platform_state) {
+	state : ^internal_state = transmute(^internal_state)plat_state.internal_state
+	quit_flagged := false
+	event: ^xcb_generic_event_t
+	cm: ^xcb_client_message_event_t
+
+	for event != nil {
+		event = xcb_poll_for_event(state.connection)
+		if event == nil {
+			break;
+		}
+
+		switch event.response_type & ~XCB_EVENT_MASK {
+			case XCB_CLIENT_MESSAGE: {
+				cm = transmute(^xcb_client_message_event_t) event;
+				if cm.data.data32[0] == cast(u32)state.wm_delete_win {
+					quit_flagged = true
+				}
+			}
+		}
+		free(event)
+	}
 }
 
 platform_shutdown :: proc(plat_state: ^platform_state) {
