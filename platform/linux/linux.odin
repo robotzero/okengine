@@ -82,20 +82,19 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 
 	for event != nil {
 		event = poll_for_event(state.connection)
-		if event == nil {
-			break;
-		}
-
-		switch (event.responseType & 0x7f) {
-			case CLIENT_MESSAGE: {
-				cm = cast(^ClientMessageEvent) event;
-				if cm.data.data32[0] == cast(u32)state.wm_delete_win {
-					quit_flagged = true
+		if event != nil {
+			switch (event.responseType & 0x7f) {
+				case CLIENT_MESSAGE: {
+					cm = cast(^ClientMessageEvent) event;
+					if cm.data.data32[0] == cast(u32)state.wm_delete_win {
+						quit_flagged = true
+					}
 				}
 			}
+			free(event)
 		}
-		free(event)
 	}
+
 	return !quit_flagged
 }
 
