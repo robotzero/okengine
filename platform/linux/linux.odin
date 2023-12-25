@@ -57,7 +57,7 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
                        EventMask.StructureNotify)
 	value_list : [3]u32 = {state.screen.blackPixel, event_values, 0}
     cookie: VoidCookie = create_window(state.connection, cast(u8) WindowClass.CopyFromParent, state.window, state.screen.root, x, y, width, height, 0, cast(u16) WindowClass.InputOutput, state.screen.rootVisual, event_mask, &value_list[0])
-	change_property(state.connection, cast(u8) PropMode.Replace, state.window, cast(u32) AtomEnum.AtomWmName, cast(u32) AtomEnum.AtomString, 8, length, transmute(rawptr)(application_name))
+	change_property(state.connection, cast(u8) PropMode.Replace, state.window, cast(u32) AtomEnum.AtomWmName, cast(u32) AtomEnum.AtomString, 8, length, cast(rawptr)(application_name))
 	wm_delete_cookie : InternAtomCookie = intern_atom(state.connection, 0, len("WM_DELETE_WINDOW"), "DELETE_WINDOW")
 	wm_protocols_cookie: InternAtomCookie = intern_atom(state.connection, 0, len("WM_PROTOCOLS"), "WM_PROTOCOLS")
 	wm_delete_reply: ^InternAtomReply = intern_atom_reply(state.connection, wm_delete_cookie, nil)
@@ -109,4 +109,14 @@ platform_shutdown :: proc(plat_state: ^platform_state) {
 	xlib.XAutoRepeatOn(state.display)
 	destroy_window(state.connection, state.window)
 	defer free(plat_state.internal_state)
+}
+
+platform_console_write :: proc(message: cstring, colour: u8) {
+	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	fmt_message: string = fmt.aprintf("\033[%sm%s\033[0m", color_strings[colour], message)
+}
+
+platform_console_write_error :: proc(message: cstring, colour: u8) {
+	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	fmt.printf("\033[%sm%s\033[0m", color_strings[colour], message)
 }
