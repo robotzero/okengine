@@ -6,192 +6,117 @@ import xlib "vendor:x11/xlib"
 import "core:sys/unix"
 import "core:path/filepath"
 import "core:fmt"
+// import l "../engine/core/logger"
 foreign import X11xcb "system:X11-xcb"
-// foreign import xcb "system:libxcb.so"
-foreign import xcb "system:xcb"
-foreign import xlib2 "system:X11"
 
-// internal_state :: struct {
-// 	// display : ^xlib.Display,
-// 	connection: ^xcb.xcb_connection_t,
-// }
-
-_xcb_xid :: struct {
-	lock: unix.pthread_mutex_t,
-	last: i32,
-	base: i32,
-	max: i32,
-	inc: i32,
-}
-
-xcb_keycode_t:: distinct u8
-
-xcb_setup_t :: struct {
-	status: u8,
-	pad0: u8,
-	protocol_major_version: u16,
- 	protocol_minor_version: u16,
-    length: u16,
-	release_number: u32,
-	resource_id_base: u32,
-	resource_id_mask: u32,
-	motion_buffer_size: u32,
-	vendor_len: u16,
-	maximum_request_length: u16,
-	roots_len: u8,
-	pixmap_formats_len: u8,
-	image_byte_order: u8,
-	bitmap_format_bit_order: u8,
-	bitmap_format_scanline_unit: u8,
-	bitmap_format_scanline_pad: u8,
-	min_keycode: xcb_keycode_t,
-	max_keycode: xcb_keycode_t,
-    pad1: [4]u8,
-}
-
-node :: struct {
-	next: ^node,
-	key: u32,
-	data: rawptr,
-}
-
-_xcb_map :: struct {
-	head: ^node,
-	tail: ^^node,
-}
-
-reply_list :: struct {
-	reply: rawptr,
-	next: ^reply_list,
-}
-
-xcb_generic_event_t :: struct {
-	response_type: u8,
-	pad0: u8,
-	sequence: u16,
-	pad: [7]u32,
-	full_sequence: u32,
-}
-
-event_list :: struct {
-	event: ^xcb_generic_event_t,
-	next: ^event_list,
-}
-
-reader_list :: struct {
-	request: u64,
-	data: ^unix.pthread_cond_t,
-	next: ^reader_list,
-}
-
-xcb_special_event :: struct {
-	next: ^xcb_special_event,
-	extension: u8,
-	eid: u32,
-	stamp: ^u32,
-	events: ^event_list,
-	events_tail: ^^event_list,
-	special_event_cond: unix.pthread_cond_t,
-}
-
-special_list :: struct {
-	se: ^xcb_special_event,
-	next: ^special_list,
-}
-
-Workarounds :: enum {
-   WORKAROUND_NONE,
-   WORKAROUND_GLX_GET_FB_CONFIGS_BUG,
-   WORKAROUND_EXTERNAL_SOCKET_OWNER,
-}
-
-Lazy_reply_tag :: enum {
-	LAZY_NONE = 0,
-	LAZY_COOKIE,
-	LAZY_FORCED,
-}
-
-xcb_big_requests_enable_cookie_t :: struct {
-	sequence: u32,
-}
-
-Blah :: union {
-	xcb_big_requests_enable_cookie_t,
-	u32,
-}
-
-pending_reply :: struct {
-	first_request: u64,
-	last_request: u64,
-	workaround: Workarounds,
-	flags: i32,
-	next: ^pending_reply,
-}
-
-_xcb_in :: struct {
-	event_cond: unix.pthread_cond_t,
-	reading: i32,
-	queue: [4096]b8,
-	request_expected: u64,
-	request_read: u64,
-	request_completed: u64,
-	current_reply: ^reply_list,
-	current_reply_tail: ^^reply_list, 
-	replies: ^_xcb_map,
-	events: ^event_list,
-	events_tail: ^^event_list,
-	readers: ^reader_list,
-	special_waiters: ^special_list,
-	pending_replies: ^pending_reply,
-	pending_replies_tail: ^^pending_reply,
-	special_events: ^xcb_special_event,
-}
-
-_xcb_out :: struct {
-	cond: unix.pthread_cond_t,
-	writing: i32,
-	socket_cond: unix.pthread_cond_t,
-	return_socket: proc "c" (closure: rawptr),
-	socket_clousure: rawptr,
-	queue: [16384]b8,
-	queue_len: i32,
-	request: u64,
-	request_written: u64,
-	reqlenlock: unix.pthread_mutex_t,
-	maximum_request_length_tag: Lazy_reply_tag,
-	maximum_request_length: Blah,
-}
-
-xcb_connection_t :: struct {
-	has_error: i32,
-	setup: ^xcb_setup_t,
-	fd: i32,
-	iolock: unix.pthread_mutex_t,
-	in_: _xcb_in,
-	out: _xcb_out,
-	// ext: _xcb_ext,
-	// xid: _xcb_xid,
-}
-
-@(default_calling_convention="c")
-foreign xcb {
-	xcb_connection_has_error :: proc(^xcb_connection_t) -> i32 ---
-	xcb_get_setup :: proc(^xcb_connection_t) -> ^xcb_setup_t ---
-}
-
-@(default_calling_convention="c")
+@(default_calling_convention="c", private)
 foreign X11xcb {
-	XGetXCBConnection :: proc(^xlib.Display) -> ^xcb_connection_t ---
+	XGetXCBConnection :: proc(^xlib.Display) -> ^Connection ---
 }
-platform_setup :: proc() {
-	display: ^xlib.Display = xlib.XOpenDisplay(nil)
-	xlib.XAutoRepeatOff(display)
-	connection: ^xcb_connection_t = XGetXCBConnection(display)
+
+internal_state :: struct {
+	display: ^xlib.Display,
+	connection: ^Connection,
+	window: Window,
+	screen: ^Screen,
+    wm_protocols: Atom,
+	wm_delete_win: Atom,
+}
+
+platform_state :: struct {
+	internal_state: rawptr,
+}
+
+platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x: i16, y: i16, width: u16, height: u16) -> bool {
+	plat_state.internal_state = new(internal_state)
+	length:= cast(u32)len(application_name)
+	state : ^internal_state = cast(^internal_state)plat_state.internal_state
+	state.display = xlib.XOpenDisplay(nil)
+	xlib.XAutoRepeatOff(state.display)
+	screen_p: i32 = 0
+	state.connection = XGetXCBConnection(state.display)
+	// state.connection = connect(nil, &screen_p)
 	// @TODO use or_error
-	if (xcb_connection_has_error(connection) == 1) {
-		panic("")
+	if (connection_has_error(state.connection) == 1) {
+		return false
 	}
 
-	setup : ^xcb_setup_t = xcb_get_setup(connection)
-    
+	setup : ^Setup = get_setup(state.connection)
+    it : ScreenIterator = setup_roots_iterator(setup)
+	
+	for s : i32 = 0; s < screen_p; s -= 1 {
+		screen_next(&it)
+	}
+	state.screen = it.data
+	state.window = generate_id(state.connection)
+	event_mask := cast(u32) (Cw.BackPixel | Cw.EventMask)
+	
+	event_values := cast(u32) (EventMask.ButtonPress | EventMask.ButtonRelease |
+                       EventMask.KeyPress | EventMask.KeyRelease |
+                       EventMask.Exposure | EventMask.PointerMotion |
+                       EventMask.StructureNotify)
+	value_list : [3]u32 = {state.screen.blackPixel, event_values, 0}
+    cookie: VoidCookie = create_window(state.connection, cast(u8) WindowClass.CopyFromParent, state.window, state.screen.root, x, y, width, height, 0, cast(u16) WindowClass.InputOutput, state.screen.rootVisual, event_mask, &value_list[0])
+	change_property(state.connection, cast(u8) PropMode.Replace, state.window, cast(u32) AtomEnum.AtomWmName, cast(u32) AtomEnum.AtomString, 8, length, cast(rawptr)(application_name))
+	wm_delete_cookie : InternAtomCookie = intern_atom(state.connection, 0, len("WM_DELETE_WINDOW"), "DELETE_WINDOW")
+	wm_protocols_cookie: InternAtomCookie = intern_atom(state.connection, 0, len("WM_PROTOCOLS"), "WM_PROTOCOLS")
+	wm_delete_reply: ^InternAtomReply = intern_atom_reply(state.connection, wm_delete_cookie, nil)
+	wm_protocols_reply: ^InternAtomReply = intern_atom_reply(state.connection, wm_protocols_cookie, nil)
+	state.wm_delete_win = wm_delete_reply.atom
+	state.wm_protocols = wm_protocols_reply.atom
+	change_property(state.connection, cast(u8) PropMode.Replace, state.window, wm_protocols_reply.atom, 4, 32, 1, &wm_delete_reply.atom)
+	map_window(state.connection, state.window)
+	stream_result: i32 = flush(state.connection)
+	if stream_result <= 0 {
+		// l.fatal("An error occured when flushing the stream: %d", stream_result)
+		return false
+	}
+	return true
+}
+
+platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
+	state : ^internal_state = cast(^internal_state)plat_state.internal_state
+	quit_flagged := false
+	event: ^GenericEvent
+	cm: ^ClientMessageEvent
+	event = poll_for_event(state.connection)
+	if event != nil {
+		switch (event.responseType & 0x7f) {
+			case CLIENT_MESSAGE: {
+				cm = cast(^ClientMessageEvent) event
+				if cm.data.data32[0] == cast(u32)state.wm_delete_win {
+					quit_flagged = true
+				}
+			}
+			case KEY_PRESS: {
+				keyPressEvent := cast(^KeyPressEvent) event
+				fmt.println("HELLO DENVER")
+				if keyPressEvent.detail == 9 {
+					quit_flagged = true
+				}
+			}
+		}
+		// free(event)
+		flush(state.connection)
+	}
+
+	return quit_flagged
+}
+
+platform_shutdown :: proc(plat_state: ^platform_state) {
+	fmt.println("PLATFORM SHUTDOWN")
+	state: ^internal_state = cast(^internal_state)plat_state.internal_state
+	xlib.XAutoRepeatOn(state.display)
+	destroy_window(state.connection, state.window)
+	defer free(plat_state.internal_state)
+}
+
+platform_console_write :: proc(message: cstring, colour: u8) {
+	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	fmt_message: string = fmt.aprintf("\033[%sm%s\033[0m", color_strings[colour], message)
+}
+
+platform_console_write_error :: proc(message: cstring, colour: u8) {
+	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	fmt.printf("\033[%sm%s\033[0m", color_strings[colour], message)
 }

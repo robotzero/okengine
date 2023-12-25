@@ -16,8 +16,8 @@ shutdown_logging :: proc() {
 
 @(private)
 log_output :: proc(log_level: log.Level, message: cstring, location := #caller_location) {
-	out_message := make([]byte, 32000)
-	defer mem.zero_slice(out_message)
+	// out_message := make([]byte, 32000)
+	// defer mem.zero_slice(out_message)
 	log.log(log_level, message, location = location)
 }
 
