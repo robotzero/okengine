@@ -2,11 +2,13 @@
 //+build linux
 package platform
 
-import xlib "vendor:x11/xlib"
 import "core:sys/unix"
 import "core:path/filepath"
 import "core:fmt"
-// import l "../engine/core/logger"
+import "core:log"
+
+import xlib "vendor:x11/xlib"
+
 foreign import X11xcb "system:X11-xcb"
 
 @(default_calling_convention="c", private)
@@ -111,12 +113,28 @@ platform_shutdown :: proc(plat_state: ^platform_state) {
 	defer free(plat_state.internal_state)
 }
 
-platform_console_write :: proc(message: cstring, colour: u8) {
+platform_console_write :: proc(log_level: log.Level, message: string, location := #caller_location) {
 	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
-	fmt_message: string = fmt.aprintf("\033[%sm%s\033[0m", color_strings[colour], message)
+	colour := 3
+	switch log_level {
+		case .Info: colour = 3
+		case .Debug : colour = 4
+		case .Warning : colour = 2
+		case .Error: colour = 1
+		case .Fatal: colour = 0
+	}
+	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
 }
 
-platform_console_write_error :: proc(message: cstring, colour: u8) {
+platform_console_write_error :: proc(log_level: log.Level, message: string, location := #caller_location) {
 	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
-	fmt.printf("\033[%sm%s\033[0m", color_strings[colour], message)
+	colour := 3
+	switch log_level {
+		case .Info: colour = 3
+		case .Debug : colour = 4
+		case .Warning : colour = 2
+		case .Error: colour = 1
+		case .Fatal: colour = 0
+	}
+	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
 }

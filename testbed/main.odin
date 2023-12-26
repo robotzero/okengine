@@ -1,11 +1,12 @@
 package testbed
 
 import "core:fmt"
-import l "../engine/core/logger"
-import pl "../platform/linux"
 import "core:log"
 import "core:runtime"
 import "core:mem"
+
+import l "../engine/core/logger"
+import pl "../platform/linux"
 
 main :: proc() {
 
@@ -44,14 +45,20 @@ main :: proc() {
 	}
 
 	context.logger = log.create_console_logger(lowest, log_options)
+
     defer log.destroy_console_logger(context.logger)
 	state: pl.platform_state
 	if ok:= pl.platform_setup(&state, "OK Engine Testbed", 100, 100, 1280, 720); !ok {
 		l.log_fatal("Fail")
 	}
 
+	l.log_info("info %f", 3.14)
+	l.log_debug("debug %f", 3.14)
+	l.log_fatal("fatal %f", 3.14)
+	l.log_error("error %f", 3.14)
+	l.log_warning("warning %f", 3.14)
 	for pl.platform_pump_messages(&state) == false {
-		l.log_info("STILL ALIVE")
+		// l.log_info("STILL ALIVE")
 	}
 
 	defer pl.platform_shutdown(&state)

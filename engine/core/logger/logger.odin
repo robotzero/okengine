@@ -5,6 +5,8 @@ import "core:runtime"
 import "core:mem"
 import "core:fmt"
 
+import pl "../../../platform/linux"
+
 LOG_WARN_ENABLED  :: true
 LOG_INFO_ENABLED  :: true
 LOG_TRACE_ENABLED :: true
@@ -12,36 +14,42 @@ LOG_TRACE_ENABLED :: true
 shutdown_logging :: proc() {
 	
 }
-// @TOOD make buffered login system
-
+// @TOOD make buffered login systemd
 @(private)
-log_output :: proc(log_level: log.Level, message: cstring, location := #caller_location) {
+log_output :: proc(log_level: log.Level, message: string, location := #caller_location, args: ..any) {
 	// out_message := make([]byte, 32000)
 	// defer mem.zero_slice(out_message)
-	log.log(log_level, message, location = location)
+
+	out_message := fmt.tprintf(message, ..args)
+	is_error: bool = log_level > log.Level.Warning
+	if is_error {
+		pl.platform_console_write_error(log_level, out_message, location)
+	} else {
+		pl.platform_console_write(log_level, out_message, location)
+	}
 }
 
 @(disabled = LOG_INFO_ENABLED == false)
-log_info :: proc(message: cstring, location := #caller_location) {
-	log_output(log.Level.Info, message, location)
+log_info :: proc(message: string, args: ..any, location := #caller_location) {
+	log_output(log.Level.Info, message, location, ..args)
 }
 
 @(disabled = ODIN_DEBUG == false)
-log_debug :: proc(message: cstring, location := #caller_location) {
-	log_output(log.Level.Debug, message, location)
+log_debug :: proc(message: string, args: ..any, location := #caller_location) {
+	log_output(log.Level.Debug, message, location, ..args)
 }
 
-log_fatal :: proc(message: cstring, location := #caller_location) {
-	log_output(log.Level.Fatal, message, location)
+log_fatal :: proc(message: string, args: ..any, location := #caller_location) {
+	log_output(log.Level.Fatal, message, location, ..args)
 }
 
-log_error :: proc(message: cstring, location := #caller_location) {
-	log_output(log.Level.Error, message, location)
+log_error :: proc(message: string, args: ..any, location := #caller_location) {
+	log_output(log.Level.Error, message, location, ..args)
 }
 
 @(disabled = LOG_WARN_ENABLED == false)
-log_warning :: proc(message: cstring, location := #caller_location) {
-	log_output(log.Level.Warning, message, location)
+log_warning :: proc(message: string, args: ..any, location := #caller_location) {
+	log_output(log.Level.Warning, message, location, ..args)
 }
 
 // rl_log_buf: []byte
