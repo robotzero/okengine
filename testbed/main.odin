@@ -57,6 +57,7 @@ main :: proc() {
 	l.log_fatal("fatal %f", 3.14)
 	l.log_error("error %f", 3.14)
 	l.log_warning("warning %f", 3.14)
+
 	for pl.platform_pump_messages(&state) == false {
 		// l.log_info("STILL ALIVE")
 	}

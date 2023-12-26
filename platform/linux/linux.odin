@@ -6,6 +6,7 @@ import "core:sys/unix"
 import "core:path/filepath"
 import "core:fmt"
 import "core:log"
+import "core:time"
 
 import xlib "vendor:x11/xlib"
 
@@ -137,4 +138,14 @@ platform_console_write_error :: proc(log_level: log.Level, message: string, loca
 		case .Fatal: colour = 0
 	}
 	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
+}
+
+platform_get_absolute_time :: proc() -> i64 {
+	current_time:= time.now()
+	return current_time._nsec
+}
+
+platform_sleep :: proc(ms: f64) {
+	duration := time.Duration(ms) * time.Millisecond
+	time.sleep(duration)
 }
