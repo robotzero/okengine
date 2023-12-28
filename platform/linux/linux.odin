@@ -38,8 +38,6 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
 	xlib.XAutoRepeatOff(state.display)
 	screen_p: i32 = 0
 	state.connection = XGetXCBConnection(state.display)
-	// state.connection = connect(nil, &screen_p)
-	// @TODO use or_error
 	if (connection_has_error(state.connection) == 1) {
 		return false
 	}
@@ -93,7 +91,7 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 			}
 			case KEY_PRESS: {
 				keyPressEvent := cast(^KeyPressEvent) event
-				fmt.println("HELLO DENVER")
+				platform_console_write(log.Level.Info, "Hello Denver")
 				if keyPressEvent.detail == 9 {
 					quit_flagged = true
 				}
@@ -107,7 +105,7 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 }
 
 platform_shutdown :: proc(plat_state: ^platform_state) {
-	fmt.println("PLATFORM SHUTDOWN")
+	platform_console_write(log.Level.Info, "Platform Shtudwon")
 	state: ^internal_state = cast(^internal_state)plat_state.internal_state
 	xlib.XAutoRepeatOn(state.display)
 	destroy_window(state.connection, state.window)
