@@ -7,6 +7,7 @@ import "core:path/filepath"
 import "core:fmt"
 import "core:log"
 import "core:time"
+import "core:strings"
 
 import xlib "vendor:x11/xlib"
 
@@ -30,7 +31,9 @@ platform_state :: struct {
 	internal_state: rawptr,
 }
 
-platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x: i16, y: i16, width: u16, height: u16) -> bool {
+platform_startup :: proc(plat_state: ^platform_state, application_name: string, x: i32, y: i32, width: i32, height: i32) -> bool {
+	// @TODO use custom allocator? and maybe catch the error
+	app_name: cstring = strings.clone_to_cstring(application_name)
 	plat_state.internal_state = new(internal_state)
 	length:= cast(u32)len(application_name)
 	state : ^internal_state = cast(^internal_state)plat_state.internal_state
@@ -57,8 +60,8 @@ platform_setup :: proc(plat_state: ^platform_state, application_name: cstring, x
                        EventMask.Exposure | EventMask.PointerMotion |
                        EventMask.StructureNotify)
 	value_list : [3]u32 = {state.screen.blackPixel, event_values, 0}
-    cookie: VoidCookie = create_window(state.connection, cast(u8) WindowClass.CopyFromParent, state.window, state.screen.root, x, y, width, height, 0, cast(u16) WindowClass.InputOutput, state.screen.rootVisual, event_mask, &value_list[0])
-	change_property(state.connection, cast(u8) PropMode.Replace, state.window, cast(u32) AtomEnum.AtomWmName, cast(u32) AtomEnum.AtomString, 8, length, cast(rawptr)(application_name))
+    cookie: VoidCookie = create_window(state.connection, cast(u8) WindowClass.CopyFromParent, state.window, state.screen.root, cast(i16)x, cast(i16)y, cast(u16)width, cast(u16)height, 0, cast(u16) WindowClass.InputOutput, state.screen.rootVisual, event_mask, &value_list[0])
+	change_property(state.connection, cast(u8) PropMode.Replace, state.window, cast(u32) AtomEnum.AtomWmName, cast(u32) AtomEnum.AtomString, 8, length, cast(rawptr)(app_name))
 	wm_delete_cookie : InternAtomCookie = intern_atom(state.connection, 0, len("WM_DELETE_WINDOW"), "DELETE_WINDOW")
 	wm_protocols_cookie: InternAtomCookie = intern_atom(state.connection, 0, len("WM_PROTOCOLS"), "WM_PROTOCOLS")
 	wm_delete_reply: ^InternAtomReply = intern_atom_reply(state.connection, wm_delete_cookie, nil)

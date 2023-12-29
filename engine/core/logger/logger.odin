@@ -11,6 +11,10 @@ LOG_WARN_ENABLED  :: true
 LOG_INFO_ENABLED  :: true
 LOG_TRACE_ENABLED :: true
 
+initialize_logging :: proc() -> bool {
+	return true
+}
+
 shutdown_logging :: proc() {
 	
 }
