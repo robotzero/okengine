@@ -43,18 +43,18 @@ application_create :: proc(game_inst: ^game) -> bool {
 	app_state.is_running = true
 	app_state.is_suspended = false
 
-	if !pl.platform_startup(
+	if ok: = pl.platform_startup(
 		&app_state.platform,
 		game_inst.app_config.name,
 		game_inst.app_config.start_pos_x,
 		game_inst.app_config.start_pos_y,
 		game_inst.app_config.start_width,
 		game_inst.app_config.start_height,
-	) {
+	); !ok {
 			return false
 	}
 
-	if !app_state.game_inst.initialize(app_state.game_inst) {
+	if ok:= app_state.game_inst.initialize(app_state.game_inst); !ok {
 		return false
 	}
 
