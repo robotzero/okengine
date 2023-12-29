@@ -40,13 +40,17 @@ application_create :: proc(game_inst: ^game) -> bool {
 	l.log_error("error %f", 3.14)
 	l.log_warning("warning %f", 3.14)
 
+	app_state.is_running = true
+	app_state.is_suspended = false
+
 	if !pl.platform_startup(
 		&app_state.platform,
 		game_inst.app_config.name,
 		game_inst.app_config.start_pos_x,
 		game_inst.app_config.start_pos_y,
 		game_inst.app_config.start_width,
-		game_inst.app_config.start_height) {
+		game_inst.app_config.start_height,
+	) {
 			return false
 	}
 
@@ -63,6 +67,8 @@ application_create :: proc(game_inst: ^game) -> bool {
 
 application_run :: proc() -> bool {
 	defer pl.platform_shutdown(&app_state.platform)
+	defer pl.platform_free(app_state.game_inst.state)
+
 	for app_state.is_running {
 		if pl.platform_pump_messages(&app_state.platform) {
 			app_state.is_running = false

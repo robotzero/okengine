@@ -2,10 +2,50 @@ package testbed
 
 import c "../engine/core"
 import l "../engine/core/logger"
+import "core:log"
+import "core:mem"
+import "core:fmt"
 
 main :: proc() {
-	game_inst: c.game
 
+	log_options := log.Options {
+		.Level,
+		.Time,
+		.Line,
+		.Short_File_Path,
+		.Terminal_Color,
+		.Procedure,
+	}
+
+	when ODIN_DEBUG {
+		lowest :: log.Level.Debug
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		defer {
+			if len(track.allocation_map) > 0 {
+				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
+				for _, entry in track.allocation_map {
+					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+				}
+			}
+			if len(track.bad_free_array) > 0 {
+				fmt.eprintf("=== %v incorrect frees: ===\n", len(track.bad_free_array))
+				for entry in track.bad_free_array {
+					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
+				}
+			}
+			mem.tracking_allocator_destroy(&track)
+		}
+	} else {
+		lowest :: log.Level.Info
+	}
+
+	context.logger = log.create_console_logger(lowest, log_options)
+
+    defer log.destroy_console_logger(context.logger)
+	game_inst: c.game
 	if !create_game(&game_inst) {
 		l.log_fatal("Could not create game")
 	}
@@ -23,6 +63,7 @@ main :: proc() {
 	if !c.application_run() {
 		l.log_info("application did not shutdown gracefully.")
 	}
+	defer mem.free_all()
 
 	// @TODO exit 0
 }

@@ -8,6 +8,7 @@ import "core:fmt"
 import "core:log"
 import "core:time"
 import "core:strings"
+import "core:mem"
 
 import xlib "vendor:x11/xlib"
 
@@ -34,6 +35,7 @@ platform_state :: struct {
 platform_startup :: proc(plat_state: ^platform_state, application_name: string, x: i32, y: i32, width: i32, height: i32) -> bool {
 	// @TODO use custom allocator? and maybe catch the error
 	app_name: cstring = strings.clone_to_cstring(application_name)
+	defer delete(app_name)
 	plat_state.internal_state = new(internal_state)
 	length:= cast(u32)len(application_name)
 	state : ^internal_state = cast(^internal_state)plat_state.internal_state
@@ -149,4 +151,12 @@ platform_get_absolute_time :: proc() -> i64 {
 platform_sleep :: proc(ms: f64) {
 	duration := time.Duration(ms) * time.Millisecond
 	time.sleep(duration)
+}
+
+platform_allocate :: proc(size: u64, aligned: bool, $T: typeid) -> ^T {
+	return new(T)
+}
+
+platform_free :: proc(object: $T) {
+	mem.free(object)
 }
