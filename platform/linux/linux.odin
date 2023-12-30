@@ -160,3 +160,13 @@ platform_allocate :: proc(size: u64, aligned: bool, $T: typeid) -> ^T {
 platform_free :: proc(object: $T) {
 	mem.free(object)
 }
+
+platform_zero_memory :: proc(ptr: rawptr, size: int) -> rawptr {
+	mem.set(ptr, 0, size)
+	return ptr
+}
+
+platform_set_memory :: proc(ptr: rawptr, value: byte, size: int) -> rawptr {
+	mem.set(ptr, value, size)
+	return ptr
+}

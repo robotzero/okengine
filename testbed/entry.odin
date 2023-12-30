@@ -8,6 +8,8 @@ import "core:fmt"
 
 main :: proc() {
 
+	c.initialize_memory()
+
 	log_options := log.Options {
 		.Level,
 		.Time,
@@ -64,6 +66,6 @@ main :: proc() {
 		l.log_info("application did not shutdown gracefully.")
 	}
 	defer mem.free_all()
-
+	defer c.shutdown_memory()
 	// @TODO exit 0
 }
