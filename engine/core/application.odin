@@ -2,6 +2,7 @@ package core
 
 import l "logger"
 import pl "../../platform/linux"
+import d "../containers"
 
 application_state :: struct {
 	game_inst: ^game,
@@ -43,6 +44,11 @@ application_create :: proc(game_inst: ^game) -> bool {
 	app_state.is_running = true
 	app_state.is_suspended = false
 
+	if ok: = event_initialize(); !ok {
+		l.log_error("Event system failed initialization. Application cannot continue.")
+		return false
+	}
+
 	if ok: = pl.platform_startup(
 		&app_state.platform,
 		game_inst.app_config.name,
@@ -78,16 +84,19 @@ application_run :: proc() -> bool {
 			if !app_state.game_inst.update(app_state.game_inst, 0.0) {
 				l.log_fatal("Game update failed, shutting down.")
 				app_state.is_running = false
-				//@TODO make sure we are breaking here like (break or continue)
+				break
 			}
 
 			if !app_state.game_inst.render(app_state.game_inst, 0.0) {
 				l.log_fatal("Game render failed, shutting down.")
 				app_state.is_running = false
+				break
 			}
 		}
 	}
 	app_state.is_running = false
+	event_shutdown()
+	pl.platform_shutdown(&app_state.platform)
 
 	return true
 }
