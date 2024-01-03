@@ -173,24 +173,10 @@ event_fire :: proc(code: u16, sender: rawptr, ev_context: event_context) -> bool
 }
 
 event_shutdown :: proc() {
-	// @TODO is there a chance we override this range?
 	for v, index in &state.registered {
 		if v.events != nil {
 			cnt.darray_destroy(v.events)
 			v.events = nil
 		}
 	}
-	// for registered in state.registered {
-	// 	if registered.events != nil {
-	// 		cnt.darray_destroy(registered.events)
-	// 		// @TODO check if dynamic array is empty?
-	// 		registered.events = nil
-	// 	}
-	// }
-	// for i:u16 = 0; i < MAX_MESSAGE_CODES; i = i + 1 {
-	// 	if state.registered[i].events != nil {
-	// 		cnt.darray_destroy(state.registered[i].events)
-	// 		state.registered[i].events = nil
-	// 	}
-	// }
 }
