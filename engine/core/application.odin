@@ -72,8 +72,10 @@ application_create :: proc(game_inst: ^game) -> bool {
 }
 
 application_run :: proc() -> bool {
+	defer event_shutdown()
 	defer pl.platform_shutdown(&app_state.platform)
 	defer pl.platform_free(app_state.game_inst.state)
+	defer app_state.is_running = false
 
 	for app_state.is_running {
 		if pl.platform_pump_messages(&app_state.platform) {
@@ -94,9 +96,6 @@ application_run :: proc() -> bool {
 			}
 		}
 	}
-	app_state.is_running = false
-	event_shutdown()
-	pl.platform_shutdown(&app_state.platform)
 
 	return true
 }
