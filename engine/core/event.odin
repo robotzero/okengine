@@ -83,23 +83,110 @@ event_system_state :: struct {
 	registered: [MAX_MESSAGE_CODES]event_code_entry,
 }
 
+// PFN_on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context)
+
 registered_event :: struct {
 	listener: rawptr,
-	callback: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context),
+	// @TODO defined in 3 placeces separately
+	callback: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool,
 }
 
 is_initialized : bool = false
 state : event_system_state
 
-event_shutdown :: proc() {
-	// @TODO is there a chance we override this range?
-	for registered in state.registered {
-		if registered.events != nil {
-			cnt.darray_destroy(registered.events)
-			// @TODO check if dynamic array is empty?
-			// registered.events = nil
+event_initialize :: proc() -> bool {
+	if is_initialized == true {
+		return false
+	}
+
+	is_initialized = false
+	kzero_memory(&state, size_of(state))
+	is_initialized = true
+
+	return true
+}
+
+event_register :: proc(code: u16, listener: rawptr, on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool) -> bool {
+	if is_initialized == false {
+		return false
+	}
+
+	if state.registered[code].events == nil {
+		state.registered[code].events = cnt.darray_create_default(registered_event)
+	}
+
+	registered_counts := cnt.darray_length(state.registered[code].events)
+
+	for v, _ in state.registered[code].events {
+		if v.listener == listener {
+			return false
 		}
 	}
+
+	// If at this point not duplicate was found, proceed with registration.
+	event : registered_event
+	event.listener = listener
+	event.callback = on_event
+	cnt.darray_push(&state.registered[code].events, event)	
+
+	return true
+}
+
+event_unregister :: proc(code: u16, listener: rawptr, on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool) -> bool {
+	if is_initialized == false {
+		return false
+	}
+
+	// On nothing is registered for the code, boot out.
+	if state.registered[code].events == nil {
+		return false
+	}
+
+	for v, index in state.registered[code].events {
+		if v.listener == listener && v.callback == on_event {
+			// Found it, remove it
+			cnt.darray_pop_at(&state.registered[code].events, index)
+			return true
+		}
+	}
+
+	return false
+}
+
+event_fire :: proc(code: u16, sender: rawptr, ev_context: event_context) -> bool {
+	if is_initialized == false {
+		return false
+	}
+
+	if state.registered[code].events == nil {
+		return false
+	}
+
+	for v, _ in state.registered[code].events {
+		if v.callback(code, sender, v.listener, ev_context) {
+			return true
+		}
+	}
+
+	// Not found
+	return false
+}
+
+event_shutdown :: proc() {
+	// @TODO is there a chance we override this range?
+	for v, index in &state.registered {
+		if v.events != nil {
+			cnt.darray_destroy(v.events)
+			v.events = nil
+		}
+	}
+	// for registered in state.registered {
+	// 	if registered.events != nil {
+	// 		cnt.darray_destroy(registered.events)
+	// 		// @TODO check if dynamic array is empty?
+	// 		registered.events = nil
+	// 	}
+	// }
 	// for i:u16 = 0; i < MAX_MESSAGE_CODES; i = i + 1 {
 	// 	if state.registered[i].events != nil {
 	// 		cnt.darray_destroy(state.registered[i].events)
