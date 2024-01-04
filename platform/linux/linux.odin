@@ -170,3 +170,7 @@ platform_set_memory :: proc(ptr: rawptr, value: byte, size: int) -> rawptr {
 	mem.set(ptr, value, size)
 	return ptr
 }
+
+platform_copy_memory :: proc(dest: rawptr, src: rawptr, size: int) -> rawptr {
+	return mem.copy(dest, src, size)
+}

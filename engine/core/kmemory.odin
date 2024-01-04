@@ -90,8 +90,8 @@ kzero_memory :: proc (block: rawptr, size: int) -> rawptr {
 	return pl.platform_zero_memory(block, size)
 }
 
-kcopy_memory :: proc() {
-	
+kcopy_memory :: proc(dest: rawptr, source: rawptr, size: int) -> rawptr {
+	return pl.platform_copy_memory(dest, source, size)
 }
 
 kset_memory :: proc(ptr: rawptr, value: byte, size: int) {

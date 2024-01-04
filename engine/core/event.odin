@@ -24,7 +24,7 @@ event_context :: struct {
 	},
 }
 
-system_event_code :: enum {
+system_event_code :: enum u16 {
 	// Shuts the application down on the next frame.
     EVENT_CODE_APPLICATION_QUIT = 0x01,
 

@@ -34,6 +34,7 @@ application_create :: proc(game_inst: ^game) -> bool {
 	app_state.game_inst = game_inst
 
 	l.initialize_logging()
+	input_initialize()
 	
 	l.log_info("info %f", 3.14)
 	l.log_debug("debug %f", 3.14)
@@ -72,6 +73,7 @@ application_create :: proc(game_inst: ^game) -> bool {
 }
 
 application_run :: proc() -> bool {
+	defer input_shutdown()
 	defer event_shutdown()
 	defer pl.platform_shutdown(&app_state.platform)
 	defer pl.platform_free(app_state.game_inst.state)
@@ -94,6 +96,11 @@ application_run :: proc() -> bool {
 				app_state.is_running = false
 				break
 			}
+			// NOTE: Input update/state copying should always be handled
+            // after any input should be recorded; I.E. before this line.
+            // As a safety, input is the last thing to be updated before
+            // this frame ends.
+            input_update(0)
 		}
 	}
 
