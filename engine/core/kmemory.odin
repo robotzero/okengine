@@ -105,9 +105,10 @@ get_memory_usage_str :: proc() -> string {
 
 	msg : string
 	//@TODO handle error from strings.concatenate
-	for i:=0; i< cast(int)memory_tag.MEMORY_TAG_MAX_TAGS; i = i + 1 {
+	for i:=0 ; i< cast(int)memory_tag.MEMORY_TAG_MAX_TAGS; i = i + 1 {
 		unit : string
 		amount : u64 = 1.0
+		message : string
 
 		if stats.tagged_allocations[i] >= gib {
 			unit = "GiB"
@@ -122,7 +123,8 @@ get_memory_usage_str :: proc() -> string {
 			unit = "B0"
 			amount = stats.tagged_allocations[i]
 		}
-		msg = strings.concatenate({msg, fmt.tprintf("System memory user (tagged):\n %s: %.2fs\n", memory_tag_strings[i], amount, unit)})
+		msg = strings.concatenate({message, fmt.tprintf("System memory user (tagged):\n %s: %.2fs\n", memory_tag_strings[i], amount, unit)})
+		delete(message)
 	}
 	return msg
 }

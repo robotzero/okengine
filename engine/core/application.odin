@@ -50,6 +50,10 @@ application_create :: proc(game_inst: ^game) -> bool {
 		return false
 	}
 
+	event_register(cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT, nil, application_on_event)
+	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
+	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
+
 	if ok: = pl.platform_startup(
 		&app_state.platform,
 		game_inst.app_config.name,
@@ -72,12 +76,56 @@ application_create :: proc(game_inst: ^game) -> bool {
 	return true
 }
 
+application_on_event :: proc (code: u16, sender: rawptr, listener: rawptr, data: event_context) -> bool {
+	switch code {
+		case cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT: {
+			l.log_info("EVENT_CODE_APPLICATION_QUIT received, shutting down. \n")
+			app_state.is_running = false
+			return true
+		}
+	}
+	return false
+}
+
+application_on_key :: proc (code: u16, sender: rawptr, listener: rawptr, data: event_context) -> bool {
+	if code == cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED {
+		event_context_data := data.data.([2]u16)
+		key_code: u16 = event_context_data[0]
+		if key_code == cast(u16)keys.KEY_ESCAPE {
+			event_context_data_new: event_context = {}
+			event_fire(cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT, nil, event_context_data_new)
+
+			// Block anything else from processing this.
+			return true
+		} else if key_code == cast(u16)keys.KEY_A {
+			// Checking if it is working
+			l.log_debug("Explicit - A key pressed!")
+		} else {
+			l.log_debug("'%c key pressed in a window.'", key_code)
+		}
+	} else if code == cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED {
+		event_context_data := data.data.([2]u16)
+		key_code: u16 = event_context_data[0]
+		if key_code == cast(u16)keys.KEY_B {
+			l.log_debug("Explicit B key released")
+		} else {
+			l.log_debug("'%c' key released in window.", key_code)
+		}
+	}
+	return false
+}
+
 application_run :: proc() -> bool {
-	defer input_shutdown()
-	defer event_shutdown()
 	defer pl.platform_shutdown(&app_state.platform)
 	defer pl.platform_free(app_state.game_inst.state)
+	defer input_shutdown()
+	defer event_shutdown()
+	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT, nil, application_on_event)
+	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
+	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
 	defer app_state.is_running = false
+
+	l.log_info(get_memory_usage_str())
 
 	for app_state.is_running {
 		if pl.platform_pump_messages(&app_state.platform) {

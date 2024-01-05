@@ -83,12 +83,11 @@ event_system_state :: struct {
 	registered: [MAX_MESSAGE_CODES]event_code_entry,
 }
 
-// PFN_on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context)
+PFN_on_event :: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool
 
 registered_event :: struct {
 	listener: rawptr,
-	// @TODO defined in 3 placeces separately
-	callback: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool,
+	callback: PFN_on_event,
 }
 
 is_initialized : bool = false
@@ -106,7 +105,7 @@ event_initialize :: proc() -> bool {
 	return true
 }
 
-event_register :: proc(code: u16, listener: rawptr, on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool) -> bool {
+event_register :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> bool {
 	if is_initialized == false {
 		return false
 	}
@@ -132,7 +131,7 @@ event_register :: proc(code: u16, listener: rawptr, on_event: #type proc (code: 
 	return true
 }
 
-event_unregister :: proc(code: u16, listener: rawptr, on_event: #type proc (code: u16, sender: rawptr, listener_inst: rawptr, data: event_context) -> bool) -> bool {
+event_unregister :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> bool {
 	if is_initialized == false {
 		return false
 	}
