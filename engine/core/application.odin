@@ -100,7 +100,7 @@ application_on_key :: proc (code: u16, sender: rawptr, listener: rawptr, data: e
 			// Checking if it is working
 			log_debug("Explicit - A key pressed!")
 		} else {
-			log_debug("'%c key pressed in a window.'", key_code)
+			log_debug("'%c' key pressed in a window.", key_code)
 		}
 	} else if code == cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED {
 		event_context_data := data.data.([2]u16)

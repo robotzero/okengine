@@ -1,12 +1,12 @@
 package core_input_defines
 
-BUTTON_MAX_BUTTONS :: 3
 KEYS_MAX_KEYS :: 125
 
 buttons :: enum {
 	BUTTON_LEFT,
 	BUTTON_RIGHT,
 	BUTTON_MIDDLE,
+	BUTTON_MAX_BUTTONS,
 }
 
 keys :: enum u16 {
