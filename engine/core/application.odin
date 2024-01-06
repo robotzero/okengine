@@ -125,7 +125,9 @@ application_run :: proc() -> bool {
 	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
 	defer app_state.is_running = false
 
-	l.log_info(get_memory_usage_str())
+	mem_info := get_memory_usage_str()
+	defer delete(mem_info)
+	l.log_info(mem_info)
 
 	for app_state.is_running {
 		if pl.platform_pump_messages(&app_state.platform) {

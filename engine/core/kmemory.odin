@@ -103,28 +103,35 @@ get_memory_usage_str :: proc() -> string {
 	mib :: 1024 * 1024
 	kib :: 1024 * 1024
 
-	msg : string
+	msg : [len(stats.tagged_allocations) + 1]string;
+	#no_bounds_check {
+		msg[0] = "\n"
+	}
 	//@TODO handle error from strings.concatenate
-	for i:=0 ; i< cast(int)memory_tag.MEMORY_TAG_MAX_TAGS; i = i + 1 {
+	for v, i in stats.tagged_allocations {
 		unit : string
-		amount : u64 = 1.0
+		amount : f64 = 1.0
 		message : string
 
-		if stats.tagged_allocations[i] >= gib {
+		if v >= gib {
 			unit = "GiB"
-			amount = stats.tagged_allocations[i] / gib
-		} else if stats.tagged_allocations[i] >= mib {
+			amount = cast(f64)v / gib
+		} else if cast(f64)v >= mib {
 			unit = "MiB"
-			amount = stats.tagged_allocations[i] / mib
-		} else if stats.tagged_allocations[i] >= kib {
+			amount = cast(f64)v / mib
+		} else if v >= kib {
 			unit = "KiB"
-			amount = stats.tagged_allocations[i] / kib
+			amount = cast(f64)v / kib
 		} else {
 			unit = "B0"
-			amount = stats.tagged_allocations[i]
+			amount = cast(f64)v
 		}
-		msg = strings.concatenate({message, fmt.tprintf("System memory user (tagged):\n %s: %.2fs\n", memory_tag_strings[i], amount, unit)})
-		delete(message)
+
+		formatted_message := fmt.tprintf("System memory user (tagged):\n %s: %.2f %s\n", memory_tag_strings[i], amount, unit)
+		#no_bounds_check {
+			msg[i + 1] = formatted_message
+		}
 	}
-	return msg
+
+	return strings.concatenate(msg[:])
 }
