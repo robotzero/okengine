@@ -1,7 +1,5 @@
 package core
 
-import l "./logger"
-import pl "../../platform/linux"
 import "core:strings"
 import "core:fmt"
 
@@ -54,7 +52,7 @@ memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 stats: memory_stats
 
 initialize_memory :: proc() {
-	pl.platform_zero_memory(&stats, size_of(memory_stats))
+	platform_zero_memory(&stats, size_of(memory_stats))
 }
 
 shutdown_memory :: proc() {
@@ -63,39 +61,39 @@ shutdown_memory :: proc() {
 
 kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
-		l.log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
+		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
 	stats.total_allocated += size
 	stats.tagged_allocations[tag] += size
 
-	block:= pl.platform_allocate(size, false, T)
-	pl.platform_zero_memory(block, cast(int)size)
+	block:= platform_allocate(size, false, T)
+	platform_zero_memory(block, cast(int)size)
 
 	return block
 }
 
-kfree :: proc(object: $T, size: u64, tag: memory_tag) {
+kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 	if tag == .MEMORY_TAG_UNKNOWN {
-		l.log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
+		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
 	stats.total_allocated -= size
 	stats.tagged_allocations[tag] -= size
 
-	pl.platform_free(object)
+	platform_free(object)
 }
 
 kzero_memory :: proc (block: rawptr, size: int) -> rawptr {
-	return pl.platform_zero_memory(block, size)
+	return platform_zero_memory(block, size)
 }
 
 kcopy_memory :: proc(dest: rawptr, source: rawptr, size: int) -> rawptr {
-	return pl.platform_copy_memory(dest, source, size)
+	return platform_copy_memory(dest, source, size)
 }
 
 kset_memory :: proc(ptr: rawptr, value: byte, size: int) {
-	pl.platform_set_memory(ptr, value, size)
+	platform_set_memory(ptr, value, size)
 }
 
 get_memory_usage_str :: proc() -> string {

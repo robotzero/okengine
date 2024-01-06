@@ -1,6 +1,5 @@
 package testbed
 
-import l "../engine/core/logger"
 import c "../engine/core"
 
 create_game::proc(out_game: ^c.game) -> bool {
@@ -23,7 +22,7 @@ game_state :: struct {
 }
 
 game_initialize :: proc(game_inst: ^c.game) -> bool {
-	l.log_debug("game initialize called")
+	c.log_debug("game initialize called")
 	return true
 }
 

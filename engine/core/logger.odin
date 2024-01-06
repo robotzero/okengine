@@ -1,11 +1,9 @@
-package logger
+package core
 
 import "core:log"
 import "core:runtime"
 import "core:mem"
 import "core:fmt"
-
-import pl "../../../platform/linux"
 
 LOG_WARN_ENABLED  :: true
 LOG_INFO_ENABLED  :: true
@@ -27,9 +25,9 @@ log_output :: proc(log_level: log.Level, message: string, location := #caller_lo
 	out_message := fmt.tprintf(message, ..args)
 	is_error: bool = log_level > log.Level.Warning
 	if is_error {
-		pl.platform_console_write_error(log_level, out_message, location)
+		platform_console_write_error(log_level, out_message, location)
 	} else {
-		pl.platform_console_write(log_level, out_message, location)
+		platform_console_write(log_level, out_message, location)
 	}
 }
 

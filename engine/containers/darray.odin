@@ -1,7 +1,5 @@
 package containers
 
-import l "../core/logger"
-
 DARRAY_DEFAULT_CAPACITY :: 1
 DARRAY_RESIZE_FACTOR :: 2
 
