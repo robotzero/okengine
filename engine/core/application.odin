@@ -10,7 +10,8 @@ application_state :: struct {
 	platform: platform_state,
 	width: i32,
 	height: i32,
-	last_time: f64,
+	c: clock,
+	last_time: i64,
 }
 
 application_config :: struct {
@@ -117,12 +118,20 @@ application_on_key :: proc (code: u16, sender: rawptr, listener: rawptr, data: e
 application_run :: proc() -> bool {
 	defer platform_shutdown(&app_state.platform)
 	// defer platform_free(&app_state.game_inst.state)
+	defer renderer_shutdown()
 	defer input_shutdown()
 	defer event_shutdown()
 	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT, nil, application_on_event)
 	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
 	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
 	defer app_state.is_running = false
+
+	clock_start(&app_state.c)
+	clock_update(&app_state.c)
+	app_state.last_time = app_state.c.elapsed
+	running_time : i64 = 0
+	frame_count : u8 = 0
+	target_frame_seconds : f64 = 1.0 / 60
 
 	mem_info := get_memory_usage_str()
 	defer delete(mem_info)
@@ -134,22 +143,55 @@ application_run :: proc() -> bool {
 		}
 
 		if !app_state.is_suspended {
+			// Update clock and get delta time
+			clock_update(&app_state.c)
+			current_time : i64 = app_state.c.elapsed
+			delta : i64 = current_time - app_state.last_time
+			frame_start_time : i64 = platform_get_absolute_time()
+
 			if !app_state.game_inst.update(app_state.game_inst, 0.0) {
 				log_fatal("Game update failed, shutting down.")
 				app_state.is_running = false
 				break
 			}
 
-			if !app_state.game_inst.render(app_state.game_inst, 0.0) {
+			if !app_state.game_inst.render(app_state.game_inst, cast(f32)delta) {
 				log_fatal("Game render failed, shutting down.")
 				app_state.is_running = false
 				break
 			}
+
+			// TODO: refactor packet creation
+			packet: render_packet
+			packet.delta_time = cast(f32)delta
+			renderer_draw_frame(&packet)
+
+			// Figure out how long the frame took and, if below
+			frame_end_time : i64 = platform_get_absolute_time()
+			frame_elapsed_time: i64 = frame_end_time - frame_start_time
+			running_time += frame_elapsed_time
+			remaining_seconds: f64 = target_frame_seconds - cast(f64)frame_elapsed_time
+
+			if remaining_seconds > 0 {
+				remaining_ms : f64 = remaining_seconds * 1000
+
+				// If there is a time left, give it back to the OS.
+				limit_frames := false
+				if remaining_seconds > 0 && limit_frames {
+					platform_sleep(remaining_ms - 1)
+				}
+
+				frame_count = frame_count + 1
+			}
+
 			// NOTE: Input update/state copying should always be handled
             // after any input should be recorded; I.E. before this line.
             // As a safety, input is the last thing to be updated before
             // this frame ends.
-            input_update(0)
+            input_update(cast(f64)delta)
+
+			// Update last time
+			app_state.last_time = current_time
 		}
 	}
 
