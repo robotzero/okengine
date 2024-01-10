@@ -1,12 +1,11 @@
 package core
 
-renderer_platform_state :: struct {}
 static_mesh_data :: struct {}
 
 // Backend renderer context
 backend : ^renderer_backend = nil
 
-renderer_initialize :: proc(application_name: string, plat_state: ^renderer_platform_state) -> bool {
+renderer_initialize :: proc(application_name: string, plat_state: ^platform_state) -> bool {
 	backend = kallocate(size_of(renderer_backend), .MEMORY_TAG_RENDERER, renderer_backend)
 
 	// @TODO: make this configurable

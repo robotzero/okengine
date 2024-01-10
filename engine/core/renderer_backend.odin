@@ -1,6 +1,6 @@
 package core
 
-renderer_backend_create :: proc(type: renderer_backend_type, plat_state: ^renderer_platform_state, out_renderer_backend: ^renderer_backend) -> bool {
+renderer_backend_create :: proc(type: renderer_backend_type, plat_state: ^platform_state, out_renderer_backend: ^renderer_backend) -> bool {
 	out_renderer_backend.plat_state = plat_state
 
 	if type == .RENDERER_BACKEND_TYPE_VULKAN {

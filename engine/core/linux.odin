@@ -9,6 +9,7 @@ import "core:log"
 import "core:time"
 import "core:strings"
 import "core:mem"
+import "core:dynlib"
 import l "../../platform/linux"
 import idef "../../engine/core/input"
 
@@ -205,6 +206,12 @@ platform_set_memory :: proc(ptr: rawptr, value: byte, size: int) -> rawptr {
 
 platform_copy_memory :: proc(dest: rawptr, src: rawptr, size: int) -> rawptr {
 	return mem.copy(dest, src, size)
+}
+
+platform_initialize_vulkan :: proc() -> rawptr {
+    lib := dynlib.load_library("libvulkan.so") or_else panic("Can't load vulkan library")
+    get_instance_proc_address := dynlib.symbol_address(lib, "vkGetInstanceProcAddr") or_else panic("Can't find vkGetInstanceProcAddr")
+    return get_instance_proc_address
 }
 
 // Key translation

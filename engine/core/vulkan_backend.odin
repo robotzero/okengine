@@ -1,6 +1,7 @@
 package core
 
 import v "vendor:vulkan"
+import "core:strings"
 
 vulcan_context :: struct {
 	instance: v.Instance,
@@ -10,25 +11,33 @@ vulcan_context :: struct {
 // static Vulcan context
 v_context : vulcan_context
 
-vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, application_name: string, plat_state: ^renderer_platform_state) -> bool {
+vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, application_name: string, plat_state: ^platform_state) -> bool {
+	vulkan_proc_addr := platform_initialize_vulkan()
+	//v.load_proc_addresses_global(vulkan_proc_addr)
+	v.load_proc_addresses(vulkan_proc_addr)
+
  	// @TODO: custom allocator.
 	v_context.allocator = nil
 
 	// Setup vulkan instance
-	app_info : v.ApplicationInfo = {}
-	app_info.sType = v.StructureType.APPLICATION_INFO
-	app_info.pApplicationName = "blah";
-    app_info.applicationVersion = v.MAKE_VERSION(1, 0, 0);
-    app_info.pEngineName = "OK Engine";
-    app_info.engineVersion = v.MAKE_VERSION(1, 0, 0);
+	app_info : v.ApplicationInfo = {
+		sType = v.StructureType.APPLICATION_INFO,
+		apiVersion = v.API_VERSION_1_2,
+		pApplicationName = cstring("OK!"),
+		applicationVersion = v.MAKE_VERSION(1, 0, 0),
+		pEngineName = cstring("OK Engine"),
+		engineVersion = v.MAKE_VERSION(1, 0, 0),
+	}
 
-	create_info : v.InstanceCreateInfo = {}
-	create_info.sType = v.StructureType.INSTANCE_CREATE_INFO
-	create_info.pApplicationInfo = &app_info
-	create_info.enabledExtensionCount = 0
-	create_info.ppEnabledExtensionNames = nil
-	create_info.enabledLayerCount = 0
-	create_info.ppEnabledLayerNames = nil
+
+	create_info : v.InstanceCreateInfo = {
+		sType = v.StructureType.INSTANCE_CREATE_INFO,
+		pApplicationInfo = &app_info,
+		enabledExtensionCount = 0,
+		ppEnabledExtensionNames = nil,
+		enabledLayerCount = 0,
+		ppEnabledLayerNames = nil,
+	}
 
 	result : v.Result = v.CreateInstance(&create_info, v_context.allocator, &v_context.instance)
 	if result != v.Result.SUCCESS {

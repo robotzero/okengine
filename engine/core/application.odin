@@ -65,7 +65,12 @@ application_create :: proc(game_inst: ^game) -> bool {
 			return false
 	}
 
-	if ok:= app_state.game_inst.initialize(app_state.game_inst); !ok {
+	if ok := renderer_initialize(game_inst.app_config.name, &app_state.platform); !ok {
+		log_fatal("Failed to initialize renderer. Aborting application.")
+		return false
+	}
+
+	if ok := app_state.game_inst.initialize(app_state.game_inst); !ok {
 		return false
 	}
 
