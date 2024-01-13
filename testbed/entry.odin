@@ -58,6 +58,7 @@ main :: proc() {
 
 	if !c.application_create(&game_inst) {
 		c.log_info("application failed to create!")
+		// c.app_state.is_running = false
 		// @TODO panic and create application_create to return error and use if ok pattern and force reuse return value
 	}
 

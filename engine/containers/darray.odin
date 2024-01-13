@@ -11,7 +11,7 @@ DARRAY :: enum {
 }
 
 darray_create :: proc(capacity: u64, $T: typeid) -> [dynamic]T {
-	return make([dynamic]T, 0, capacity)
+	return make([dynamic]T, capacity, capacity)
 }
 //@TODO use polymorphism there
 darray_create_default :: proc($T: typeid) -> [dynamic]T {

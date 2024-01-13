@@ -12,8 +12,10 @@ import "core:mem"
 import "core:dynlib"
 import l "../../platform/linux"
 import idef "../../engine/core/input"
+import arr "../containers"
 
 import xlib "vendor:x11/xlib"
+import vk "vendor:vulkan"
 
 foreign import X11xcb "system:X11-xcb"
 
@@ -454,4 +456,9 @@ translate_keycode :: proc(x_keycode: xlib.KeySym) -> idef.keys {
             return KEY_Z
     }
 	return idef.keys.KEY_NONCONVERT
+}
+
+platform_get_required_extension_names :: proc(extension_names: ^[dynamic]cstring) {
+    arr.darray_push(extension_names, "VK_KHR_xcb_surface")
+    // arr.darray_push(extension_names, "VK_KHR_xlib_surface")
 }
