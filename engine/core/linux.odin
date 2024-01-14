@@ -31,6 +31,7 @@ internal_state :: struct {
 	screen: ^l.Screen,
     wm_protocols: l.Atom,
 	wm_delete_win: l.Atom,
+    surface: vk.SurfaceKHR,
 }
 
 platform_state :: struct {
@@ -214,6 +215,34 @@ platform_initialize_vulkan :: proc() -> rawptr {
     lib := dynlib.load_library("libvulkan.so") or_else panic("Can't load vulkan library")
     get_instance_proc_address := dynlib.symbol_address(lib, "vkGetInstanceProcAddr") or_else panic("Can't find vkGetInstanceProcAddr")
     return get_instance_proc_address
+}
+
+platform_create_vulkan_surface :: proc(plat_state: ^platform_state, v_context: ^vulkan_context) -> bool {
+    // Simply cold-cast to the known type.
+    state: ^internal_state = cast(^internal_state)plat_state.internal_state
+
+    l.load_proc_addresses(v_context.instance)
+
+    create_info : l.XcbSurfaceCreateInfoKHR = {
+        sType = vk.StructureType.XCB_SURFACE_CREATE_INFO_KHR,
+        connection = state.connection,
+        window = state.window,
+    }
+
+    result : vk.Result = l.CreateXcbSurfaceKHR(
+        v_context.instance,
+        &create_info,
+        v_context.allocator,
+        &state.surface,
+    )
+
+    if result != vk.Result.SUCCESS {
+        log_fatal("Vulkan surface creation failed.")
+        return false
+    }
+
+    v_context.surface = state.surface
+    return true
 }
 
 // Key translation

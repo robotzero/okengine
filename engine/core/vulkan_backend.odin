@@ -7,20 +7,24 @@ import arr "../containers"
 import vk "vendor:vulkan"
 
 when ODIN_DEBUG == true {
-	vulcan_context :: struct {
+	vulkan_context :: struct {
 		instance: vk.Instance,
 		allocator: ^vk.AllocationCallbacks,
 		debug_messenger: vk.DebugUtilsMessengerEXT,
+		surface: vk.SurfaceKHR,
+		device: vulkan_device,
 	}
 } else {
-	vulcan_context :: struct {
+	vulkan_context :: struct {
 		instance: vk.Instance,
 		allocator: ^vk.AllocationCallbacks,
+		surface: vk.SurfaceKHR,
+		device: vulkan_device,
 	}
 }
 
-// static Vulcan context
-v_context : vulcan_context
+// static Vulkan context
+v_context : vulkan_context
 
 vulkan_debug_callback :: proc "stdcall" (messageSeverity: vk.DebugUtilsMessageSeverityFlagEXT, messageTypes: vk.DebugUtilsMessageTypeFlagsEXT, pCallbackData: ^vk.DebugUtilsMessengerCallbackDataEXT, pUserData: rawptr) -> b32 {
     context = runtime.default_context()
@@ -166,6 +170,18 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 		return false
 	}
 
+	log_debug("Creating Vulkan surface...")
+	if platform_create_vulkan_surface(plat_state, &v_context) == false {
+		log_error("Failed to create platform surface")
+		return false
+	}
+	log_debug("Vulkan surface created.")
+
+	// if vulkan_device_create(&v_context) == false {
+	// 	log_error("Failed to create device!")
+	// 	return false
+	// }
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -179,6 +195,13 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 				vk.DestroyDebugUtilsMessengerEXT(v_context.instance, v_context.debug_messenger, v_context.allocator)
 				log_debug("Destroying Vulkan debugger...")
 			}
+		}
+	}
+
+	if v_context.surface != 0 {
+		vk.DestroySurfaceKHR = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroySurfaceKHR"))
+		if vk.DestroySurfaceKHR != nil {
+			vk.DestroySurfaceKHR(v_context.instance, v_context.surface, v_context.allocator)
 		}
 	}
 
