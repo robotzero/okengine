@@ -55,7 +55,6 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 }
 
 vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
-	
 }
 
 vulkan_device_query_swapchain_support :: proc(physical_device: vk.PhysicalDevice, surface: vk.SurfaceKHR, out_support_info: ^vulkan_swapchain_support_info) {
@@ -81,6 +80,9 @@ vulkan_device_query_swapchain_support :: proc(physical_device: vk.PhysicalDevice
 		}
 		assert(vk.GetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &out_support_info.present_mode_count, &out_support_info.present_modes[0]) == vk.Result.SUCCESS)
 	}
+
+	defer arr.darray_destroy(out_support_info.formats)
+	defer arr.darray_destroy(out_support_info.present_modes)
 }
 
 select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
@@ -119,6 +121,7 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 			discrete_gpu = true,
 			device_extension_names = arr.darray_create_default(cstring),
 		}
+		defer arr.darray_destroy(requirements.device_extension_names)
 		arr.darray_push(&requirements.device_extension_names, vk.KHR_SWAPCHAIN_EXTENSION_NAME)
 
 		queue_info : vulkan_physical_device_queue_family_info = {}
@@ -181,8 +184,14 @@ physical_device_meets_requirements :: proc(
 
 	// Discrete GPU?
 	if requirements.discrete_gpu {
-			
+		if properies.deviceType != vk.PhysicalDeviceType.DISCRETE_GPU {
+			log_info("Device is not a discrete GPU, and one is required. Skipping.")
+			return false
+		}
 	}
+
+	queue_family_count : u32 = 0
+	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nil)
 
 	return true
 }

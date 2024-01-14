@@ -177,10 +177,10 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	}
 	log_debug("Vulkan surface created.")
 
-	// if vulkan_device_create(&v_context) == false {
-	// 	log_error("Failed to create device!")
-	// 	return false
-	// }
+	if vulkan_device_create(&v_context) == false {
+		log_error("Failed to create device!")
+		return false
+	}
 
 	log_info("Vulkan renderer initialized successfully.")
 
