@@ -27,6 +27,11 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.GetPhysicalDeviceFeatures = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceFeatures"))
 	vk.GetPhysicalDeviceMemoryProperties = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceMemoryProperties"))
 	vk.GetPhysicalDeviceQueueFamilyProperties = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceQueueFamilyProperties"))
+	vk.GetPhysicalDeviceSurfaceSupportKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceSurfaceSupportKHR"))
+	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceSurfaceCapabilitiesKHR"))
+	vk.GetPhysicalDeviceSurfaceFormatsKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceSurfaceFormatsKHR"))
+	vk.GetPhysicalDeviceSurfacePresentModesKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceSurfacePresentModesKHR"))
+	vk.EnumerateDeviceExtensionProperties = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkEnumerateDeviceExtensionProperties"))
 }
 
 load_proc_addresses :: proc {

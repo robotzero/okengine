@@ -1,5 +1,7 @@
 package containers
 
+import "core:fmt"
+
 DARRAY_DEFAULT_CAPACITY :: 1
 DARRAY_RESIZE_FACTOR :: 2
 
