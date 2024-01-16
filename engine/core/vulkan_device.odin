@@ -40,6 +40,10 @@ vulkan_device :: struct {
 	present_queue_index: u32,
 	transfer_queue_index: u32,
 
+	graphics_queue: vk.Queue,
+	present_queue: vk.Queue,
+	transfer_queue: vk.Queue,
+
 	properties: vk.PhysicalDeviceProperties,
 	features: vk.PhysicalDeviceFeatures,
 	memory: vk.PhysicalDeviceMemoryProperties,
@@ -51,10 +55,113 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		return false
 	}
 
+	log_info("Creating logical device...")
+	// @NOTE: Do not create additional queues for shared indices.
+	present_shares_graphics_queue : bool = v_context.device.graphics_queue_index == v_context.device.present_queue_index
+	transfer_shares_graphics_queue : bool = v_context.device.graphics_queue_index == v_context.device.transfer_queue_index
+	index_count : u32 = 1
+	if !present_shares_graphics_queue {
+		index_count += 1
+	}
+	if !transfer_shares_graphics_queue {
+		index_count += 1
+	}
+
+	indices : [3]u32 = {}
+	index : u8 = 0
+	indices[index] = v_context.device.graphics_queue_index
+	index += 1
+	if !present_shares_graphics_queue {
+		indices[index] = v_context.device.present_queue_index
+		index += 1
+	}
+	if !transfer_shares_graphics_queue {
+		indices[index] = v_context.device.transfer_queue_index
+		index += 1
+	}
+
+	queue_create_infos : [dynamic]vk.DeviceQueueCreateInfo = {{}, {}, {}}
+	defer delete(queue_create_infos)
+	for i : u32 = 0; i < index_count; i += 1 {
+		queue_create_infos[i] = {}
+		queue_create_infos[i].sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO
+		queue_create_infos[i].queueFamilyIndex = indices[i]
+		queue_create_infos[i].queueCount = 1
+		if indices[i] == v_context.device.graphics_queue_index {
+			queue_create_infos[i].queueCount = 1
+		}
+		queue_create_infos[i].flags = nil
+        queue_create_infos[i].pNext = nil
+        queue_priority : f32 = 1.0
+        queue_create_infos[i].pQueuePriorities = &queue_priority
+	}
+
+	// Request device features.
+	// @TODO: should be config driven
+	device_features : vk.PhysicalDeviceFeatures = {}
+	device_features.samplerAnisotropy = true
+
+	extension_names := []cstring {vk.KHR_SWAPCHAIN_EXTENSION_NAME}
+	device_create_info : vk.DeviceCreateInfo = {
+		sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO,
+		queueCreateInfoCount = index_count,
+		pQueueCreateInfos = raw_data(queue_create_infos),
+		pEnabledFeatures = &device_features,
+		ppEnabledExtensionNames = raw_data(extension_names),
+
+		// Deprecated and ignored, so pass nothing.
+		enabledLayerCount = 0,
+		ppEnabledLayerNames = nil,
+	}
+
+	assert(vk.CreateDevice(v_context.device.physical_device, &device_create_info, v_context.allocator, &v_context.device.logical_device) == vk.Result.SUCCESS)
+	// vk.load_proc_addresses_device(v_context.device.logical_device)
+    log_info("Logical device created.")
+
+	// Get queues.
+	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.graphics_queue_index, 0, &v_context.device.graphics_queue)
+	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.present_queue_index, 0, &v_context.device.present_queue)
+	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.transfer_queue_index, 0, &v_context.device.transfer_queue)
+
+	log_info("Queues obtained.")
+
 	return true
 }
 
 vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
+	// Unset queues
+	v_context.device.graphics_queue = nil
+	v_context.device.present_queue = nil
+	v_context.device.transfer_queue = nil
+
+	// Destroy logical device
+	log_info("Destorying logical device...")
+	if v_context.device.logical_device != nil {
+		vk.DestroyDevice(v_context.device.logical_device, v_context.allocator)
+		v_context.device.logical_device = nil
+	}
+
+	// Physical devices are not destroyed.
+	log_info("Releasing physical device resources...")
+	v_context.device.physical_device = nil
+
+	if v_context.device.swapchain_support.formats != nil {
+		arr.darray_destroy(v_context.device.swapchain_support.formats)
+		v_context.device.swapchain_support.formats = nil
+		v_context.device.swapchain_support.format_count = 0
+	}
+
+	if v_context.device.swapchain_support.present_modes != nil {
+		arr.darray_destroy(v_context.device.swapchain_support.present_modes)
+		v_context.device.swapchain_support.present_modes = nil
+		v_context.device.swapchain_support.present_mode_count = 0
+	}
+
+	// arr.darray_destroy(v_context.device.swapchain_support.capabilities)
+
+	// v_context.device.graphics_queue_index = -1
+	// v_context.device.present_queue_index = -1
+	// v_context.device.transfer_queue_index = -1
 }
 
 vulkan_device_query_swapchain_support :: proc(physical_device: vk.PhysicalDevice, surface: vk.SurfaceKHR, out_support_info: ^vulkan_swapchain_support_info) {
@@ -178,8 +285,8 @@ physical_device_meets_requirements :: proc(
 	out_swapchain_support: ^vulkan_swapchain_support_info,
 ) -> bool {
 
-	defer arr.darray_destroy(out_swapchain_support.formats)
-	defer arr.darray_destroy(out_swapchain_support.present_modes)
+	// defer arr.darray_destroy(out_swapchain_support.formats)
+	// defer arr.darray_destroy(out_swapchain_support.present_modes)
 	// Evaulate device properites to determine if it meets the needs of our application.
 	out_queue_info.graphics_family_index = -1
 	out_queue_info.present_family_index = -1
