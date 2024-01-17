@@ -6,22 +6,7 @@ import "core:runtime"
 import arr "../containers"
 import vk "vendor:vulkan"
 
-when ODIN_DEBUG == true {
-	vulkan_context :: struct {
-		instance: vk.Instance,
-		allocator: ^vk.AllocationCallbacks,
-		debug_messenger: vk.DebugUtilsMessengerEXT,
-		surface: vk.SurfaceKHR,
-		device: vulkan_device,
-	}
-} else {
-	vulkan_context :: struct {
-		instance: vk.Instance,
-		allocator: ^vk.AllocationCallbacks,
-		surface: vk.SurfaceKHR,
-		device: vulkan_device,
-	}
-}
+find_memory_index :: #type proc(type_filter: u32, property_flags: u32) -> i32
 
 // static Vulkan context
 v_context : vulkan_context
@@ -41,6 +26,9 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	vulkan_proc_addr := platform_initialize_vulkan()
 	// vk.load_proc_addresses_global(vulkan_proc_addr)
 	vk.load_proc_addresses(vulkan_proc_addr)
+
+	// Function pointers
+	v_context.find_memory_index_proc = find_memory_index
 
  	// @TODO: custom allocator.
 	v_context.allocator = nil
@@ -182,12 +170,29 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 		return false
 	}
 
+	// Swapchain
+	vulkan_swapchain_create(&v_context, v_context.framebuffer_width, v_context.framebuffer_height, &v_context.swapchain)
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
 }
 
 vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
+	// Destroy is the opposide order of creation.
+
+	// Swapchain
+	vulkan_swapchain_destroy(&v_context, &v_context.swapchain)
+
+	log_debug("Destroying Vulkan device...")
+	vulkan_device_destroy(&v_context)
+
+	log_debug("Destroying Vulkan surface...")
+	if v_context.surface != 0 {
+		vk.DestroySurfaceKHR(v_context.instance, v_context.surface, v_context.allocator)
+		v_context.surface = 0
+	}
+
 	if ODIN_DEBUG {
 		if v_context.debug_messenger != 0 {
 			vk.DestroyDebugUtilsMessengerEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroyDebugUtilsMessengerEXT"))
@@ -198,19 +203,9 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 		}
 	}
 
-	if v_context.surface != 0 {
-		vk.DestroySurfaceKHR = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroySurfaceKHR"))
-		if vk.DestroySurfaceKHR != nil {
-			vk.DestroySurfaceKHR(v_context.instance, v_context.surface, v_context.allocator)
-		}
-	}
-
 	if v_context.instance != nil {
-		vk.DestroyInstance = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroyInstance"))
-		if vk.DestroyInstance != nil {
-			vk.DestroyInstance(v_context.instance, v_context.allocator)
-			log_debug("Destroying Vulkan instance...")
-		}
+		log_debug("Destroying Vulkan instance...")
+		vk.DestroyInstance(v_context.instance, v_context.allocator)
 	}
 }
 
@@ -223,4 +218,19 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 
 vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
     return true
+}
+
+find_memory_index :: proc(type_filter: u32, property_flags: u32) {
+	memory_properties : vk.PhysicalDeviceMemoryProperties
+	vk.GetPhysicalDeviceMemoryProperties(v_context.device.physical_device, &memory_properties)
+
+	for i in 0..<memory_properties.memoryTypeCount {
+		// Check each memory type to see if its bit is set to 1
+		if (type_filter & (1 << i) != 0) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags {
+			return i;
+		}
+	}
+	log_warning("Unable to find suitable memory type!")
+
+	return -1
 }

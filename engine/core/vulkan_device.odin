@@ -87,9 +87,11 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		queue_create_infos[i].sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO
 		queue_create_infos[i].queueFamilyIndex = indices[i]
 		queue_create_infos[i].queueCount = 1
-		if indices[i] == v_context.device.graphics_queue_index {
-			queue_create_infos[i].queueCount = 1
-		}
+
+		// @TODO: Enable this for future enhancement
+		// if indices[i] == v_context.device.graphics_queue_index {
+		// 	queue_create_infos[i].queueCount = 1
+		// }
 		queue_create_infos[i].flags = nil
         queue_create_infos[i].pNext = nil
         queue_priority : f32 = 1.0
@@ -416,3 +418,23 @@ physical_device_meets_requirements :: proc(
 	return false
 }
 
+vulkan_device_detect_depth_format :: proc(device: ^vulkan_device) -> bool {
+	// Format candidates
+	candidate_count : u64 : 3
+	candidates: [3]vk.Format = {vk.Format.D32_SFLOAT, vk.Format.D32_SFLOAT_S8_UINT, vk.Format.D24_UNORM_S8_UINT}
+
+	for candidate in candidates {
+		properties: vk.FormatProperties = {}
+		vk.GetPhysicalDeviceFormatProperties(device.physical_device, candidate, &properties)
+
+		if vk.FormatFeatureFlag.DEPTH_STENCIL_ATTACHMENT in properties.linearTilingFeatures {
+			device.depth_format = candidate
+			return true
+		} else if vk.FormatFeatureFlag.DEPTH_STENCIL_ATTACHMENT in properties.optimalTilingFeatures {
+			device.depth_format = candidate
+			return true
+		}
+	}
+
+	return false
+}
