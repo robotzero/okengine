@@ -6,7 +6,7 @@ import "core:runtime"
 import arr "../containers"
 import vk "vendor:vulkan"
 
-find_memory_index :: #type proc(type_filter: u32, property_flags: u32) -> i32
+find_memory_index :: #type proc(type_filter: u32, property_flags: vk.MemoryPropertyFlags) -> i32
 
 // static Vulkan context
 v_context : vulkan_context
@@ -28,7 +28,7 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	vk.load_proc_addresses(vulkan_proc_addr)
 
 	// Function pointers
-	v_context.find_memory_index_proc = find_memory_index
+	v_context.find_memory_index_proc = find_memory_index_proc
 
  	// @TODO: custom allocator.
 	v_context.allocator = nil
@@ -220,14 +220,14 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time
     return true
 }
 
-find_memory_index :: proc(type_filter: u32, property_flags: u32) {
+find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryPropertyFlags) -> i32 {
 	memory_properties : vk.PhysicalDeviceMemoryProperties
 	vk.GetPhysicalDeviceMemoryProperties(v_context.device.physical_device, &memory_properties)
 
 	for i in 0..<memory_properties.memoryTypeCount {
 		// Check each memory type to see if its bit is set to 1
 		if (type_filter & (1 << i) != 0) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags {
-			return i;
+			return cast(i32)i;
 		}
 	}
 	log_warning("Unable to find suitable memory type!")

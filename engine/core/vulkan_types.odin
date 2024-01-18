@@ -20,7 +20,7 @@ when ODIN_DEBUG == true {
 		swapchain: vulkan_swapchain,
 		image_index: u32,
 		current_frame: u32,
-		recreating_swapchain: boo,
+		recreating_swapchain: bool,
 		find_memory_index_proc: find_memory_index,
 	}
 } else {

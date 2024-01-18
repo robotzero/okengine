@@ -47,6 +47,8 @@ vulkan_device :: struct {
 	properties: vk.PhysicalDeviceProperties,
 	features: vk.PhysicalDeviceFeatures,
 	memory: vk.PhysicalDeviceMemoryProperties,
+
+	depth_format: vk.Format,
 }
 
 
