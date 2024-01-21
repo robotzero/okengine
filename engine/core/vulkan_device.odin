@@ -36,9 +36,9 @@ vulkan_device :: struct {
 	physical_device: vk.PhysicalDevice,
 	logical_device: vk.Device,
 	swapchain_support: vulkan_swapchain_support_info,
-	graphics_queue_index: u32,
-	present_queue_index: u32,
-	transfer_queue_index: u32,
+	graphics_queue_index: i32,
+	present_queue_index: i32,
+	transfer_queue_index: i32,
 
 	graphics_queue: vk.Queue,
 	present_queue: vk.Queue,
@@ -61,7 +61,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	// @NOTE: Do not create additional queues for shared indices.
 	present_shares_graphics_queue : bool = v_context.device.graphics_queue_index == v_context.device.present_queue_index
 	transfer_shares_graphics_queue : bool = v_context.device.graphics_queue_index == v_context.device.transfer_queue_index
-	index_count : u32 = 1
+	index_count : i32 = 1
 	if !present_shares_graphics_queue {
 		index_count += 1
 	}
@@ -69,7 +69,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		index_count += 1
 	}
 
-	indices : [3]u32 = {}
+	indices : [3]i32 = {}
 	index : u8 = 0
 	indices[index] = v_context.device.graphics_queue_index
 	index += 1
@@ -84,10 +84,10 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 
 	queue_create_infos : [dynamic]vk.DeviceQueueCreateInfo = {{}, {}, {}}
 	defer delete(queue_create_infos)
-	for i : u32 = 0; i < index_count; i += 1 {
+	for i : i32 = 0; i < index_count; i += 1 {
 		queue_create_infos[i] = {}
 		queue_create_infos[i].sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO
-		queue_create_infos[i].queueFamilyIndex = indices[i]
+		queue_create_infos[i].queueFamilyIndex = cast(u32)indices[i]
 		queue_create_infos[i].queueCount = 1
 
 		// @TODO: Enable this for future enhancement
@@ -108,7 +108,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	extension_names := []cstring {vk.KHR_SWAPCHAIN_EXTENSION_NAME}
 	device_create_info : vk.DeviceCreateInfo = {
 		sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO,
-		queueCreateInfoCount = index_count,
+		queueCreateInfoCount = cast(u32)index_count,
 		pQueueCreateInfos = raw_data(queue_create_infos),
 		pEnabledFeatures = &device_features,
 		ppEnabledExtensionNames = raw_data(extension_names),
@@ -123,9 +123,9 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
     log_info("Logical device created.")
 
 	// Get queues.
-	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.graphics_queue_index, 0, &v_context.device.graphics_queue)
-	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.present_queue_index, 0, &v_context.device.present_queue)
-	vk.GetDeviceQueue(v_context.device.logical_device, v_context.device.transfer_queue_index, 0, &v_context.device.transfer_queue)
+	vk.GetDeviceQueue(v_context.device.logical_device, cast(u32)v_context.device.graphics_queue_index, 0, &v_context.device.graphics_queue)
+	vk.GetDeviceQueue(v_context.device.logical_device, cast(u32)v_context.device.present_queue_index, 0, &v_context.device.present_queue)
+	vk.GetDeviceQueue(v_context.device.logical_device, cast(u32)v_context.device.transfer_queue_index, 0, &v_context.device.transfer_queue)
 
 	log_info("Queues obtained.")
 
@@ -163,9 +163,9 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 
 	// arr.darray_destroy(v_context.device.swapchain_support.capabilities)
 
-	// v_context.device.graphics_queue_index = -1
-	// v_context.device.present_queue_index = -1
-	// v_context.device.transfer_queue_index = -1
+	v_context.device.graphics_queue_index = -1
+	v_context.device.present_queue_index = -1
+	v_context.device.transfer_queue_index = -1
 }
 
 vulkan_device_query_swapchain_support :: proc(physical_device: vk.PhysicalDevice, surface: vk.SurfaceKHR, out_support_info: ^vulkan_swapchain_support_info) {
@@ -257,9 +257,9 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 			}
 
 			v_context.device.physical_device = dev
-			v_context.device.graphics_queue_index = cast(u32)queue_info.graphics_family_index
-			v_context.device.present_queue_index = cast(u32)queue_info.present_family_index
-			v_context.device.transfer_queue_index = cast(u32)queue_info.transfer_family_index
+			v_context.device.graphics_queue_index = queue_info.graphics_family_index
+			v_context.device.present_queue_index = queue_info.present_family_index
+			v_context.device.transfer_queue_index = queue_info.transfer_family_index
 			// @NOTE: set compute index here if needed.
 
 			// Keep a copy of properies, features and memory info for later use

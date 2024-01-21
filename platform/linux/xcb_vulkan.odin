@@ -36,6 +36,7 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.GetDeviceQueue = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetDeviceQueue"))
 	vk.DestroySurfaceKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroySurfaceKHR"))
 	vk.DestroyInstance = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyInstance"))
+	vk.DestroyDevice = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDevice"))
 	vk.CreateSwapchainKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateSwapchainKHR"))
 	vk.GetSwapchainImagesKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetSwapchainImagesKHR"))
 }
