@@ -2,6 +2,25 @@ package core
 
 import vk "vendor:vulkan"
 
+
+vulkan_command_buffer_state :: enum {
+	COMMAND_BUFFER_STATE_READY,
+	COMMAND_BUFFER_STATE_RECORDING,
+	COMMAND_BUFFER_STATE_IN_RENDER_PASS,
+	COMMAND_BUFFER_STATE_RECORDING_ENDED,
+	COMMAND_BUFFER_STATE_SUBMITTED,
+	COMMAND_BUFFER_STATE_NOT_ALLOCATED,
+}
+
+vulkan_render_pass_state :: enum {
+	READY,
+	RECORDING,
+	IN_RENDER_PASS,
+	RECORDING_ENDED,
+	SUBMITTED,
+	NOT_ALLOCATED,
+}
+
 // @TODO when next to the variable definition?
 when ODIN_DEBUG == true {
 	vulkan_context :: struct {
@@ -18,6 +37,7 @@ when ODIN_DEBUG == true {
 		framebuffer_height: u32,
 
 		swapchain: vulkan_swapchain,
+		main_renderpass: vulkan_renderpass,
 		image_index: u32,
 		current_frame: u32,
 		recreating_swapchain: bool,
@@ -37,6 +57,7 @@ when ODIN_DEBUG == true {
 		framebuffer_height: u32,
 
 		swapchain: vulkan_swapchain,
+		main_renderpass: vulkan_renderpass,
 		image_index: u32,
 		current_frame: u32,
 		recreating_swapchain: boo,
@@ -61,4 +82,18 @@ vulkan_swapchain :: struct {
 	views: [dynamic]vk.ImageView,
 
 	depth_attachment: vulkan_image,
+}
+
+vulkan_command_buffer :: struct {
+	handle: vk.CommandBuffer,
+	state: vulkan_command_buffer_state,
+}
+
+vulkan_renderpass :: struct {
+	handle: vk.RenderPass,
+	x, y, w, h: f32,
+	r, g, b, a: f32,
+
+	depth: f32,
+	stencil: u32,
 }

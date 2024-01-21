@@ -173,6 +173,8 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	// Swapchain
 	vulkan_swapchain_create(&v_context, v_context.framebuffer_width, v_context.framebuffer_height, &v_context.swapchain)
 
+	vulkan_renderpass_create(&v_context, &v_context.main_renderpass, 0, 0, cast(f32)v_context.framebuffer_width, cast(f32)v_context.framebuffer_height, 0.0, 0.0, 0.2, 1.0, 1.0, 0)
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -180,6 +182,9 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 
 vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	// Destroy is the opposide order of creation.
+
+	// Renderpass
+	vulkan_renderpass_destroy(&v_context, &v_context.main_renderpass)
 
 	// Swapchain
 	vulkan_swapchain_destroy(&v_context, &v_context.swapchain)
