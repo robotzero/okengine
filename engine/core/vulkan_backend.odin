@@ -171,7 +171,7 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	}
 
 	// Swapchain
-	// vulkan_swapchain_create(&v_context, v_context.framebuffer_width, v_context.framebuffer_height, &v_context.swapchain)
+	vulkan_swapchain_create(&v_context, v_context.framebuffer_width, v_context.framebuffer_height, &v_context.swapchain)
 
 	log_info("Vulkan renderer initialized successfully.")
 
@@ -182,7 +182,7 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	// Destroy is the opposide order of creation.
 
 	// Swapchain
-	// vulkan_swapchain_destroy(&v_context, &v_context.swapchain)
+	vulkan_swapchain_destroy(&v_context, &v_context.swapchain)
 
 	log_debug("Destroying Vulkan device...")
 	vulkan_device_destroy(&v_context)

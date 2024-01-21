@@ -39,6 +39,16 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.DestroyDevice = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDevice"))
 	vk.CreateSwapchainKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateSwapchainKHR"))
 	vk.GetSwapchainImagesKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetSwapchainImagesKHR"))
+	vk.CreateImageView = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateImageView"))
+	vk.GetPhysicalDeviceFormatProperties = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetPhysicalDeviceFormatProperties"))
+	vk.CreateImage = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateImage"))
+	vk.GetImageMemoryRequirements = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetImageMemoryRequirements"))
+	vk.AllocateMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkAllocateMemory"))
+	vk.BindImageMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkBindImageMemory"))
+	vk.DestroyImageView = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyImageView"))
+	vk.DestroySwapchainKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroySwapchainKHR"))
+	vk.DestroyImage = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyImage"))
+	vk.FreeMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkFreeMemory"))
 }
 
 load_proc_addresses :: proc {

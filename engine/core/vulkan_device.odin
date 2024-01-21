@@ -105,13 +105,14 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	device_features : vk.PhysicalDeviceFeatures = {}
 	device_features.samplerAnisotropy = true
 
-	extension_names := []cstring {vk.KHR_SWAPCHAIN_EXTENSION_NAME}
+	extension_names := [?]cstring {"VK_KHR_swapchain"}
 	device_create_info : vk.DeviceCreateInfo = {
 		sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO,
 		queueCreateInfoCount = cast(u32)index_count,
 		pQueueCreateInfos = raw_data(queue_create_infos),
 		pEnabledFeatures = &device_features,
-		ppEnabledExtensionNames = raw_data(extension_names),
+		ppEnabledExtensionNames = &extension_names[0],
+		enabledExtensionCount = u32(len(extension_names)),
 
 		// Deprecated and ignored, so pass nothing.
 		enabledLayerCount = 0,
@@ -161,7 +162,7 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 		v_context.device.swapchain_support.present_mode_count = 0
 	}
 
-	// arr.darray_destroy(v_context.device.swapchain_support.capabilities)
+	// v_context.device.swapchain_support.capabilities = 
 
 	v_context.device.graphics_queue_index = -1
 	v_context.device.present_queue_index = -1

@@ -84,6 +84,7 @@ vulkan_swapchain_present :: proc(
     }
 }
 
+@(private)
 create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^vulkan_swapchain) {
     swapchain_extent : vk.Extent2D = {width, height}
     swapchain.max_frames_in_flight = 2
@@ -163,7 +164,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     swapchain_create_info.compositeAlpha = {vk.CompositeAlphaFlagKHR.OPAQUE}
     swapchain_create_info.presentMode = present_mode
     swapchain_create_info.clipped = true
-    swapchain_create_info.oldSwapchain = 0
+    swapchain_create_info.oldSwapchain = vk.SwapchainKHR{}
 
     assert(vk.CreateSwapchainKHR(v_context.device.logical_device, &swapchain_create_info, v_context.allocator, &swapchain.handle) == vk.Result.SUCCESS)
 
@@ -176,15 +177,16 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     if swapchain.images == nil {
         swapchain.images = arr.darray_create(cast(u64)swapchain.image_count, vk.Image)
     }
+    assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, raw_data(swapchain.images)) == vk.Result.SUCCESS)
+
     if swapchain.views == nil {
         swapchain.views = arr.darray_create(cast(u64)swapchain.image_count, vk.ImageView)
     }
-    assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, raw_data(swapchain.images)) == vk.Result.SUCCESS)
 
     // Views
-    for image, index in swapchain.images {
+    for _, index in swapchain.images {
         view_info : vk.ImageViewCreateInfo = {sType = vk.StructureType.IMAGE_VIEW_CREATE_INFO}
-        view_info.image = image
+        view_info.image = swapchain.images[index]
         view_info.viewType = vk.ImageViewType.D2
         view_info.format = swapchain.image_format.format
         view_info.subresourceRange.aspectMask = {vk.ImageAspectFlag.COLOR}
@@ -192,7 +194,6 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
         view_info.subresourceRange.levelCount = 1
         view_info.subresourceRange.baseArrayLayer = 0
         view_info.subresourceRange.layerCount = 1
-
         assert(vk.CreateImageView(v_context.device.logical_device, &view_info, v_context.allocator, &swapchain.views[index]) == vk.Result.SUCCESS)
     }
 
@@ -219,6 +220,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     log_info("Swapchain created successfully.")
 }
 
+@(private)
 destroy :: proc(v_context: ^vulkan_context, swapchain: ^vulkan_swapchain) {
     arr.darray_destroy(swapchain.images)
     arr.darray_destroy(swapchain.views)
