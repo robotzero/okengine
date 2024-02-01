@@ -44,6 +44,8 @@ vulkan_device :: struct {
 	present_queue: vk.Queue,
 	transfer_queue: vk.Queue,
 
+	graphics_command_pool: vk.CommandPool,
+
 	properties: vk.PhysicalDeviceProperties,
 	features: vk.PhysicalDeviceFeatures,
 	memory: vk.PhysicalDeviceMemoryProperties,
@@ -130,6 +132,16 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 
 	log_info("Queues obtained.")
 
+	// Create command pool for graphics queue.
+	pool_create_info : vk.CommandPoolCreateInfo = {
+		sType = vk.StructureType.COMMAND_POOL_CREATE_INFO,
+		queueFamilyIndex = v_context.device.graphics_queue_index,
+		flags = {vk.CommandPoolCreateFlag.RESET_COMMAND_BUFFER},
+	}
+
+	assert(vk.CreateCommandPool(v_context.device.logical_device, &pool_create_info, v_context.allocator, &v_context.device.graphics_command_pool))
+	log_info("Graphics command pool created.")
+
 	return true
 }
 
@@ -138,6 +150,9 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 	v_context.device.graphics_queue = nil
 	v_context.device.present_queue = nil
 	v_context.device.transfer_queue = nil
+
+	log_info("Destroying command pools...")
+	vk.DestroyCommandPool(v_context.device.logical_device, v_context.device.graphics_command_pool, v_context.allocator)
 
 	// Destroy logical device
 	log_info("Destorying logical device...")

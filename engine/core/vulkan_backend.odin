@@ -175,6 +175,9 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 
 	vulkan_renderpass_create(&v_context, &v_context.main_renderpass, 0, 0, cast(f32)v_context.framebuffer_width, cast(f32)v_context.framebuffer_height, 0.0, 0.0, 0.2, 1.0, 1.0, 0)
 
+	// Create command buffers.
+	create_command_buffers(backend)
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -182,6 +185,16 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 
 vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	// Destroy is the opposide order of creation.
+
+	// Command buffers
+	for i in 0..<v_context.swapchain.image_count {
+		if v_context.graphics_command_buffers[i] != nil && v_context.graphics_command_buffers[i].handle != nil {
+			vulkan_command_buffer_free(&v_context, v_context.device.graphics_command_pool, &v_context.graphics_command_buffers[i])
+			v_context.graphics_command_buffers[i].handle = nil
+		}
+	}
+	arr.darray_destroy(v_context.graphics_command_buffers)
+	v_context.graphics_command_buffers = nil
 
 	// Renderpass
 	vulkan_renderpass_destroy(&v_context, &v_context.main_renderpass)
@@ -238,4 +251,27 @@ find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryProper
 	log_warning("Unable to find suitable memory type!")
 
 	return -1
+}
+
+create_command_buffers :: proc(backend: ^renderer_backend) {
+	if v_context.graphics_command_buffers == nil {
+		v_context.graphics_command_buffers = arr.darray_create(v_context.swapchain.image_count, vulkan_command_buffer)
+	}
+
+	for i in 0..<v_context.swapchain.image_count {
+		if v_context.graphics_command_buffers[i] != nil && v_context.graphics_command_buffers[i].handle != nil {
+			vulkan_command_buffer_free(&v_context, v_context.device.graphics.command.pool, &v_context.graphics_command_buffers[i])
+		}
+
+		v_context.graphics_command_buffers[i] = {}
+
+		vulkan_command_buffer_allocate(
+			&v_context,
+			context.device.graphics_command_pool,
+			true,
+			&v_context.graphics_command_buffers[i],
+		)
+	}
+
+	log_debug("Vulkan command buffers created.")
 }

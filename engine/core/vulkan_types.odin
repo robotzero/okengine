@@ -38,6 +38,9 @@ when ODIN_DEBUG == true {
 
 		swapchain: vulkan_swapchain,
 		main_renderpass: vulkan_renderpass,
+
+		graphics_command_buffers: [dynamic]vulkan_command_buffer,
+
 		image_index: u32,
 		current_frame: u32,
 		recreating_swapchain: bool,
@@ -58,6 +61,9 @@ when ODIN_DEBUG == true {
 
 		swapchain: vulkan_swapchain,
 		main_renderpass: vulkan_renderpass,
+
+		graphics_command_buffers: [dynamic]vulkan_command_buffer,
+
 		image_index: u32,
 		current_frame: u32,
 		recreating_swapchain: boo,
