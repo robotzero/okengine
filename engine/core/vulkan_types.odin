@@ -40,12 +40,20 @@ when ODIN_DEBUG == true {
 		main_renderpass: vulkan_renderpass,
 
 		graphics_command_buffers: [dynamic]vulkan_command_buffer,
+		image_available_semaphores: [dynamic]vk.Semaphore,
+		queue_complete_semaphores: [dynamic]vk.Semaphore,
+
+		in_flight_fence_count: u32,
+		in_flight_fences: [dynamic]vulkan_fence,
+
+		// Holds pointers to fences which exist and are owned elsewere
+		images_in_flight: [dynamic]^vulkan_fence,
 
 		image_index: u32,
 		current_frame: u32,
 		recreating_swapchain: bool,
 		find_memory_index_proc: find_memory_index,
-	}
+ }
 } else {
 	vulkan_context :: struct {
 		instance: vk.Instance,
@@ -63,6 +71,15 @@ when ODIN_DEBUG == true {
 		main_renderpass: vulkan_renderpass,
 
 		graphics_command_buffers: [dynamic]vulkan_command_buffer,
+
+		image_available_semaphores: [dynamic]vk.Semaphore,
+		queue_complete_semaphores: [dynamic]vk.Semaphore,
+
+		in_flight_fence_count: u32,
+		in_flight_fences: [dynamic]vulkan_fence,
+
+		// Holds pointers to fences which exist and are owned elsewere
+		images_in_flight: [dynamic]^vulkan_fence,
 
 		image_index: u32,
 		current_frame: u32,
@@ -88,6 +105,9 @@ vulkan_swapchain :: struct {
 	views: [dynamic]vk.ImageView,
 
 	depth_attachment: vulkan_image,
+
+	// framebuffers used for on-screen rendering.
+	framebuffers: ^vulkan_framebuffer,
 }
 
 vulkan_command_buffer :: struct {
@@ -102,4 +122,16 @@ vulkan_renderpass :: struct {
 
 	depth: f32,
 	stencil: u32,
+}
+
+vulkan_framebuffer :: struct {
+	handle: vk.Framebuffer,
+	attachment_count: u32,
+	attachments: [dynamic]vk.ImageView,
+	renderpass: ^vulkan_renderpass,
+}
+
+vulkan_fence :: struct {
+	handle: vk.Fence,
+	is_signaled: bool,
 }

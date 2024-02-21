@@ -202,3 +202,8 @@ application_run :: proc() -> bool {
 
 	return true
 }
+
+application_get_framebuffer_size :: proc(width: ^u32, height: ^u32) {
+	width^ = cast(u32)app_state.width
+	height^ = cast(u32)app_state.height
+}
