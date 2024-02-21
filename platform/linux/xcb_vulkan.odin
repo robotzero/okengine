@@ -51,6 +51,10 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.FreeMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkFreeMemory"))
 	vk.CreateRenderPass = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateRenderPass"))
 	vk.DestroyRenderPass = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyRenderPass"))
+	vk.CreateCommandPool = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateCommandPool"))
+	vk.AllocateCommandBuffers = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkAllocateCommandBuffers"))
+	vk.FreeCommandBuffers = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkFreeCommandBuffers"))
+	vk.DestroyCommandPool = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyCommandPool"))
 }
 
 load_proc_addresses :: proc {

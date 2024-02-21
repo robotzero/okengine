@@ -135,11 +135,11 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	// Create command pool for graphics queue.
 	pool_create_info : vk.CommandPoolCreateInfo = {
 		sType = vk.StructureType.COMMAND_POOL_CREATE_INFO,
-		queueFamilyIndex = v_context.device.graphics_queue_index,
+		queueFamilyIndex = cast(u32)v_context.device.graphics_queue_index,
 		flags = {vk.CommandPoolCreateFlag.RESET_COMMAND_BUFFER},
 	}
 
-	assert(vk.CreateCommandPool(v_context.device.logical_device, &pool_create_info, v_context.allocator, &v_context.device.graphics_command_pool))
+	assert(vk.CreateCommandPool(v_context.device.logical_device, &pool_create_info, v_context.allocator, &v_context.device.graphics_command_pool) == vk.Result.SUCCESS)
 	log_info("Graphics command pool created.")
 
 	return true
