@@ -1,4 +1,12 @@
 {
+  {
+	"$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
+	"profile": "default",
+	"profiles": [
+		{ "name": "default", "checker_path": ["testbed/entry.main"]},
+		{ "name": "linux_profile", "os": "linux", "checker_path": ["src/main.odin"]},
+		{ "name": "windows_profile", "os": "windows", "checker_path": ["src"]}
+	],
   "collections": [{ "name": "core",   "path": "/usr/lib/odin/core" },
                   { "name": "shared", "path": "/usr/lib/odin/shared" },
                   { "name": "vendor", "path": "/usr/lib/odin/vendor" },
