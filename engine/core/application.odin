@@ -53,6 +53,7 @@ application_create :: proc(game_inst: ^game) -> bool {
 	event_register(cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT, nil, application_on_event)
 	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
 	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
+	event_register(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, application_on_resized)
 
 	if ok: = platform_startup(
 		&app_state.platform,
@@ -92,7 +93,7 @@ application_on_event :: proc (code: u16, sender: rawptr, listener: rawptr, data:
 	return false
 }
 
-application_on_key :: proc (code: u16, sender: rawptr, listener: rawptr, data: event_context) -> bool {
+application_on_key :: proc(code: u16, sender: rawptr, listener: rawptr, data: event_context) -> bool {
 	if code == cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED {
 		event_context_data := data.data.([2]u16)
 		key_code: u16 = event_context_data[0]
@@ -117,6 +118,36 @@ application_on_key :: proc (code: u16, sender: rawptr, listener: rawptr, data: e
 			log_debug("'%c' key released in window.", key_code)
 		}
 	}
+	return false
+}
+
+application_on_resized :: proc(code: u16, sender: rawptr, listener: rawptr, data: event_context) -> bool {
+	if code == cast(u16)system_event_code.EVENT_CODE_RESIZED {
+		event_context_data := data.data.([2]u16)
+		width : u16 = event_context_data[0]
+		height: u16 = event_context_data[1]
+
+		if width != app_state.width || height != app_state.height {
+			
+			log_debug("Window resize: %i, %i", width, height)
+
+			// Handle minimization
+			if width == 0 || hegith == 0 {
+				log_info("Window minimized, suspending application.")
+				app_state.is_suspended = true
+				return true
+			} else {
+				if app_state.is_suspended {
+					log_info("Window restored, resuming application.")
+					app_state.is_suspended = false
+				}
+				app_state.game_inst.on_resize(app_state.game_inst, cast(i32)width, cast(i32)height)
+				renderer_on_resized(width, height)
+			}
+		}
+	}
+
+	// Event purposely not handled to allow other listeners to get this.
 	return false
 }
 
