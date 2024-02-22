@@ -12,9 +12,9 @@ vulkan_framebuffer_create :: proc(
 	attachments: [dynamic]vk.ImageView,
 	out_framebuffer: ^vulkan_framebuffer) {
 		// Take a copy of the attachments, renderpass and attachments count
-		out_framebuffer.attachments = arr.darray_create(len(attachments), vk.ImageView)
+		out_framebuffer.attachments = arr.darray_create(cast(u64)len(attachments), vk.ImageView)
 		for i in 0..<attachment_count {
-			out_framebuffer.attachments[i] = attachemnts[i]
+			out_framebuffer.attachments[i] = attachments[i]
 		}
 		out_framebuffer.renderpass = renderpass
 		out_framebuffer.attachment_count = attachment_count
@@ -24,13 +24,13 @@ vulkan_framebuffer_create :: proc(
 			sType = vk.StructureType.FRAMEBUFFER_CREATE_INFO,
 			renderPass = renderpass.handle,
 			attachmentCount = attachment_count,
-			pAttachments = out_framebuffer.attachments,
+			pAttachments = &out_framebuffer.attachments[0],
 			width = width,
 			height = height,
 			layers = 1,
 		}
 
-		assert(vk.CreateFramebuffer(v_context.device.logical_device, &framebuffer_create_info, v_context.allocator, &out_framebuffer.handle))
+		assert(vk.CreateFramebuffer(v_context.device.logical_device, &framebuffer_create_info, v_context.allocator, &out_framebuffer.handle) == vk.Result.SUCCESS)
 	}
 
 vulkan_framebuffer_destroy :: proc(v_context: ^vulkan_context, framebuffer: ^vulkan_framebuffer) {
@@ -42,5 +42,5 @@ vulkan_framebuffer_destroy :: proc(v_context: ^vulkan_context, framebuffer: ^vul
 	}
 	framebuffer.handle = 0
 	framebuffer.attachment_count = 0
-	framebuffer.renderpass = 0
+	framebuffer.renderpass = nil
 }

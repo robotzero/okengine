@@ -184,16 +184,16 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	vulkan_renderpass_create(&v_context, &v_context.main_renderpass, 0, 0, cast(f32)v_context.framebuffer_width, cast(f32)v_context.framebuffer_height, 0.0, 0.0, 0.2, 1.0, 1.0, 0)
 
 	// Swapchain framebuffers.
-	v_context.swapchain.framebuffers = arr.darray_create(v_context.swapchain.image_count, vulkan_framebuffer)
+	v_context.swapchain.framebuffers = arr.darray_create(cast(u64)v_context.swapchain.image_count, vulkan_framebuffer)
 	regenerate_framebuffers(backend, &v_context.swapchain, &v_context.main_renderpass)
 
 	// Create command buffers.
 	create_command_buffers(backend)
 
 	// Create sync object.
-	v_context.image_available_semaphores = arr.darray_create(v_context.swapchain.max_frames_in_flight, vk.Semaphore)
-	v_context.queue_complete_semaphores = arr.darray_create(v_context.swapchain.max_frames_in_flight, vk.Semaphore)
-	v_context.in_flight_fences = arr.darray_create(v_context.swapchain.max_frames_in_flight, vulkan_fence)
+	v_context.image_available_semaphores = arr.darray_create(cast(u64)v_context.swapchain.max_frames_in_flight, vk.Semaphore)
+	v_context.queue_complete_semaphores = arr.darray_create(cast(u64)v_context.swapchain.max_frames_in_flight, vk.Semaphore)
+	v_context.in_flight_fences = arr.darray_create(cast(u64)v_context.swapchain.max_frames_in_flight, vulkan_fence)
 
 	for i in 0..<v_context.swapchain.max_frames_in_flight {
 		semaphore_create_info : vk.SemaphoreCreateInfo = {
@@ -212,9 +212,9 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 	// In flight fences should not yet exist at this point, so clear the list. These are stored in pointers
 	// because the initial state should be 0, and will be 0 when not in use. Actual fences are not owned
 	// by this list.
-	v_context.images_in_flight = arr.darray_create(v_context.swapchain.image_count, vulkan_fence)
-	for i in 0..<v_context.swapchain_image_count {
-		v_context.images_in_flight[i] = 0
+	v_context.images_in_flight = arr.darray_create(cast(u64)v_context.swapchain.image_count, ^vulkan_fence)
+	for i in 0..<v_context.swapchain.image_count {
+		v_context.images_in_flight[i] = nil
 	}
 
 	log_info("Vulkan renderer initialized successfully.")
@@ -228,27 +228,27 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 
 	// Sync objects
 	for i in 0..<v_context.swapchain.max_frames_in_flight {
-		if v_context.image_available_semaphores[i] != nil {
+		if v_context.image_available_semaphores[i] != 0 {
 			vk.DestroySemaphore(v_context.device.logical_device, v_context.image_available_semaphores[i], v_context.allocator)
 			v_context.image_available_semaphores[i] = 0
 		}
-		if v_context.queue_complete_semaphores[i] != nil {
+		if v_context.queue_complete_semaphores[i] != 0 {
 			vk.DestroySemaphore(v_context.device.logical_device, v_context.queue_complete_semaphores[i], v_context.allocator)
 			v_context.queue_complete_semaphores[i] = 0
 		}
 		vulkan_fence_destroy(&v_context, &v_context.in_flight_fences[i])
 	}
 	arr.darray_destroy(v_context.image_available_semaphores)
-	v_context.image_available_semaphores = 0
+	v_context.image_available_semaphores = nil
 
 	arr.darray_destroy(v_context.queue_complete_semaphores)
-	v_context.queue_complete_semaphores = 0
+	v_context.queue_complete_semaphores = nil
 
-	arr.darray_destroy(v_context.in_flight.fences)
-	v_context.in_flight_fences = 0
+	arr.darray_destroy(v_context.in_flight_fences)
+	v_context.in_flight_fences = nil
 
 	arr.darray_destroy(v_context.images_in_flight)
-	v_context.images_in_flight = 0
+	v_context.images_in_flight = nil
 	
 	// Command buffers
 	for i in 0..<v_context.swapchain.image_count {
@@ -263,6 +263,7 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	for i in 0..<v_context.swapchain.image_count {
 		vulkan_framebuffer_destroy(&v_context, &v_context.swapchain.framebuffers[i])
 	}
+	arr.darray_destroy(v_context.swapchain.framebuffers)
 
 	// Renderpass
 	vulkan_renderpass_destroy(&v_context, &v_context.main_renderpass)
@@ -348,8 +349,9 @@ regenerate_framebuffers :: proc(backend: ^renderer_backend, swapchain: ^vulkan_s
 	for i in 0..<swapchain.image_count {
 		// TODO: make this dynamic based on the ucrrently configured attachments
 		attachment_count : u32 = 2
-		attachments : [?]vk.ImageView = {swapchain.views[i], swapchain.depth_attachment.view}
+		attachments : [dynamic]vk.ImageView = {swapchain.views[i], swapchain.depth_attachment.view}
 
 		vulkan_framebuffer_create(&v_context, renderpass, v_context.framebuffer_width, v_context.framebuffer_height, attachment_count, attachments, &v_context.swapchain.framebuffers[i])
+		defer arr.darray_destroy(attachments)
 	}
 }

@@ -54,7 +54,7 @@ vulkan_swapchain_acquire_next_image_index :: proc(
     }
 
     // Increment (and loop) the index.
-    v_context.current_frame = (v_context.current_frame + 1) % swapchain.max_frames_in_flight
+    v_context.current_frame = (v_context.current_frame + 1) % cast(u32)swapchain.max_frames_in_flight
 
     return true
 }

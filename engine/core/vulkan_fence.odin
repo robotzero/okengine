@@ -9,21 +9,22 @@ vulkan_fence_create :: proc(v_context: ^vulkan_context, create_signaled: bool, o
 		sType = vk.StructureType.FENCE_CREATE_INFO,
 	}
 	if out_fence.is_signaled {
-		fence_create_info.flags = {{.FENCE_CREATE_SIGNALED_BIT}}
+		fence_create_info.flags = {.SIGNALED}
 	}
 
 	assert(vk.CreateFence(v_context.device.logical_device, &fence_create_info, v_context.allocator, &out_fence.handle) == vk.Result.SUCCESS)
 }
 
 vulkan_fence_destroy :: proc(v_context: ^vulkan_context, fence: ^vulkan_fence) {
-	if fence.handle != nil {
+	if fence.handle != 0 {
 		vk.DestroyFence(v_context.device.logical_device, fence.handle, v_context.allocator)
-		fence.handle = nil
+		fence.handle = 0
 	}
 	fence.is_signaled = false
 }
 
 vulkan_fence_wait :: proc(v_context: ^vulkan_context, fence: ^vulkan_fence, timeout_ns: u64) -> bool {
+	res : bool = false
 	if fence.is_signaled == false {
 		result : vk.Result = vk.WaitForFences(
 			v_context.device.logical_device,
@@ -33,11 +34,10 @@ vulkan_fence_wait :: proc(v_context: ^vulkan_context, fence: ^vulkan_fence, time
 			timeout_ns,
 		)
 
-		result := false
-		switch (result) {
+		#partial switch (result) {
 			case vk.Result.SUCCESS:
 				fence.is_signaled = true
-				result = true
+				res = true
 			case vk.Result.TIMEOUT:
 				log_warning("vk_fence wait - Timed out")
 			case vk.Result.ERROR_DEVICE_LOST:
@@ -50,14 +50,14 @@ vulkan_fence_wait :: proc(v_context: ^vulkan_context, fence: ^vulkan_fence, time
 				log_error("vk_fence_wait - An unknown error has occured.")
 		}
 	} else {
-		result = true
+		res = true
 	}
-	return result
+	return res
 }
 
 vulkan_fence_reset :: proc(v_context: ^vulkan_context, fence: ^vulkan_fence) {
 	if fence.is_signaled {
-		assert(vk.ResetFences(v_context.device.logical_device, 1 &fence.handle) == vk.Result.SUCCESS)
+		assert(vk.ResetFences(v_context.device.logical_device, 1, &fence.handle) == vk.Result.SUCCESS)
 		fence.is_signaled = false
 	}
 }

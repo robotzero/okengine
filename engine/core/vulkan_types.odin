@@ -107,7 +107,7 @@ vulkan_swapchain :: struct {
 	depth_attachment: vulkan_image,
 
 	// framebuffers used for on-screen rendering.
-	framebuffers: ^vulkan_framebuffer,
+	framebuffers: [dynamic]vulkan_framebuffer,
 }
 
 vulkan_command_buffer :: struct {
