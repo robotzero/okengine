@@ -2,6 +2,7 @@ package core
 
 import vk "vendor:vulkan"
 import arr "../containers"
+import "core:fmt"
 
 vulkan_swapchain_create :: proc(
     vk_context: ^vulkan_context,
@@ -44,6 +45,7 @@ vulkan_swapchain_acquire_next_image_index :: proc(
         fence,
         out_image_index)
 
+    
     if result == vk.Result.ERROR_OUT_OF_DATE_KHR {
         // Trigger swapchain recreation, then boot out of the render loop.
         vulkan_swapchain_recreate(v_context, v_context.framebuffer_width, v_context.framebuffer_height, swapchain)
@@ -94,7 +96,8 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 
     // Choose a swap surface format.
     found : bool = false
-    for format in v_context.device.swapchain_support.formats {
+    for i in 0..<v_context.device.swapchain_support.format_count {
+        format := v_context.device.swapchain_support.formats[i]
         if format.format == vk.Format.B8G8R8A8_UNORM &&
             format.colorSpace == vk.ColorSpaceKHR.SRGB_NONLINEAR {
             swapchain.image_format = format
@@ -109,7 +112,8 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 
 
     present_mode : vk.PresentModeKHR = vk.PresentModeKHR.FIFO
-    for mode in v_context.device.swapchain_support.present_modes {
+    for i in 0..<v_context.device.swapchain_support.present_mode_count {
+        mode := v_context.device.swapchain_support.present_modes[i]
         if mode == vk.PresentModeKHR.MAILBOX {
             present_mode = mode
             break

@@ -174,7 +174,7 @@ application_run :: proc() -> bool {
 	log_info(mem_info)
 
 	for app_state.is_running {
-		if platform_pump_messages(&app_state.platform) {
+		if !platform_pump_messages(&app_state.platform) {
 			app_state.is_running = false
 		}
 
@@ -230,6 +230,8 @@ application_run :: proc() -> bool {
 			app_state.last_time = current_time
 		}
 	}
+
+	app_state.is_running = false
 
 	return true
 }

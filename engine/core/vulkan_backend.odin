@@ -308,6 +308,10 @@ vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u1
 }
 
 vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
+	blah := false
+	if blah {
+		return true
+	}
 	device : ^vulkan_device = &v_context.device
 
 	// Check if recreating swap chain and boot out.
@@ -343,7 +347,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 	}
 
 	// Wait for the execution of the current frame to complete. The fence being free will allow this one to move on.
-	if vulkan_fence_wait(&v_context, &v_context.in_flight_fences[v_context.current_frame], c.UINT64_MAX) == false {
+	if vulkan_fence_wait(&v_context, &v_context.in_flight_fences[v_context.current_frame], max(u64)) == false {
 		log_warning("In-flight fence wait failure!")
 		return false
 	}
@@ -352,9 +356,9 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 	if (!vulkan_swapchain_acquire_next_image_index(
             &v_context,
             &v_context.swapchain,
-            c.UINT64_MAX,
+            max(u64),
             v_context.image_available_semaphores[v_context.current_frame],
-            0,
+            {},
             &v_context.image_index)) {
         return false;
     }
@@ -393,6 +397,10 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 }
 
 vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
+	blah := true
+	if true {
+		return true
+	}
 	command_buffer : ^vulkan_command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
 
     // End renderpass

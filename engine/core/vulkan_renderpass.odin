@@ -125,29 +125,20 @@ vulkan_renderpass_destroy :: proc(v_context: ^vulkan_context, renderpass: ^vulka
 vulkan_renderpass_begin :: proc(command_buffer: ^vulkan_command_buffer, renderpass: ^vulkan_renderpass, frame_buffer: vk.Framebuffer) {
 	begin_info : vk.RenderPassBeginInfo = {
 		sType = vk.StructureType.RENDER_PASS_BEGIN_INFO,
+		renderPass = renderpass.handle,
 		framebuffer = frame_buffer,
-		renderArea = {
-			offset = {
-				x = cast(i32)renderpass.x,
-				y = cast(i32)renderpass.y,
-			},
-			extent = {
-				width = cast(u32)renderpass.w,
-				height = cast(u32)renderpass.h,
-			},
-		},
 	}
+	begin_info.renderArea.offset = {x = cast(i32)renderpass.x, y = cast(i32)renderpass.y}
+	begin_info.renderArea.extent = {width = cast(u32)renderpass.w, height = cast(u32)renderpass.h}
 
 	clear_values : [2]vk.ClearValue = {{},{}}
-	kzero_memory(&clear_values, size_of(vk.ClearValue) * 2)
 
 	clear_values[0].color.float32 = [4]f32{renderpass.r, renderpass.g, renderpass.b, renderpass.a}
-	// clear_values[0].color.float32[0] = renderpass.r;
- //    clear_values[0].color.float32[1] = renderpass.g;
- //    clear_values[0].color.float32[2] = renderpass.b;
- //    clear_values[0].color.float32[3] = renderpass.a;
     clear_values[1].depthStencil.depth = renderpass.depth;
     clear_values[1].depthStencil.stencil = renderpass.stencil;
+
+	// clear_color: vk.ClearValue;
+	// clear_color.color.float32 = [4]f32{0.0, 0.0, 0.0, 1.0};
 
 	begin_info.clearValueCount = 2
 	begin_info.pClearValues = &clear_values[0]

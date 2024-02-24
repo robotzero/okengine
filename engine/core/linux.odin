@@ -17,6 +17,9 @@ import arr "../containers"
 import xlib "vendor:x11/xlib"
 import vk "vendor:vulkan"
 
+poll_once := false
+resized := false
+
 foreign import X11xcb "system:X11-xcb"
 
 @(default_calling_convention="c", private)
@@ -89,11 +92,23 @@ platform_startup :: proc(plat_state: ^platform_state, application_name: string, 
 platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 	state : ^internal_state = cast(^internal_state)plat_state.internal_state
 	quit_flagged := false
-	event: ^l.GenericEvent
-	cm: ^l.ClientMessageEvent
-	event = l.poll_for_event(state.connection)
-	if event != nil {
-		switch (event.responseType & 0x7f) {
+	event: ^l.GenericEvent = {}
+	cm: ^l.ClientMessageEvent = {}
+
+    if poll_once == false {
+        event = l.poll_for_event(state.connection)
+    }
+    for event != nil {
+        if poll_once == false {
+            poll_once = true
+        } else {
+            event = l.poll_for_event(state.connection)
+        }
+        if event == nil {
+            poll_once = false
+            break
+        }
+        switch (event.responseType & 0x7f) {
 			case l.KEY_RELEASE, l.KEY_PRESS: {
 				keyPressEvent := cast(^l.KeyPressEvent) event
 				pressed := event.responseType == l.KEY_PRESS
@@ -138,6 +153,11 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 			}
 
             case l.CONFIGURE_NOTIFY: {
+                if resized == true {
+                    break
+                } else {
+                    resized = true
+                }
                 // Resizing - note that this is also triggered by moving the window, but should be
                 // passed anyway since a change in the x/y could mean an upper-left resize.
                 // The application layer can decide what to do with this.
@@ -146,7 +166,7 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
                 // Fire the event. The application layer should pick this up, but not handle it
                 // as it shouldn be visible to other parts of the application.
                 c : event_context = {}
-                // c.data.([2]u16) = {configure_event.width, configure_event.height}
+                c.data = [2]u16{}
                 d := c.data.([2]u16)
                 d[0] = configure_event.width
                 d[1] = configure_event.height
@@ -154,11 +174,10 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
                 event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
             }
 		}
-		// free(event)
-		l.flush(state.connection)
-	}
+        l.flush(state.connection)
+    }
 
-	return quit_flagged
+	return !quit_flagged
 }
 
 platform_shutdown :: proc(plat_state: ^platform_state) {
