@@ -227,6 +227,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 destroy :: proc(v_context: ^vulkan_context, swapchain: ^vulkan_swapchain) {
     arr.darray_destroy(swapchain.images)
     arr.darray_destroy(swapchain.views)
+    vk.DeviceWaitIdle(v_context.device.logical_device)
     vulkan_image_destroy(v_context, &swapchain.depth_attachment)
 
     // Only destroy the views, not the images, since those are owned by the swapchain and are thus

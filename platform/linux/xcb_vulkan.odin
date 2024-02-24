@@ -62,6 +62,7 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.DestroySemaphore = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroySemaphore"))
 	vk.DestroyFence = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyFence"))
 	vk.DestroyFramebuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyFramebuffer"))
+	vk.AcquireNextImageKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("AcquireNextImageKHR"))
 }
 
 load_proc_addresses :: proc {

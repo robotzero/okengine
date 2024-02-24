@@ -127,12 +127,12 @@ application_on_resized :: proc(code: u16, sender: rawptr, listener: rawptr, data
 		width : u16 = event_context_data[0]
 		height: u16 = event_context_data[1]
 
-		if width != app_state.width || height != app_state.height {
+		if cast(i32)width != app_state.width || cast(i32)height != app_state.height {
 			
 			log_debug("Window resize: %i, %i", width, height)
 
 			// Handle minimization
-			if width == 0 || hegith == 0 {
+			if width == 0 || height == 0 {
 				log_info("Window minimized, suspending application.")
 				app_state.is_suspended = true
 				return true

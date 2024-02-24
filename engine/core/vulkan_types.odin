@@ -36,6 +36,14 @@ when ODIN_DEBUG == true {
 		// The framebuffer's current height.
 		framebuffer_height: u32,
 
+		// Current generation of framebuffer size. If it does not match framebuffer_size_last_generation,
+    	// a new one should be generated.
+    	framebuffer_size_generation: u64,
+
+    	// The generation of the framebuffer when it was last created. Set to framebuffer_size_generation
+    	// when updated.
+    	framebuffer_size_last_generation: u64,
+
 		swapchain: vulkan_swapchain,
 		main_renderpass: vulkan_renderpass,
 
@@ -66,6 +74,14 @@ when ODIN_DEBUG == true {
 
 		// The framebuffer's current height.
 		framebuffer_height: u32,
+
+		// Current generation of framebuffer size. If it does not match framebuffer_size_last_generation,
+    	// a new one should be generated.
+    	framebuffer_size_generation: u64,
+
+    	// The generation of the framebuffer when it was last created. Set to framebuffer_size_generation
+    	// when updated.
+    	framebuffer_size_last_generation: u64,
 
 		swapchain: vulkan_swapchain,
 		main_renderpass: vulkan_renderpass,

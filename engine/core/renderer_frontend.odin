@@ -50,3 +50,11 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 
 	return true
 }
+
+renderer_on_resized :: proc(width: u16, height: u16) {
+	if backend != nil {
+		backend.resized(backend, width, height)
+	} else {
+		log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
+	}
+}

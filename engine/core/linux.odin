@@ -136,6 +136,23 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 				// Pass over to the input subsystem
 				input_process_mouse_move(move_event.eventX, move_event.eventY)
 			}
+
+            case l.CONFIGURE_NOTIFY: {
+                // Resizing - note that this is also triggered by moving the window, but should be
+                // passed anyway since a change in the x/y could mean an upper-left resize.
+                // The application layer can decide what to do with this.
+                configure_event := cast(^l.ConfigureNotifyEvent) event
+
+                // Fire the event. The application layer should pick this up, but not handle it
+                // as it shouldn be visible to other parts of the application.
+                c : event_context = {}
+                // c.data.([2]u16) = {configure_event.width, configure_event.height}
+                d := c.data.([2]u16)
+                d[0] = configure_event.width
+                d[1] = configure_event.height
+                c.data = d
+                event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
+            }
 		}
 		// free(event)
 		l.flush(state.connection)
