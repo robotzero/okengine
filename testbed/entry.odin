@@ -4,6 +4,7 @@ import c "../engine/core"
 import "core:log"
 import "core:mem"
 import "core:fmt"
+import "../engine/math"
 
 main :: proc() {
 
