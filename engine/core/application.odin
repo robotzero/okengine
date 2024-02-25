@@ -128,6 +128,8 @@ application_on_resized :: proc(code: u16, sender: rawptr, listener: rawptr, data
 		height: u16 = event_context_data[1]
 
 		if cast(i32)width != app_state.width || cast(i32)height != app_state.height {
+			app_state.width = cast(i32)width
+			app_state.height = cast(i32)height
 			
 			log_debug("Window resize: %i, %i", width, height)
 

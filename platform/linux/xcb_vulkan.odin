@@ -67,6 +67,12 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.CmdSetViewport = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdSetViewport"))
 	vk.CmdSetScissor = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdSetScissor"))
 	vk.CmdBeginRenderPass = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBeginRenderPass"))
+	vk.QueueSubmit = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkQueueSubmit"))
+	vk.CmdEndRenderPass = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdEndRenderPass"))
+	vk.EndCommandBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkEndCommandBuffer"))
+	vk.ResetFences = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkResetFences"))
+	vk.QueuePresentKHR = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkQueuePresentKHR"))
+	vk.WaitForFences = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkWaitForFences"))
 }
 
 load_proc_addresses :: proc {

@@ -5,22 +5,22 @@ import arr "../containers"
 import "core:fmt"
 
 vulkan_swapchain_create :: proc(
-    vk_context: ^vulkan_context,
+    v_context: ^vulkan_context,
     width: u32,
     height: u32,
     out_swapchain: ^vulkan_swapchain) {
     // Simply create a new one.
-    create(&v_context, width, height, out_swapchain)
+    create(v_context, width, height, out_swapchain)
 }
 
 vulkan_swapchain_recreate :: proc(
     v_context: ^vulkan_context,
     width: u32,
     height: u32,
-    out_swapchain: ^vulkan_swapchain) {
+    swapchain: ^vulkan_swapchain) {
     // Destroy the old and create a new one.
-    destroy(v_context, out_swapchain)
-    create(v_context, width, height, out_swapchain)
+    destroy(v_context, swapchain)
+    create(v_context, width, height, swapchain)
 }
 
 vulkan_swapchain_destroy :: proc(
@@ -55,9 +55,6 @@ vulkan_swapchain_acquire_next_image_index :: proc(
         return false
     }
 
-    // Increment (and loop) the index.
-    v_context.current_frame = (v_context.current_frame + 1) % cast(u32)swapchain.max_frames_in_flight
-
     return true
 }
 
@@ -69,7 +66,7 @@ vulkan_swapchain_present :: proc(
     render_complete_semaphore: ^vk.Semaphore,
     present_image_index: u32) {
 
-    present_image_index := present_image_index
+    pii := present_image_index
 
     // Return the image to the swapchain for presentation.
     present_info : vk.PresentInfoKHR = {sType = vk.StructureType.PRESENT_INFO_KHR}
@@ -77,7 +74,7 @@ vulkan_swapchain_present :: proc(
     present_info.pWaitSemaphores = render_complete_semaphore
     present_info.swapchainCount = 1
     present_info.pSwapchains = &swapchain.handle
-    present_info.pImageIndices = &present_image_index
+    present_info.pImageIndices = &pii
     present_info.pResults = nil
 
     result : vk.Result = vk.QueuePresentKHR(present_queue, &present_info)
@@ -87,6 +84,9 @@ vulkan_swapchain_present :: proc(
     } else if (result != vk.Result.SUCCESS) {
         log_fatal("Failed to present swap chain image!")
     }
+
+    // Increment (and loop) the index.
+    v_context.current_frame = (v_context.current_frame + 1) % cast(u32)swapchain.max_frames_in_flight
 }
 
 @(private)
@@ -150,7 +150,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     swapchain_create_info.imageColorSpace = swapchain.image_format.colorSpace
     swapchain_create_info.imageExtent = swapchain_extent
     swapchain_create_info.imageArrayLayers = 1
-    swapchain_create_info.imageUsage = {vk.ImageUsageFlag.COLOR_ATTACHMENT}
+    swapchain_create_info.imageUsage = {.COLOR_ATTACHMENT}
 
     // Setup the queue family indices
     if v_context.device.graphics_queue_index != v_context.device.present_queue_index {
@@ -158,17 +158,17 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
             cast(u32)v_context.device.graphics_queue_index,
             cast(u32)v_context.device.present_queue_index,
         }
-        swapchain_create_info.imageSharingMode = vk.SharingMode.CONCURRENT
+        swapchain_create_info.imageSharingMode = .CONCURRENT
         swapchain_create_info.queueFamilyIndexCount = 2
         swapchain_create_info.pQueueFamilyIndices = raw_data(queueFamilyIndices)
     } else {
-        swapchain_create_info.imageSharingMode = vk.SharingMode.EXCLUSIVE
+        swapchain_create_info.imageSharingMode = .EXCLUSIVE
         swapchain_create_info.queueFamilyIndexCount = 0
         swapchain_create_info.pQueueFamilyIndices = nil
     }
 
     swapchain_create_info.preTransform = v_context.device.swapchain_support.capabilities.currentTransform
-    swapchain_create_info.compositeAlpha = {vk.CompositeAlphaFlagKHR.OPAQUE}
+    swapchain_create_info.compositeAlpha = {.OPAQUE}
     swapchain_create_info.presentMode = present_mode
     swapchain_create_info.clipped = true
     swapchain_create_info.oldSwapchain = vk.SwapchainKHR{}
@@ -182,21 +182,22 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     swapchain.image_count = 0
     assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, nil) == vk.Result.SUCCESS)
     if swapchain.images == nil {
-        swapchain.images = arr.darray_create(cast(u64)swapchain.image_count, vk.Image)
+        // swapchain.images = arr.darray_create(cast(u64)swapchain.image_count, vk.Image)
+        swapchain.images = make([]vk.Image, image_count);
+    }
+
+    if swapchain.views == nil {
+        swapchain.views = make([]vk.ImageView, image_count);
     }
     assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, raw_data(swapchain.images)) == vk.Result.SUCCESS)
 
-    if swapchain.views == nil {
-        swapchain.views = arr.darray_create(cast(u64)swapchain.image_count, vk.ImageView)
-    }
-
     // Views
-    for _, index in swapchain.images {
-        view_info : vk.ImageViewCreateInfo = {sType = vk.StructureType.IMAGE_VIEW_CREATE_INFO}
+    for index in 0..<swapchain.image_count {
+        view_info : vk.ImageViewCreateInfo = {sType = .IMAGE_VIEW_CREATE_INFO}
         view_info.image = swapchain.images[index]
-        view_info.viewType = vk.ImageViewType.D2
+        view_info.viewType = .D2
         view_info.format = swapchain.image_format.format
-        view_info.subresourceRange.aspectMask = {vk.ImageAspectFlag.COLOR}
+        view_info.subresourceRange.aspectMask = {.COLOR}
         view_info.subresourceRange.baseMipLevel = 0
         view_info.subresourceRange.levelCount = 1
         view_info.subresourceRange.baseArrayLayer = 0
@@ -229,8 +230,6 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 
 @(private)
 destroy :: proc(v_context: ^vulkan_context, swapchain: ^vulkan_swapchain) {
-    arr.darray_destroy(swapchain.images)
-    arr.darray_destroy(swapchain.views)
     vk.DeviceWaitIdle(v_context.device.logical_device)
     vulkan_image_destroy(v_context, &swapchain.depth_attachment)
 

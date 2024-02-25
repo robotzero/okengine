@@ -17,9 +17,6 @@ import arr "../containers"
 import xlib "vendor:x11/xlib"
 import vk "vendor:vulkan"
 
-poll_once := false
-resized := false
-
 foreign import X11xcb "system:X11-xcb"
 
 @(default_calling_convention="c", private)
@@ -92,20 +89,15 @@ platform_startup :: proc(plat_state: ^platform_state, application_name: string, 
 platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 	state : ^internal_state = cast(^internal_state)plat_state.internal_state
 	quit_flagged := false
-	event: ^l.GenericEvent = {}
-	cm: ^l.ClientMessageEvent = {}
+	e: l.GenericEvent = {}
+	c: l.ClientMessageEvent = {}
 
-    if poll_once == false {
-        event = l.poll_for_event(state.connection)
-    }
+    event := &e
+    cm := &c
+
     for event != nil {
-        if poll_once == false {
-            poll_once = true
-        } else {
-            event = l.poll_for_event(state.connection)
-        }
+        event = l.poll_for_event(state.connection)
         if event == nil {
-            poll_once = false
             break
         }
         switch (event.responseType & 0x7f) {
@@ -153,11 +145,6 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 			}
 
             case l.CONFIGURE_NOTIFY: {
-                if resized == true {
-                    break
-                } else {
-                    resized = true
-                }
                 // Resizing - note that this is also triggered by moving the window, but should be
                 // passed anyway since a change in the x/y could mean an upper-left resize.
                 // The application layer can decide what to do with this.

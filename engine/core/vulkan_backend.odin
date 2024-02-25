@@ -10,8 +10,11 @@ import vk "vendor:vulkan"
 find_memory_index :: #type proc(type_filter: u32, property_flags: vk.MemoryPropertyFlags) -> i32
 
 // static Vulkan context
+@(private="file")
 v_context : vulkan_context
+@(private="file")
 cached_framebuffer_width  : u32 = 0
+@(private="file")
 cached_framebuffer_height : u32 = 0
 
 vulkan_debug_callback :: proc "stdcall" (messageSeverity: vk.DebugUtilsMessageSeverityFlagEXT, messageTypes: vk.DebugUtilsMessageTypeFlagsEXT, pCallbackData: ^vk.DebugUtilsMessengerCallbackDataEXT, pUserData: rawptr) -> b32 {
@@ -27,7 +30,7 @@ vulkan_debug_callback :: proc "stdcall" (messageSeverity: vk.DebugUtilsMessageSe
 
 vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, application_name: string, plat_state: ^platform_state) -> bool {
 	vulkan_proc_addr := platform_initialize_vulkan()
-	// vk.load_proc_addresses_global(vulkan_proc_addr)
+	vk.load_proc_addresses_global(vulkan_proc_addr)
 	vk.load_proc_addresses(vulkan_proc_addr)
 
 	// Function pointers
@@ -265,6 +268,8 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 		vulkan_framebuffer_destroy(&v_context, &v_context.swapchain.framebuffers[i])
 	}
 	arr.darray_destroy(v_context.swapchain.framebuffers)
+	delete(v_context.swapchain.images)
+	delete(v_context.swapchain.views)
 
 	// Renderpass
 	vulkan_renderpass_destroy(&v_context, &v_context.main_renderpass)
@@ -304,7 +309,7 @@ vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u1
 	cached_framebuffer_height = cast(u32)height
 	v_context.framebuffer_size_generation = v_context.framebuffer_size_generation + 1
 
-	log_info("Vulkan renderer backend->resized: w/g/gen: %i/%i/%llu", width, height, v_context.framebuffer_size_generation)
+	log_info("Vulkan renderer backend->resized: w/g/gen: %i/%i/%v", width, height, v_context.framebuffer_size_generation)
 }
 
 vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
@@ -397,10 +402,6 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 }
 
 vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
-	blah := true
-	if true {
-		return true
-	}
 	command_buffer : ^vulkan_command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
 
     // End renderpass

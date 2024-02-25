@@ -117,8 +117,8 @@ vulkan_swapchain :: struct {
 	max_frames_in_flight: u8,
 	handle: vk.SwapchainKHR,
 	image_count: u32,
-	images: [dynamic]vk.Image,
-	views: [dynamic]vk.ImageView,
+	images: []vk.Image,
+	views: []vk.ImageView,
 
 	depth_attachment: vulkan_image,
 

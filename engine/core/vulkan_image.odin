@@ -65,7 +65,7 @@ vulkan_image_create :: proc(
 }
 
 vulkan_image_view_create :: proc(
-    vk_context: ^vulkan_context,
+    v_context: ^vulkan_context,
     format: vk.Format,
     image: ^vulkan_image,
     aspect_flags: vk.ImageAspectFlag) {
