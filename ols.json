@@ -20,6 +20,7 @@
   "checker_args": "-vet -strict-style -debug",
   "formatter": {
     "tabs": true,
+    "tabs_width": 4,
     "characters": 90
   },
   "verbose":true
