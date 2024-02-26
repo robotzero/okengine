@@ -21,3 +21,8 @@ tasks:
       - testbed/**/*.odin    
     method: none
     silent: true  
+  post_build:
+    cmds:
+      - ./post-build.sh
+    method: none
+    silent: true
