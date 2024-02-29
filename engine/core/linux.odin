@@ -152,12 +152,9 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 
                 // Fire the event. The application layer should pick this up, but not handle it
                 // as it shouldn be visible to other parts of the application.
-                c : event_context = {}
-                c.data = [2]u16{}
-                d := c.data.([2]u16)
-                d[0] = configure_event.width
-                d[1] = configure_event.height
-                c.data = d
+                c : event_context = {
+                    data = [2]u16{configure_event.width, configure_event.height},
+                }
                 event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
             }
 		}
@@ -176,20 +173,7 @@ platform_shutdown :: proc(plat_state: ^platform_state) {
 }
 
 platform_console_write :: proc(log_level: log.Level, message: string, location := #caller_location) {
-	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
-	colour := 3
-	switch log_level {
-		case .Info: colour = 3
-		case .Debug : colour = 4
-		case .Warning : colour = 2
-		case .Error: colour = 1
-		case .Fatal: colour = 0
-	}
-	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
-}
-
-platform_console_write_error :: proc(log_level: log.Level, message: string, location := #caller_location) {
-	color_strings: []cstring = {"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	color_strings := [?]string{"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
 	colour := 3
 	switch log_level {
 		case .Info: colour = 3

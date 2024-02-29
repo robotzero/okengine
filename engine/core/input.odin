@@ -47,10 +47,7 @@ input_process_key :: proc(key: idef.keys, pressed: bool) {
 		// Update internal state.
 		inpt_state.keyboard_current.keys[key] = pressed
 
-		input_context : event_context = {}
-		input_context.data = [2]u16{}
-		data := &input_context.data.([2]u16)
-		data[0] = cast(u16)key
+		input_context : event_context = {data = [2]u16{cast(u16)key,{}}}
 		event_fire(pressed ? cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, input_context)
 	}
 }
@@ -62,10 +59,7 @@ input_process_button :: proc(button: idef.buttons, pressed: bool) {
     	inpt_state.mouse_current.buttons[button] = pressed
 
 		// Fire the event.
-		input_context: event_context = {}
-		input_context.data = [2]u16{}
-		data := &input_context.data.([2]u16)
-		data[0] = cast(u16)button
+		input_context : event_context = {data = [2]u16{cast(u16)button,{}}}
 		event_fire(pressed ? cast(u16)system_event_code.EVENT_CODE_BUTTON_PRESSED: cast(u16)system_event_code.EVENT_CODE_BUTTON_RELEASED, nil, input_context)
 	}
 }
@@ -78,11 +72,7 @@ input_process_mouse_move :: proc(x, y: i16) {
 		inpt_state.mouse_current.x = x
 		inpt_state.mouse_current.y = y
 
-		input_context : event_context = {}
-		input_context.data = [2]u16{}
-		data := &input_context.data.([2]u16)
-		data[0] = cast(u16)x
-		data[1] = cast(u16)y
+		input_context : event_context = {data = [2]u16{cast(u16)x,cast(u16)y}}
 		event_fire(cast(u16)system_event_code.EVENT_CODE_MOUSE_MOVED, nil, input_context)
 	}
 }
@@ -91,10 +81,7 @@ input_process_mouse_wheel :: proc(z_delta: i8) {
 	// NOTE: no internal state to update.
 
 	// Fire the event.
-	input_context: event_context = {}
-	input_context.data = [2]u8{}
-	data := &input_context.data.([2]u8)
-	data[0] = cast(u8)z_delta
+	input_context: event_context = {data = [2]u8{cast(u8)z_delta,{}}}
 }
 
 input_is_key_down :: proc(key: idef.keys) -> bool {

@@ -5,6 +5,10 @@
                   { "name": "vendor", "path": "/usr/lib/odin/vendor" },
                   { "name": "base", "path": "/usr/lib/odin/base" },
                   { "name": "dependencies", "path": "./dependencies"}],
+	"profile": "default",
+	"profiles": [
+		{ "name": "default", "checker_path": ["engine","testbed","platform"]},
+	]
   "thread_pool_count": 4,
   "enable_semantic_tokens": true,
   "enable_document_symbols": true,

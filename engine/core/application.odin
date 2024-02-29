@@ -110,12 +110,15 @@ application_on_key :: proc(code: u16, sender: rawptr, listener: rawptr, data: ev
 			log_debug("'%c' key pressed in a window.", key_code)
 		}
 	} else if code == cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED {
-		event_context_data := data.data.([2]u16)
-		key_code: u16 = event_context_data[0]
-		if key_code == cast(u16)idef.keys.KEY_B {
-			log_debug("Explicit B key released")
+		if event_context_data, ok := data.data.([2]u16); ok {
+					key_code: u16 = event_context_data[0]
+			if key_code == cast(u16)idef.keys.KEY_B {
+				log_debug("Explicit B key released")
+			} else {
+				log_debug("'%c' key released in window.", key_code)
+			}
 		} else {
-			log_debug("'%c' key released in window.", key_code)
+			log_fatal("Event data not correct type!")
 		}
 	}
 	return false

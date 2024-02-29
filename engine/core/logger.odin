@@ -23,12 +23,7 @@ log_output :: proc(log_level: log.Level, message: string, location := #caller_lo
 	// defer mem.zero_slice(out_message)
 
 	out_message := fmt.tprintf(message, ..args)
-	is_error: bool = log_level > log.Level.Warning
-	if is_error {
-		platform_console_write_error(log_level, out_message, location)
-	} else {
-		platform_console_write(log_level, out_message, location)
-	}
+	platform_console_write(log_level, out_message, location)
 }
 
 @(disabled = LOG_INFO_ENABLED == false)
