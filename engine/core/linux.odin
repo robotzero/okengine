@@ -10,7 +10,7 @@ import "core:time"
 import "core:strings"
 import "core:mem"
 import "core:dynlib"
-import l "../../platform/linux"
+import l "../platform/linux"
 import idef "../../engine/core/input"
 import arr "../containers"
 
