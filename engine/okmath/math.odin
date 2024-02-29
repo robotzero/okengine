@@ -69,22 +69,22 @@ krandom :: proc() -> i32 {
     if !rand_seeded {
 		current_time:= time.now()
 		rnd.set_global_seed(cast(u64)current_time._nsec)
-        rand_seeded = true;
+        rand_seeded = true
     }
-    return cast(i32)rnd.uint32();
+    return cast(i32)rnd.uint32()
 }
 
 krandom_in_range :: proc(min: i32, max: i32) -> i32 {
     if !rand_seeded {
 		current_time:= time.now()
 		rnd.set_global_seed(cast(u64)current_time._nsec)
-        rand_seeded = true;
+        rand_seeded = true
     }
 	return cast(i32)rnd.float32_range(cast(f32)min, cast(f32)max)
 }
 
 fkrandom :: proc() -> f32 {
-    return rnd.float32();
+    return rnd.float32()
 }
 
 fkrandom_in_range :: proc(min: f32, max: f32) -> f32 {
@@ -249,7 +249,7 @@ vec2_normalized :: proc(vector: vec2) -> vec2 {
  * @param vector_0 The first vector.
  * @param vector_1 The second vector.
  * @param tolerance The difference tolerance. Typically K_FLOAT_EPSILON or similar.
- * @return True if within tolerance; otherwise false. 
+ * @return True if within tolerance otherwise false. 
  */
 vec2_compare :: #force_inline proc(vector_0: vec2, vector_1: vec2, tolerance: f32) -> bool {
 	if m.abs(vector_0.x - vector_1.x) > tolerance {
@@ -916,9 +916,9 @@ quat_to_mat4 :: #force_inline proc(q: quat) -> mat4 {
 quat_from_axis_angle :: #force_inline proc(axis: vec3, angle: f32, normalize: bool) -> quat {
     q := la.quaternion_angle_axis(angle, axis)
     if (normalize) {
-        return quat_normalize(q);
+        return quat_normalize(q)
     }
-    return q;
+    return q
 }
 
 quat_slerp :: #force_inline proc(q_0: quat, q_1: quat, percentage: f32) -> quat {

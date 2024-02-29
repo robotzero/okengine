@@ -134,11 +134,11 @@ vulkan_renderpass_begin :: proc(command_buffer: ^vulkan_command_buffer, renderpa
 	clear_values : [2]vk.ClearValue = {{},{}}
 
 	clear_values[0].color.float32 = [4]f32{renderpass.r, renderpass.g, renderpass.b, renderpass.a}
-    clear_values[1].depthStencil.depth = renderpass.depth;
-    clear_values[1].depthStencil.stencil = renderpass.stencil;
+    clear_values[1].depthStencil.depth = renderpass.depth
+    clear_values[1].depthStencil.stencil = renderpass.stencil
 
-	// clear_color: vk.ClearValue;
-	// clear_color.color.float32 = [4]f32{0.0, 0.0, 0.0, 1.0};
+	// clear_color: vk.ClearValue
+	// clear_color.color.float32 = [4]f32{0.0, 0.0, 0.0, 1.0}
 
 	begin_info.clearValueCount = 2
 	begin_info.pClearValues = &clear_values[0]

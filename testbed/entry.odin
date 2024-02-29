@@ -1,10 +1,10 @@
 package testbed
 
-import c "../engine/core"
+import c "engine:core"
 import "core:log"
 import "core:mem"
 import "core:fmt"
-import "../engine/math"
+import "engine:okmath"
 
 main :: proc() {
 

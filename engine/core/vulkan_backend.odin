@@ -130,44 +130,42 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 		return false
 	}
 
-	create_debugger :: proc() -> Error {
-		if ODIN_DEBUG == false {
+	when ODIN_DEBUG == true {
+		create_debugger :: proc() -> Error {
+			log_debug("Creating Vulkan debugger...")
+			debug_create_info : vk.DebugUtilsMessengerCreateInfoEXT = {
+				sType = vk.StructureType.DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+				messageSeverity = { vk.DebugUtilsMessageSeverityFlagEXT.VERBOSE, vk.DebugUtilsMessageSeverityFlagEXT.WARNING, vk.DebugUtilsMessageSeverityFlagEXT.ERROR, vk.DebugUtilsMessageSeverityFlagEXT.INFO },
+				messageType = { vk.DebugUtilsMessageTypeFlagEXT.GENERAL, vk.DebugUtilsMessageTypeFlagEXT.VALIDATION, vk.DebugUtilsMessageTypeFlagEXT.PERFORMANCE },
+				pfnUserCallback = cast(vk.ProcDebugUtilsMessengerCallbackEXT)rawptr(vulkan_debug_callback),
+				pUserData = nil,
+			}
+			vk.CreateDebugUtilsMessengerEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkCreateDebugUtilsMessengerEXT"))
+			if vk.CreateDebugUtilsMessengerEXT == nil {
+				return Error.Create_Debugger_Fail
+			}
+			res := vk.CreateDebugUtilsMessengerEXT(v_context.instance, &debug_create_info, v_context.allocator, &v_context.debug_messenger)
+			if res != vk.Result.SUCCESS {
+				return Error.Create_Debugger_Fail
+			}
+
+			//send debug message
+  			//msg_callback_data : vk.DebugUtilsMessengerCallbackDataEXT = {
+  			//vk.StructureType.DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT,
+  			//nil, {}, nil, 0, "test message", 0, nil, 0, nil, 0, nil,
+  			//}
+	 		//vk.SubmitDebugUtilsMessageEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkSubmitDebugUtilsMessageEXT"))
+  			//vk.SubmitDebugUtilsMessageEXT(v_context.instance, {vk.DebugUtilsMessageSeverityFlagEXT.WARNING}, {vk.DebugUtilsMessageTypeFlagEXT.GENERAL}, &msg_callback_data);
+
+			// log_debug("%s", msg_callback_data.pMessage)
+      		log_debug("Vulkan debugger created.")
+		
 			return Error.Okay
 		}
 
-		log_debug("Creating Vulkan debugger...")
-		debug_create_info : vk.DebugUtilsMessengerCreateInfoEXT = {
-			sType = vk.StructureType.DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-			messageSeverity = { vk.DebugUtilsMessageSeverityFlagEXT.VERBOSE, vk.DebugUtilsMessageSeverityFlagEXT.WARNING, vk.DebugUtilsMessageSeverityFlagEXT.ERROR, vk.DebugUtilsMessageSeverityFlagEXT.INFO },
-			messageType = { vk.DebugUtilsMessageTypeFlagEXT.GENERAL, vk.DebugUtilsMessageTypeFlagEXT.VALIDATION, vk.DebugUtilsMessageTypeFlagEXT.PERFORMANCE },
-			pfnUserCallback = cast(vk.ProcDebugUtilsMessengerCallbackEXT)rawptr(vulkan_debug_callback),
-			pUserData = nil,
+		if err := create_debugger(); err == Error.Create_Debugger_Fail {
+			return false
 		}
-		vk.CreateDebugUtilsMessengerEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkCreateDebugUtilsMessengerEXT"))
-		if vk.CreateDebugUtilsMessengerEXT == nil {
-			return Error.Create_Debugger_Fail
-		}
-		res := vk.CreateDebugUtilsMessengerEXT(v_context.instance, &debug_create_info, v_context.allocator, &v_context.debug_messenger)
-		if res != vk.Result.SUCCESS {
-			return Error.Create_Debugger_Fail
-		}
-
-		//send debug message
-  //       msg_callback_data : vk.DebugUtilsMessengerCallbackDataEXT = {
-  //       	vk.StructureType.DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT,
-  //       	nil, {}, nil, 0, "test message", 0, nil, 0, nil, 0, nil,
-  //     	}
-	 //  	vk.SubmitDebugUtilsMessageEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkSubmitDebugUtilsMessageEXT"))
-  //     	vk.SubmitDebugUtilsMessageEXT(v_context.instance, {vk.DebugUtilsMessageSeverityFlagEXT.WARNING}, {vk.DebugUtilsMessageTypeFlagEXT.GENERAL}, &msg_callback_data);
-
-		// log_debug("%s", msg_callback_data.pMessage)
-      	log_debug("Vulkan debugger created.")
-		
-		return Error.Okay
-	}
-
-	if err := create_debugger(); err == Error.Create_Debugger_Fail {
-		return false
 	}
 
 	log_debug("Creating Vulkan surface...")
@@ -286,7 +284,7 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 		v_context.surface = 0
 	}
 
-	if ODIN_DEBUG {
+	when ODIN_DEBUG == true {
 		if v_context.debug_messenger != 0 {
 			vk.DestroyDebugUtilsMessengerEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroyDebugUtilsMessengerEXT"))
 			if vk.DestroyDebugUtilsMessengerEXT != nil {
@@ -365,7 +363,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
             v_context.image_available_semaphores[v_context.current_frame],
             {},
             &v_context.image_index)) {
-        return false;
+        return false
     }
 
 	// Begin recording commands.
@@ -552,7 +550,7 @@ find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryProper
 	for i in 0..<memory_properties.memoryTypeCount {
 		// Check each memory type to see if its bit is set to 1
 		if (type_filter & (1 << i) != 0) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags {
-			return cast(i32)i;
+			return cast(i32)i
 		}
 	}
 	log_warning("Unable to find suitable memory type!")

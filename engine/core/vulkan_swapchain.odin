@@ -183,11 +183,11 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
     assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, nil) == vk.Result.SUCCESS)
     if swapchain.images == nil {
         // swapchain.images = arr.darray_create(cast(u64)swapchain.image_count, vk.Image)
-        swapchain.images = make([]vk.Image, image_count);
+        swapchain.images = make([]vk.Image, image_count)
     }
 
     if swapchain.views == nil {
-        swapchain.views = make([]vk.ImageView, image_count);
+        swapchain.views = make([]vk.ImageView, image_count)
     }
     assert(vk.GetSwapchainImagesKHR(v_context.device.logical_device, swapchain.handle, &swapchain.image_count, raw_data(swapchain.images)) == vk.Result.SUCCESS)
 

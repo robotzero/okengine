@@ -101,7 +101,7 @@ get_memory_usage_str :: proc() -> string {
 	mib :: 1024 * 1024
 	kib :: 1024 * 1024
 
-	msg : [len(stats.tagged_allocations) + 1]string;
+	msg : [len(stats.tagged_allocations) + 1]string
 	#no_bounds_check {
 		msg[0] = "\n"
 	}

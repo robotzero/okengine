@@ -1,6 +1,6 @@
 package testbed
 
-import c "../engine/core"
+import c "engine:core"
 
 create_game::proc(out_game: ^c.game) -> bool {
 	out_game.app_config.name = "OK Engine Testbed"
