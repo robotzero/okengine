@@ -42,6 +42,10 @@ input_update :: proc(delta_time: f64) {
 }
 
 input_process_key :: proc(key: idef.keys, pressed: bool) {
+	if key == KEY_LALT {
+		log_info("Left alt pressed.")
+	}
+	
 	// Only handle this if the state actually changed.
 	if inpt_state.keyboard_current.keys[key] != pressed {
 		// Update internal state.

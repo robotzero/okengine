@@ -22,19 +22,21 @@ application_config :: struct {
 	name: string,
 }
 
-initialized: bool = false
-app_state: application_state
+app_state: ^application_state
 
 application_create :: proc(game_inst: ^game) -> bool {
-	if initialized {
+	if game_inst.application_state != nil {
 		log_error("application called more than once")
 		return false
 	}
 
+	game_inst.application_state = kallocate(size_of(application_state), memory_tag.MEMORY_TAG_APPLICATION, application_state)
+	app_state = game_inst.application_state
 	app_state.game_inst = game_inst
-
+	app_state.is_running = false
+	app_state.is_suspended = false
+	
 	initialize_logging()
-	input_initialize()
 	
 	log_info("info %f", 3.14)
 	log_debug("debug %f", 3.14)
@@ -42,8 +44,8 @@ application_create :: proc(game_inst: ^game) -> bool {
 	log_error("error %f", 3.14)
 	log_warning("warning %f", 3.14)
 
-	app_state.is_running = true
-	app_state.is_suspended = false
+
+	input_initialize()
 
 	if ok: = event_initialize(); !ok {
 		log_error("Event system failed initialization. Application cannot continue.")
@@ -167,6 +169,7 @@ application_run :: proc() -> bool {
 	defer event_unregister(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
 	defer app_state.is_running = false
 
+	app_state.is_running = true
 	clock_start(&app_state.c)
 	clock_update(&app_state.c)
 	app_state.last_time = app_state.c.elapsed

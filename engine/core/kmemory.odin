@@ -3,9 +3,20 @@ package core
 import "core:strings"
 import "core:fmt"
 
+@(private="file")
+stats: memory_stats
+@(private="file")
+state_ptr: ^memory_system_state
+
+memory_system_state :: struct {
+	stats: memory_stats,
+	alloc_count: u64,
+}
+
 memory_tag :: enum {
 	MEMORY_TAG_UNKNOWN,
 	MEMORY_TAG_ARRAY,
+	MEMORY_TAG_ALLC,
 	MEMORY_TAG_DARRAY,
 	MEMORY_TAG_DICT,
 	MEMORY_TAG_RING_QUEUE,
@@ -49,14 +60,19 @@ memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"NOP        ",
 }
 
-stats: memory_stats
+initialize_memory :: proc(memory_requirement ^u64, state: rawptr) {
+	memory_requirement^ = size_of(memory_system_state)
+	if state == nil {
+		return
+	}
 
-initialize_memory :: proc() {
+	state_ptr = state
+	state_ptr.alloc_count = 0
 	platform_zero_memory(&stats, size_of(memory_stats))
 }
 
 shutdown_memory :: proc() {
-	
+	state_ptr = nil
 }
 
 kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
@@ -64,8 +80,10 @@ kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	stats.total_allocated += size
-	stats.tagged_allocations[tag] += size
+	if state_ptr != nil {
+		state_ptr.stats.total_allocated += size
+		state_ptr.stats.tagged_allocations[tag] += size
+	}
 
 	block:= platform_allocate(size, false, T)
 	platform_zero_memory(block, cast(int)size)
@@ -78,14 +96,22 @@ kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	stats.total_allocated -= size
-	stats.tagged_allocations[tag] -= size
+	state_ptr.stats.total_allocated -= size
+	state_ptr.stats.tagged_allocations[tag] -= size
 
 	platform_free(object)
 }
 
 kzero_memory :: proc (block: rawptr, size: int) -> rawptr {
+	//@TODO missing stuff
 	return platform_zero_memory(block, size)
+}
+
+get_memory_alloc_count :: proc() -> u64 {
+	if state_ptr != nil {
+		return state_ptr.alloc_count
+	}
+	return 0
 }
 
 kcopy_memory :: proc(dest: rawptr, source: rawptr, size: int) -> rawptr {

@@ -126,8 +126,8 @@ keys :: enum u16 {
     KEY_RSHIFT = 0xA1,
     KEY_LCONTROL = 0xA2,
     KEY_RCONTROL = 0xA3,
-    KEY_LMENU = 0xA4,
-    KEY_RMENU = 0xA5,
+    KEY_LALT = 0xA4,
+    KEY_RALT = 0xA5,
 
     KEY_SEMICOLON = 0xBA,
     KEY_PLUS = 0xBB,

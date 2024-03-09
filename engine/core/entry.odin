@@ -14,8 +14,6 @@ create_game: create_game_proc
  * The main entry point of the application.
  */
 main :: proc() {
-	initialize_memory()
-
 	log_options := log.Options {
 		.Level,
 		.Time,
