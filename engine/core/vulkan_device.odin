@@ -71,7 +71,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		index_count += 1
 	}
 
-	indices : [3]i32 = {}
+	indices : [32]i32 = {}
 	index : u8 = 0
 	indices[index] = v_context.device.graphics_queue_index
 	index += 1
@@ -84,8 +84,8 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		index += 1
 	}
 
-	queue_create_infos : [dynamic]vk.DeviceQueueCreateInfo = {{}, {}, {}}
-	defer delete(queue_create_infos)
+	queue_create_infos : [32]vk.DeviceQueueCreateInfo = {}
+	// defer delete(queue_create_infos)
 	for i : i32 = 0; i < index_count; i += 1 {
 		queue_create_infos[i] = {}
 		queue_create_infos[i].sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO
@@ -111,7 +111,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	device_create_info : vk.DeviceCreateInfo = {
 		sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO,
 		queueCreateInfoCount = cast(u32)index_count,
-		pQueueCreateInfos = raw_data(queue_create_infos),
+		pQueueCreateInfos = &queue_create_infos[0],
 		pEnabledFeatures = &device_features,
 		ppEnabledExtensionNames = &extension_names[0],
 		enabledExtensionCount = u32(len(extension_names)),
@@ -323,10 +323,8 @@ physical_device_meets_requirements :: proc(
 
 	queue_family_count : u32 = 0
 	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nil)
-	queue_families := make([]vk.QueueFamilyProperties, queue_family_count)
-	defer delete(queue_families)
-
-	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, raw_data(queue_families))
+	queue_families : [32]vk.QueueFamilyProperties = {}
+	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, &queue_families[0])
 
 	// Look at each queue and see what queues it supports
 	log_info("Graphics | Present | Compute | Transfer | Name")

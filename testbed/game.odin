@@ -12,13 +12,10 @@ create_game::proc(out_game: ^c.game) -> bool {
 	out_game.render = game_render
 	out_game.initialize = game_initialize
 	out_game.on_resize = game_on_resize
-	out_game.state = c.kallocate(size_of(game_state), c.memory_tag.MEMORY_TAG_GAME, game_state)
+	out_game.state = c.kallocate(size_of(c.game_state), c.memory_tag.MEMORY_TAG_GAME, c.game_state)
+	out_game.application_state = nil
 
 	return true
-}
-
-game_state :: struct {
-	delta_time: f32,
 }
 
 game_initialize :: proc(game_inst: ^c.game) -> bool {

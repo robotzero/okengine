@@ -9,13 +9,35 @@ LOG_WARN_ENABLED  :: true
 LOG_INFO_ENABLED  :: true
 LOG_TRACE_ENABLED :: true
 
-initialize_logging :: proc() -> bool {
+logger_system_state :: struct {
+	initialized: bool,
+}
+
+state_ptr : ^logger_system_state
+
+initialize_logging :: proc(memory_requirement: ^u64, state: ^$T) -> bool {
+	memory_requirement^ = size_of(state)
+	if state == nil {
+		return true
+	}
+
+	state_ptr = state
+	state_ptr.initialized = true
+
+	log_info("info %f", 3.14)
+	log_debug("debug %f", 3.14)
+	log_fatal("fatal %f", 3.14)
+	log_error("error %f", 3.14)
+	log_warning("warning %f", 3.14)
+
 	return true
 }
 
-shutdown_logging :: proc() {
-	
+shutdown_logging :: proc(state: ^$T) {
+	// @TODO: clean up logging/write queued entries.
+	state_ptr = nil
 }
+
 // @TOOD make buffered login systemd
 @(private)
 log_output :: proc(log_level: log.Level, message: string, location := #caller_location, args: ..any) {

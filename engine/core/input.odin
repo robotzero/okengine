@@ -42,7 +42,7 @@ input_update :: proc(delta_time: f64) {
 }
 
 input_process_key :: proc(key: idef.keys, pressed: bool) {
-	if key == KEY_LALT {
+	if key == idef.keys.KEY_LALT {
 		log_info("Left alt pressed.")
 	}
 	

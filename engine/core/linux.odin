@@ -421,7 +421,7 @@ translate_keycode :: proc(x_keycode: xlib.KeySym) -> idef.keys {
             return KEY_RCONTROL
         // case XK_Menu: return KEY_LMENU
         case XK_Menu:
-            return KEY_RMENU
+            return KEY_RALT
 
         case XK_semicolon:
             return KEY_SEMICOLON

@@ -12,6 +12,7 @@ application_state :: struct {
 	height: i32,
 	c: clock,
 	last_time: i64,
+	systems_allocator: linear_allocator,
 }
 
 application_config :: struct {
@@ -35,16 +36,15 @@ application_create :: proc(game_inst: ^game) -> bool {
 	app_state.game_inst = game_inst
 	app_state.is_running = false
 	app_state.is_suspended = false
-	
-	initialize_logging()
-	
-	log_info("info %f", 3.14)
-	log_debug("debug %f", 3.14)
-	log_fatal("fatal %f", 3.14)
-	log_error("error %f", 3.14)
-	log_warning("warning %f", 3.14)
 
-
+	systems_allocator_total_size := 64 * 1024 * 1024 // 64mb
+	linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
+	allocator := app_state.systems_allocator
+	
+	
+	// Memory
+	// initialize_memory(&app_state.memory_system_memory_requirement, nil)
+	
 	input_initialize()
 
 	if ok: = event_initialize(); !ok {
@@ -78,8 +78,6 @@ application_create :: proc(game_inst: ^game) -> bool {
 	}
 
 	app_state.game_inst.on_resize(app_state.game_inst, app_state.width, app_state.height)
-
-	initialized = true
 
 	return true
 }

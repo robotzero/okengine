@@ -43,6 +43,7 @@ memory_stats :: struct {
 memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"UNKNOWN   ",
     "ARRAY     ",
+	"ALLC      ",
 	"DARRAY    ",
 	"RING_QUEUE ",
 	"BST        ",
@@ -60,7 +61,7 @@ memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"NOP        ",
 }
 
-initialize_memory :: proc(memory_requirement ^u64, state: rawptr) {
+initialize_memory :: proc(memory_requirement: ^u64, state: ^$T) {
 	memory_requirement^ = size_of(memory_system_state)
 	if state == nil {
 		return
@@ -83,6 +84,7 @@ kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
 	if state_ptr != nil {
 		state_ptr.stats.total_allocated += size
 		state_ptr.stats.tagged_allocations[tag] += size
+		state_ptr.alloc_count = state_ptr.alloc_count + 1
 	}
 
 	block:= platform_allocate(size, false, T)
@@ -132,7 +134,7 @@ get_memory_usage_str :: proc() -> string {
 		msg[0] = "\n"
 	}
 	//@TODO handle error from strings.concatenate
-	for v, i in stats.tagged_allocations {
+	for v, i in state_ptr.stats.tagged_allocations {
 		unit : string
 		amount : f64 = 1.0
 		message : string
