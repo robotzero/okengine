@@ -195,8 +195,8 @@ platform_sleep :: proc(ms: f64) {
 	time.sleep(duration)
 }
 
-platform_allocate :: proc(size: u64, aligned: bool, $T: typeid) -> ^T {
-	// log.logf(log.Level.Info, "OBJECT %v", T)
+platform_allocate :: proc(size: u64, aligned: bool, $T: typeid, allocator := context.allocator, location := #caller_location) -> ^T {
+    log.log(log.Level.Info, "OBJECT NEW", location)
 	return new(T)
 }
 

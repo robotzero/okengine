@@ -61,33 +61,38 @@ memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"NOP        ",
 }
 
-initialize_memory :: proc(memory_requirement: ^u64, state: ^$T) {
+initialize_memory :: proc(memory_requirement: ^u64, $T: typeid, allocator := context.allocator, location := #caller_location) -> ^T {
 	memory_requirement^ = size_of(memory_system_state)
-	if state == nil {
-		return
+	if memory_requirement == nil {
+		return nil
 	}
 
-	state_ptr = state
+	state_ptr = platform_allocate(memory_requirement^, false, T, allocator, location)
 	state_ptr.alloc_count = 0
 	platform_zero_memory(&stats, size_of(memory_stats))
+	return state_ptr
 }
 
-shutdown_memory :: proc() {
+shutdown_memory :: proc(alloc: ^linear_allocator allocator := context.allocator) {
+	linear_allocator_free_all(alloc)
+	linear_allocator_destroy(alloc)
 	state_ptr = nil
 }
 
-kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
+kallocate :: proc(size: u64, tag: memory_tag, $T: typeid, location := #caller_location) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
+	log_info("allocator %v",context.allocator)
+	log_info("aaa %v", context.temp_allocator)
 	if state_ptr != nil {
 		state_ptr.stats.total_allocated += size
 		state_ptr.stats.tagged_allocations[tag] += size
 		state_ptr.alloc_count = state_ptr.alloc_count + 1
 	}
 
-	block:= platform_allocate(size, false, T)
+	block := platform_allocate(size, false, T, location = location)
 	platform_zero_memory(block, cast(int)size)
 
 	return block

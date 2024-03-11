@@ -25,7 +25,14 @@ linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocat
 		panic("AAAAAAAAAAAA")
 	}
 	allocator := virtual.arena_allocator(out_allocator.arena)
-	out_allocator.allocator = allocator
+
+	when ODIN_DEBUG {
+		// track: mem.Tracking_Allocator
+		// mem.tracking_allocator_init(&track, allocator)
+		out_allocator.allocator = allocator
+	} else {
+		out_allocator.allocator = allocator
+	}
 }
 
 linear_allocator_destroy :: proc(allocator: ^linear_allocator) {

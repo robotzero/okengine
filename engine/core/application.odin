@@ -13,6 +13,8 @@ application_state :: struct {
 	c: clock,
 	last_time: i64,
 	systems_allocator: linear_allocator,
+	memory_system_memory_requirement: u64,
+	memory_system_state: rawptr,
 }
 
 application_config :: struct {
@@ -39,11 +41,12 @@ application_create :: proc(game_inst: ^game) -> bool {
 
 	systems_allocator_total_size := 64 * 1024 * 1024 // 64mb
 	linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
-	allocator := app_state.systems_allocator
+	mem_allocator := app_state.systems_allocator
 	
 	
 	// Memory
-	// initialize_memory(&app_state.memory_system_memory_requirement, nil)
+	state := initialize_memory(&app_state.memory_system_memory_requirement, memory_system_state, mem_allocator.allocator)
+	app_state.memory_system_state = state
 	
 	input_initialize()
 
@@ -157,6 +160,7 @@ application_on_resized :: proc(code: u16, sender: rawptr, listener: rawptr, data
 }
 
 application_run :: proc() -> bool {
+	defer shutdown_memory(&app_state.systems_allocator)
 	defer platform_shutdown(&app_state.platform)
 	// defer platform_free(&app_state.game_inst.state)
 	defer renderer_shutdown()

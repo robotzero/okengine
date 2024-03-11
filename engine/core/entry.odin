@@ -42,7 +42,9 @@ main :: proc() {
 					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
 				}
 			}
-			mem.tracking_allocator_destroy(&track)
+			// mem.free_all(track.backing)
+			// mem.free_all(context.allocator)
+			// mem.tracking_allocator_destroy(&track)
 		}
 	} else {
 		lowest :: log.Level.Info
@@ -52,7 +54,7 @@ main :: proc() {
 
     defer log.destroy_console_logger(context.logger)
 	defer mem.free_all()
-	defer shutdown_memory()
+	// defer shutdown_memory()
 	defer mem.free(game_inst.state)
   	context.logger = log.create_console_logger(lowest, log_options)
 
