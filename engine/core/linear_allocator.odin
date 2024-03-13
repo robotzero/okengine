@@ -21,7 +21,7 @@ linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocat
 	out_allocator.owns_memory = true
 	out_allocator.arena = &arena
 
-	err := virtual.arena_init_static(out_allocator.arena, total_size); if err != nil {
+	err := virtual.arena_init_static(out_allocator.arena, reserved = total_size * mem.Megabyte, commit_size = 16 * mem.Megabyte); if err != nil {
 		panic("AAAAAAAAAAAA")
 	}
 	allocator := virtual.arena_allocator(out_allocator.arena)

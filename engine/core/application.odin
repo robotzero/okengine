@@ -39,7 +39,7 @@ application_create :: proc(game_inst: ^game) -> bool {
 	app_state.is_running = false
 	app_state.is_suspended = false
 
-	systems_allocator_total_size := 64 * 1024 * 1024 // 64mb
+	systems_allocator_total_size := 64// 64mb
 	linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
 	mem_allocator := app_state.systems_allocator
 	

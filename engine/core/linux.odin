@@ -197,8 +197,12 @@ platform_sleep :: proc(ms: f64) {
 
 platform_allocate :: proc(size: u64, aligned: bool, $T: typeid, allocator := context.allocator, location := #caller_location) -> ^T {
     // log.log(log.Level.Info, "OBJECT NEW %s", location)
-    obj := new(T)
-    log.log(log.Level.Info, "object %v, location %s", obj, location)
+    obj, err := new(T, context.allocator)
+    if err != nil {
+        log.fatal(err)
+        panic("AAAAAAAAAAAAAAAAAAAAAAAAAA")
+    }
+    // log.log(log.Level.Info, "object %v, location %s", obj, location)
     return obj
 }
 

@@ -78,7 +78,7 @@ shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator
 	free_all(context.allocator)
 	platform_free(state_ptr)
 	platform_free(app_state)
-	linear_allocator_destroy(alloc)
+	// linear_allocator_destroy(alloc)
 	state_ptr = nil
 }
 
@@ -94,7 +94,6 @@ kallocate :: proc(size: u64, tag: memory_tag, $T: typeid, location := #caller_lo
 	}
 
 	block := platform_allocate(size, false, T, location = location)
-	platform_zero_memory(block, cast(int)size)
 
 	return block
 }
