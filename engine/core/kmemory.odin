@@ -73,8 +73,11 @@ initialize_memory :: proc(memory_requirement: ^u64, $T: typeid, allocator := con
 	return state_ptr
 }
 
-shutdown_memory :: proc(alloc: ^linear_allocator allocator := context.allocator) {
+shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
 	linear_allocator_free_all(alloc)
+	free_all(context.allocator)
+	platform_free(state_ptr)
+	platform_free(app_state)
 	linear_allocator_destroy(alloc)
 	state_ptr = nil
 }
@@ -84,8 +87,6 @@ kallocate :: proc(size: u64, tag: memory_tag, $T: typeid, location := #caller_lo
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	log_info("allocator %v",context.allocator)
-	log_info("aaa %v", context.temp_allocator)
 	if state_ptr != nil {
 		state_ptr.stats.total_allocated += size
 		state_ptr.stats.tagged_allocations[tag] += size

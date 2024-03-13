@@ -42,9 +42,9 @@ main :: proc() {
 					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
 				}
 			}
-			// mem.free_all(track.backing)
-			// mem.free_all(context.allocator)
-			// mem.tracking_allocator_destroy(&track)
+			mem.free_all(track.backing)
+			mem.free_all(context.allocator)
+			mem.tracking_allocator_destroy(&track)
 		}
 	} else {
 		lowest :: log.Level.Info
