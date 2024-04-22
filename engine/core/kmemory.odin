@@ -164,5 +164,10 @@ get_memory_usage_str :: proc() -> string {
 		}
 	}
 
-	return strings.concatenate(msg[:])
+	str, err := strings.concatenate(msg[:])
+	defer if err != nil {
+		log_error("Unable to get memory usage", err)
+		str = ""
+	}
+	return str
 }

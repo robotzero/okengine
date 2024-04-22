@@ -144,7 +144,7 @@ vulkan_renderer_backend_initialize :: proc(backend: ^renderer_backend, applicati
 			if vk.CreateDebugUtilsMessengerEXT == nil {
 				return Error.Create_Debugger_Fail
 			}
-			res := vk.CreateDebugUtilsMessengerEXT(v_context.instance, &debug_create_info, v_context.allocator, &v_context.debug_messenger)
+			res := vk.CreateDebugUtilsMessengerEXT(v_context.instance, &debug_create_info, v_context.allocator, &v_context.debug_messenger.debug_messenger)
 			if res != vk.Result.SUCCESS {
 				return Error.Create_Debugger_Fail
 			}
@@ -285,10 +285,10 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	}
 
 	when ODIN_DEBUG == true {
-		if v_context.debug_messenger != 0 {
+		if v_context.debug_messenger.debug_messenger != 0  {
 			vk.DestroyDebugUtilsMessengerEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkDestroyDebugUtilsMessengerEXT"))
 			if vk.DestroyDebugUtilsMessengerEXT != nil {
-				vk.DestroyDebugUtilsMessengerEXT(v_context.instance, v_context.debug_messenger, v_context.allocator)
+				vk.DestroyDebugUtilsMessengerEXT(v_context.instance, v_context.debug_messenger.debug_messenger, v_context.allocator)
 				log_debug("Destroying Vulkan debugger...")
 			}
 		}

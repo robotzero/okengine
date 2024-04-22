@@ -21,88 +21,53 @@ vulkan_render_pass_state :: enum {
 	NOT_ALLOCATED,
 }
 
-// @TODO when next to the variable definition?
 when ODIN_DEBUG == true {
-	vulkan_context :: struct {
-		instance: vk.Instance,
-		allocator: ^vk.AllocationCallbacks,
+	vulkan_debug_messenger :: struct {
 		debug_messenger: vk.DebugUtilsMessengerEXT,
-		surface: vk.SurfaceKHR,
-		device: vulkan_device,
-
-		// The framebuffer's current width.
-		framebuffer_width: u32,
-
-		// The framebuffer's current height.
-		framebuffer_height: u32,
-
-		// Current generation of framebuffer size. If it does not match framebuffer_size_last_generation,
-    	// a new one should be generated.
-    	framebuffer_size_generation: u64,
-
-    	// The generation of the framebuffer when it was last created. Set to framebuffer_size_generation
-    	// when updated.
-    	framebuffer_size_last_generation: u64,
-
-		swapchain: vulkan_swapchain,
-		main_renderpass: vulkan_renderpass,
-
-		graphics_command_buffers: [dynamic]vulkan_command_buffer,
-		image_available_semaphores: [dynamic]vk.Semaphore,
-		queue_complete_semaphores: [dynamic]vk.Semaphore,
-
-		in_flight_fence_count: u32,
-		in_flight_fences: [dynamic]vulkan_fence,
-
-		// Holds pointers to fences which exist and are owned elsewere
-		images_in_flight: [dynamic]^vulkan_fence,
-
-		image_index: u32,
-		current_frame: u32,
-		recreating_swapchain: bool,
-		find_memory_index_proc: find_memory_index,
- }
-} else {
-	vulkan_context :: struct {
-		instance: vk.Instance,
-		allocator: ^vk.AllocationCallbacks,
-		surface: vk.SurfaceKHR,
-		device: vulkan_device,
-
-		// The framebuffer's current width.
-		framebuffer_width: u32,
-
-		// The framebuffer's current height.
-		framebuffer_height: u32,
-
-		// Current generation of framebuffer size. If it does not match framebuffer_size_last_generation,
-    	// a new one should be generated.
-    	framebuffer_size_generation: u64,
-
-    	// The generation of the framebuffer when it was last created. Set to framebuffer_size_generation
-    	// when updated.
-    	framebuffer_size_last_generation: u64,
-
-		swapchain: vulkan_swapchain,
-		main_renderpass: vulkan_renderpass,
-
-		graphics_command_buffers: [dynamic]vulkan_command_buffer,
-
-		image_available_semaphores: [dynamic]vk.Semaphore,
-		queue_complete_semaphores: [dynamic]vk.Semaphore,
-
-		in_flight_fence_count: u32,
-		in_flight_fences: [dynamic]vulkan_fence,
-
-		// Holds pointers to fences which exist and are owned elsewere
-		images_in_flight: [dynamic]^vulkan_fence,
-
-		image_index: u32,
-		current_frame: u32,
-		recreating_swapchain: bool,
-		find_memory_index_proc: find_memory_index,
 	}
+} else {
+	vulkan_debug_messanger :: struct {}
 }
+
+vulkan_context :: struct {
+	instance: vk.Instance,
+	allocator: ^vk.AllocationCallbacks,
+	debug_messenger: vulkan_debug_messenger,
+	surface: vk.SurfaceKHR,
+	device: vulkan_device,
+
+	// The framebuffer's current width.
+	framebuffer_width: u32,
+
+	// The framebuffer's current height.
+	framebuffer_height: u32,
+
+	// Current generation of framebuffer size. If it does not match framebuffer_size_last_generation,
+    // a new one should be generated.
+    framebuffer_size_generation: u64,
+
+    // The generation of the framebuffer when it was last created. Set to framebuffer_size_generation
+    // when updated.
+    framebuffer_size_last_generation: u64,
+
+	swapchain: vulkan_swapchain,
+	main_renderpass: vulkan_renderpass,
+
+	graphics_command_buffers: [dynamic]vulkan_command_buffer,
+	image_available_semaphores: [dynamic]vk.Semaphore,
+	queue_complete_semaphores: [dynamic]vk.Semaphore,
+
+	in_flight_fence_count: u32,
+	in_flight_fences: [dynamic]vulkan_fence,
+
+	// Holds pointers to fences which exist and are owned elsewere
+	images_in_flight: [dynamic]^vulkan_fence,
+
+	image_index: u32,
+	current_frame: u32,
+	recreating_swapchain: bool,
+	find_memory_index_proc: find_memory_index,
+ }
 
 vulkan_image :: struct {
 	handle: vk.Image,
