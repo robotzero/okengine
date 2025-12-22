@@ -13,16 +13,18 @@ logger_system_state :: struct {
 	initialized: bool,
 }
 
-state_ptr: ^logger_system_state
+// @(private = "file")
+// state_ptr: ^logger_system_state
 
-initialize_logging :: proc(memory_requirement: ^u64, state: ^$T) -> bool {
-	memory_requirement^ = size_of(state)
-	if state == nil {
-		return true
-	}
+// initialize_logging :: proc(memory_requirement: ^u64, state: ^$T) -> (^T, bool) {
+initialize_logging :: proc() {
+	// memory_requirement^ = size_of(state)
+	// if state == nil {
+	// 	return nil, true
+	// }
 
-	state_ptr = state
-	state_ptr.initialized = true
+	// state_ptr = state
+	// state_ptr.initialized = true
 
 	log_info("info %f", 3.14)
 	log_debug("debug %f", 3.14)
@@ -30,7 +32,7 @@ initialize_logging :: proc(memory_requirement: ^u64, state: ^$T) -> bool {
 	log_error("error %f", 3.14)
 	log_warning("warning %f", 3.14)
 
-	return true
+	// return state_ptr, true
 }
 
 shutdown_logging :: proc(state: ^$T) {

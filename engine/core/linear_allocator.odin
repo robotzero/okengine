@@ -4,10 +4,10 @@ import "core:mem"
 import "core:mem/virtual"
 
 linear_allocator :: struct {
-	total_size: u64,
-	allocated: u64,
-	arena: ^virtual.Arena,
-	allocator: mem.Allocator,
+	total_size:  u64,
+	allocated:   u64,
+	arena:       ^virtual.Arena,
+	allocator:   mem.Allocator,
 	owns_memory: bool,
 }
 
@@ -21,18 +21,21 @@ linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocat
 	out_allocator.owns_memory = true
 	out_allocator.arena = &arena
 
-	err := virtual.arena_init_static(out_allocator.arena, reserved = total_size * mem.Megabyte, commit_size = 16 * mem.Megabyte); if err != nil {
-		panic("AAAAAAAAAAAA")
-	}
+	err := virtual.arena_init_static(
+		out_allocator.arena,
+		reserved = total_size * mem.Megabyte,
+		commit_size = 16 * mem.Megabyte,
+	)
+	ensure(err == nil)
 	allocator := virtual.arena_allocator(out_allocator.arena)
 
-	when ODIN_DEBUG {
-		// track: mem.Tracking_Allocator
-		// mem.tracking_allocator_init(&track, allocator)
-		out_allocator.allocator = allocator
-	} else {
-		out_allocator.allocator = allocator
-	}
+	// when ODIN_DEBUG {
+	// 	// track: mem.Tracking_Allocator
+	// 	// mem.tracking_allocator_init(&track, allocator)
+	// 	out_allocator.allocator = allocator
+	// } else {
+	out_allocator.allocator = allocator
+	// }
 }
 
 linear_allocator_destroy :: proc(allocator: ^linear_allocator) {
@@ -41,7 +44,7 @@ linear_allocator_destroy :: proc(allocator: ^linear_allocator) {
 	}
 	allocator.allocated = 0
 	allocator.total_size = 0
-	
+
 	virtual.arena_destroy(allocator.arena)
 }
 
@@ -60,7 +63,11 @@ linear_allocator_allocate :: proc(allocator: ^linear_allocator, size: u64) -> []
 
 	if allocator.allocated + size > allocator.total_size {
 		remaining := allocator.total_size - allocator.allocated
-		log_error("linear_allocator_allocate = Tried to allocate %v, only %v remaining", size, remaining)
+		log_error(
+			"linear_allocator_allocate = Tried to allocate %v, only %v remaining",
+			size,
+			remaining,
+		)
 		return nil
 	}
 
@@ -71,3 +78,4 @@ linear_allocator_allocate :: proc(allocator: ^linear_allocator, size: u64) -> []
 	allocator.allocated += size
 	return nil
 }
+

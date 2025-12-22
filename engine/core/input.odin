@@ -7,19 +7,19 @@ keyboard_state :: struct {
 }
 
 mouse_state :: struct {
-	x, y: i16,
+	x, y:    i16,
 	buttons: [idef.buttons.BUTTON_MAX_BUTTONS]bool,
 }
 
 input_state :: struct {
-	keyboard_current: keyboard_state,
+	keyboard_current:  keyboard_state,
 	keyboard_previous: keyboard_state,
-	mouse_current: mouse_state,
-	mouse_previous: mouse_state,
+	mouse_current:     mouse_state,
+	mouse_previous:    mouse_state,
 }
 
 input_initialized: bool = false
-inpt_state : input_state = {}
+inpt_state: input_state = {}
 
 input_initialize :: proc() {
 	kzero_memory(&state, size_of(input_state))
@@ -37,7 +37,11 @@ input_update :: proc(delta_time: f64) {
 		return
 	}
 
-	kcopy_memory(&inpt_state.keyboard_previous, &inpt_state.keyboard_current, size_of(keyboard_state))
+	kcopy_memory(
+		&inpt_state.keyboard_previous,
+		&inpt_state.keyboard_current,
+		size_of(keyboard_state),
+	)
 	kcopy_memory(&inpt_state.mouse_previous, &inpt_state.mouse_current, size_of(mouse_state))
 }
 
@@ -45,14 +49,30 @@ input_process_key :: proc(key: idef.keys, pressed: bool) {
 	if key == idef.keys.KEY_LALT {
 		log_info("Left alt pressed.")
 	}
-	
+	if key == idef.keys.KEY_RALT {
+		log_info("Right alt pressed.")
+	}
+
+	if key == idef.keys.KEY_LCONTROL {
+		log_info("Left ctrl pressed")
+	}
+	if key == idef.keys.KEY_RCONTROL {
+		log_info("Right ctrl pressed")
+	}
+
 	// Only handle this if the state actually changed.
 	if inpt_state.keyboard_current.keys[key] != pressed {
 		// Update internal state.
 		inpt_state.keyboard_current.keys[key] = pressed
 
-		input_context : event_context = {data = [2]u16{cast(u16)key,{}}}
-		event_fire(pressed ? cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, input_context)
+		input_context: event_context = {
+			data = [2]u16{cast(u16)key, {}},
+		}
+		event_fire(
+			pressed ? cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED,
+			nil,
+			input_context,
+		)
 	}
 }
 
@@ -60,11 +80,17 @@ input_process_button :: proc(button: idef.buttons, pressed: bool) {
 	// If the state changed, fire the event.
 
 	if inpt_state.mouse_current.buttons[button] != pressed {
-    	inpt_state.mouse_current.buttons[button] = pressed
+		inpt_state.mouse_current.buttons[button] = pressed
 
 		// Fire the event.
-		input_context : event_context = {data = [2]u16{cast(u16)button,{}}}
-		event_fire(pressed ? cast(u16)system_event_code.EVENT_CODE_BUTTON_PRESSED: cast(u16)system_event_code.EVENT_CODE_BUTTON_RELEASED, nil, input_context)
+		input_context: event_context = {
+			data = [2]u16{cast(u16)button, {}},
+		}
+		event_fire(
+			pressed ? cast(u16)system_event_code.EVENT_CODE_BUTTON_PRESSED : cast(u16)system_event_code.EVENT_CODE_BUTTON_RELEASED,
+			nil,
+			input_context,
+		)
 	}
 }
 
@@ -76,7 +102,9 @@ input_process_mouse_move :: proc(x, y: i16) {
 		inpt_state.mouse_current.x = x
 		inpt_state.mouse_current.y = y
 
-		input_context : event_context = {data = [2]u16{cast(u16)x,cast(u16)y}}
+		input_context: event_context = {
+			data = [2]u16{cast(u16)x, cast(u16)y},
+		}
 		event_fire(cast(u16)system_event_code.EVENT_CODE_MOUSE_MOVED, nil, input_context)
 	}
 }
@@ -85,7 +113,9 @@ input_process_mouse_wheel :: proc(z_delta: i8) {
 	// NOTE: no internal state to update.
 
 	// Fire the event.
-	input_context: event_context = {data = [2]u8{cast(u8)z_delta,{}}}
+	input_context: event_context = {
+		data = [2]u8{cast(u8)z_delta, {}},
+	}
 }
 
 input_is_key_down :: proc(key: idef.keys) -> bool {
@@ -176,3 +206,4 @@ input_get_previous_mouse_position :: proc(x, y: ^i32) {
 	x^ = cast(i32)inpt_state.mouse_previous.x
 	y^ = cast(i32)inpt_state.mouse_previous.y
 }
+
