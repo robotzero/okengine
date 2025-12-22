@@ -1,19 +1,19 @@
 package core
 
-import "core:log"
-import "core:runtime"
-import "core:mem"
+import "base:runtime"
 import "core:fmt"
+import "core:log"
+import "core:mem"
 
-LOG_WARN_ENABLED  :: true
-LOG_INFO_ENABLED  :: true
+LOG_WARN_ENABLED :: true
+LOG_INFO_ENABLED :: true
 LOG_TRACE_ENABLED :: true
 
 logger_system_state :: struct {
 	initialized: bool,
 }
 
-state_ptr : ^logger_system_state
+state_ptr: ^logger_system_state
 
 initialize_logging :: proc(memory_requirement: ^u64, state: ^$T) -> bool {
 	memory_requirement^ = size_of(state)
@@ -40,7 +40,12 @@ shutdown_logging :: proc(state: ^$T) {
 
 // @TOOD make buffered login systemd
 @(private)
-log_output :: proc(log_level: log.Level, message: string, location := #caller_location, args: ..any) {
+log_output :: proc(
+	log_level: log.Level,
+	message: string,
+	location := #caller_location,
+	args: ..any,
+) {
 	// out_message := make([]byte, 32000)
 	// defer mem.zero_slice(out_message)
 
@@ -103,3 +108,4 @@ log_warning :: proc(message: string, args: ..any, location := #caller_location) 
 //     formatted := string(rl_log_buf[:n])
 //     log.log(level, formatted)
 // }
+

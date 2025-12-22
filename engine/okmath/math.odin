@@ -39,52 +39,52 @@ mat4 :: la.Matrix4f32
 quat :: la.Quaternionf32
 
 @(private = "file")
-rand_seeded : bool = false
+rand_seeded: bool = false
 
 ksin :: proc(x: f32) -> f32 {
-    return m.sin_f32(x)
+	return m.sin_f32(x)
 }
 
 kcos :: proc(x: f32) -> f32 {
-    return m.cos_f32(x)
+	return m.cos_f32(x)
 }
 
 ktan :: proc(x: f32) -> f32 {
-    return m.tan_f32(x)
+	return m.tan_f32(x)
 }
 
 facos :: proc(x: f32) -> f32 {
-    return m.cos_f32(x)
+	return m.cos_f32(x)
 }
 
 fsqrt :: proc(x: f32) -> f32 {
-    return m.sqrt_f32(x)
+	return m.sqrt_f32(x)
 }
 
 kabs :: proc(x: f32) -> f32 {
-    return m.abs(x)
+	return m.abs(x)
 }
 
 krandom :: proc() -> i32 {
-    if !rand_seeded {
-		current_time:= time.now()
-		rnd.set_global_seed(cast(u64)current_time._nsec)
-        rand_seeded = true
-    }
-    return cast(i32)rnd.uint32()
+	if !rand_seeded {
+		current_time := time.now()
+		rnd.reset(cast(u64)current_time._nsec)
+		rand_seeded = true
+	}
+	return cast(i32)rnd.uint32()
 }
 
 krandom_in_range :: proc(min: i32, max: i32) -> i32 {
-    if !rand_seeded {
-		current_time:= time.now()
-		rnd.set_global_seed(cast(u64)current_time._nsec)
-        rand_seeded = true
-    }
+	if !rand_seeded {
+		current_time := time.now()
+		rnd.reset(cast(u64)current_time._nsec)
+		rand_seeded = true
+	}
 	return cast(i32)rnd.float32_range(cast(f32)min, cast(f32)max)
 }
 
 fkrandom :: proc() -> f32 {
-    return rnd.float32()
+	return rnd.float32()
 }
 
 fkrandom_in_range :: proc(min: f32, max: f32) -> f32 {
@@ -286,8 +286,8 @@ vec2_distance :: #force_inline proc(vector_0: vec2, vector_1: vec2) -> f32 {
  * @param z The z value.
  * @return A new 3-element vector.
  */
-vec3_create :: #force_inline proc (x: f32, y: f32, z: f32) -> vec3 {
-    return vec3{x, y, z}
+vec3_create :: #force_inline proc(x: f32, y: f32, z: f32) -> vec3 {
+	return vec3{x, y, z}
 }
 
 /**
@@ -298,7 +298,7 @@ vec3_create :: #force_inline proc (x: f32, y: f32, z: f32) -> vec3 {
  * @return A new vec3 
  */
 vec3_from_vec4 :: #force_inline proc(vector: vec4) -> vec3 {
-    return {vector.x, vector.y, vector.z}
+	return {vector.x, vector.y, vector.z}
 }
 
 /**
@@ -309,63 +309,63 @@ vec3_from_vec4 :: #force_inline proc(vector: vec4) -> vec3 {
  * @return A new vec4 
  */
 vec3_to_vec4 :: #force_inline proc(vector: vec3, w: f32) -> la.Vector4f32 {
-    return la.Vector4f32{vector.x, vector.y, vector.z, w}
+	return la.Vector4f32{vector.x, vector.y, vector.z, w}
 }
 
 /**
  * @brief Creates and returns a 3-component vector with all components set to 0.0f.
  */
 vec3_zero :: #force_inline proc() -> vec3 {
-    return vec3{0.0, 0.0, 0.0}
+	return vec3{0.0, 0.0, 0.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector with all components set to 1.0f.
  */
 vec3_one :: #force_inline proc() -> vec3 {
-    return vec3{1.0, 1.0, 1.0}
+	return vec3{1.0, 1.0, 1.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing up vec3(0, 1, 0).
  */
 vec3_up :: #force_inline proc() -> vec3 {
-    return vec3{0.0, 1.0, 0.0}
+	return vec3{0.0, 1.0, 0.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing down vec3(0, -1, 0).
  */
 vec3_down :: #force_inline proc() -> vec3 {
-    return vec3{0.0, -1.0, 0.0}
+	return vec3{0.0, -1.0, 0.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing left vec3(-1, 0, 0).
  */
 vec3_left :: #force_inline proc() -> vec3 {
-    return vec3{-1.0, 0.0, 0.0}
+	return vec3{-1.0, 0.0, 0.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing right vec3(1, 0, 0).
  */
 vec3_right :: #force_inline proc() -> vec3 {
-    return vec3{1.0, 0.0, 0.0}
+	return vec3{1.0, 0.0, 0.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing forward vec3(0, 0, -1).
  */
 vec3_forward :: #force_inline proc() -> vec3 {
-    return vec3{0.0, 0.0, -1.0}
+	return vec3{0.0, 0.0, -1.0}
 }
 
 /**
  * @brief Creates and returns a 3-component vector pointing backward vec3(0, 0, 1).
  */
 vec3_back :: #force_inline proc() -> vec3 {
-    return vec3{0.0, 0.0, 1.0}
+	return vec3{0.0, 0.0, 1.0}
 }
 
 /**
@@ -376,7 +376,7 @@ vec3_back :: #force_inline proc() -> vec3 {
  * @return The resulting vector. 
  */
 vec3_add :: #force_inline proc(vector_0: vec3, vector_1: vec3) -> vec3 {
-    return vector_0 + vector_1
+	return vector_0 + vector_1
 }
 
 /**
@@ -387,7 +387,7 @@ vec3_add :: #force_inline proc(vector_0: vec3, vector_1: vec3) -> vec3 {
  * @return The resulting vector. 
  */
 vec3_sub :: #force_inline proc(vector_0: vec3, vector_1: vec3) -> vec3 {
-    return vector_0 - vector_1
+	return vector_0 - vector_1
 }
 
 /**
@@ -409,7 +409,7 @@ vec3_mul :: #force_inline proc(vector_0: vec3, vector_1: vec3) -> vec3 {
  * @return A copy of the resulting vector.
  */
 vec3_mul_scalar :: #force_inline proc(vector_0: vec3, scalar: f32) -> vec3 {
-    return vector_0 * scalar
+	return vector_0 * scalar
 }
 
 /**
@@ -439,8 +439,8 @@ vec3_length_squared :: #force_inline proc(vector: vec3) -> f32 {
  * @param vector The vector to retrieve the length of.
  * @return The length.
  */
-vec3_length :: #force_inline proc(vector: vec3) -> f32{
-  return la.length(vector)
+vec3_length :: #force_inline proc(vector: vec3) -> f32 {
+	return la.length(vector)
 }
 
 /**
@@ -540,8 +540,8 @@ vec3_distance :: #force_inline proc(vector_0: vec3, vector_1: vec3) -> f32 {
  * @return A new 4-element vector.
  * @TODO simd
  */
-vec4_create :: #force_inline proc (x: f32, y: f32, z: f32, w: f32) -> vec4 {
-    return vec4{x, y, z, w}
+vec4_create :: #force_inline proc(x: f32, y: f32, z: f32, w: f32) -> vec4 {
+	return vec4{x, y, z, w}
 }
 
 /**
@@ -552,7 +552,7 @@ vec4_create :: #force_inline proc (x: f32, y: f32, z: f32, w: f32) -> vec4 {
 }
  */
 vec4_to_vec3 :: #force_inline proc(vector: vec4) -> la.Vector3f32 {
-    return la.Vector3f32{vector.x, vector.y, vector.z}
+	return la.Vector3f32{vector.x, vector.y, vector.z}
 }
 
 /**
@@ -570,14 +570,14 @@ vec4_from_vec3 :: #force_inline proc(vector: vec3, w: f32) -> vec4 {
  * @brief Creates and returns a 3-component vector with all components set to 0.0f.
  */
 vec4_zero :: #force_inline proc() -> vec4 {
-    return vec4{0.0, 0.0, 0.0, 0.0}
+	return vec4{0.0, 0.0, 0.0, 0.0}
 }
 
 /**
 }
  */
 vec4_one :: #force_inline proc() -> vec4 {
-    return vec4{1.0, 1.0, 1.0, 1.0}
+	return vec4{1.0, 1.0, 1.0, 1.0}
 }
 
 /**
@@ -587,7 +587,7 @@ vec4_one :: #force_inline proc() -> vec4 {
 }
  */
 vec4_add :: #force_inline proc(vector_0: vec4, vector_1: vec4) -> vec4 {
-    return vector_0 + vector_1
+	return vector_0 + vector_1
 }
 
 /**
@@ -597,7 +597,7 @@ vec4_add :: #force_inline proc(vector_0: vec4, vector_1: vec4) -> vec4 {
 }
  */
 vec4_sub :: #force_inline proc(vector_0: vec4, vector_1: vec4) -> vec4 {
-    return vector_0 - vector_1
+	return vector_0 - vector_1
 }
 
 /**
@@ -637,8 +637,8 @@ vec4_length_squared :: #force_inline proc(vector: vec4) -> f32 {
  * @param vector The vector to retrieve the length of.
  * @return The length.
  */
-vec4_length :: #force_inline proc(vector: vec4) -> f32{
-  return la.length(vector)
+vec4_length :: #force_inline proc(vector: vec4) -> f32 {
+	return la.length(vector)
 }
 
 /**
@@ -703,7 +703,14 @@ mat4_mul :: #force_inline proc(matrix_0: mat4, matrix_1: mat4) -> mat4 {
  * @param far_clip The far clipping plane distance.
  * @return A new orthographic projection matrix. 
  */
-mat4_orthographic :: #force_inline proc(left: f32, right: f32, bottom: f32, top: f32, near_clip: f32, far_clip: f32) -> mat4 {
+mat4_orthographic :: #force_inline proc(
+	left: f32,
+	right: f32,
+	bottom: f32,
+	top: f32,
+	near_clip: f32,
+	far_clip: f32,
+) -> mat4 {
 	return la.matrix_ortho3d_f32(left, right, bottom, top, near_clip, far_clip)
 }
 
@@ -716,7 +723,12 @@ mat4_orthographic :: #force_inline proc(left: f32, right: f32, bottom: f32, top:
  * @param far_clip The far clipping plane distance.
  * @return A new perspective matrix. 
  */
-mat4_perspective :: #force_inline proc(fov_radians: f32, aspect_ratio: f32, near_clip: f32, far_clip: f32) -> mat4 {
+mat4_perspective :: #force_inline proc(
+	fov_radians: f32,
+	aspect_ratio: f32,
+	near_clip: f32,
+	far_clip: f32,
+) -> mat4 {
 	return la.matrix4_perspective_f32(fov_radians, aspect_ratio, near_clip, far_clip)
 }
 
@@ -790,12 +802,12 @@ mat4_euler_xyz :: #force_inline proc(x_radians: f32, y_radians: f32, z_radians: 
  * @return A 3-component directional vector.
  */
 mat4_forward :: #force_inline proc(mtrx: mat4) -> vec3 {
-   forward := vec3{}
-   forward.x = -mtrx[2,1]
-   forward.y = -mtrx[2,2]
-   forward.z = -mtrx[2,2]
-   vec3_normalize(&forward)
-   return forward
+	forward := vec3{}
+	forward.x = -mtrx[2, 1]
+	forward.y = -mtrx[2, 2]
+	forward.z = -mtrx[2, 2]
+	vec3_normalize(&forward)
+	return forward
 }
 
 /**
@@ -805,12 +817,12 @@ mat4_forward :: #force_inline proc(mtrx: mat4) -> vec3 {
  * @return A 3-component directional vector.
  */
 mat4_backward :: #force_inline proc(mtrx: mat4) -> vec3 {
-   backward := vec3{}
-   backward.x = mtrx[2,1]
-   backward.y = mtrx[2,2]
-   backward.z = mtrx[2,2]
-   vec3_normalize(&backward)
-   return backward
+	backward := vec3{}
+	backward.x = mtrx[2, 1]
+	backward.y = mtrx[2, 2]
+	backward.z = mtrx[2, 2]
+	vec3_normalize(&backward)
+	return backward
 }
 
 /**
@@ -820,12 +832,12 @@ mat4_backward :: #force_inline proc(mtrx: mat4) -> vec3 {
  * @return A 3-component directional vector.
  */
 mat4_up :: #force_inline proc(mtrx: mat4) -> vec3 {
-   up := vec3{}
-   up.x = mtrx[2,1]
-   up.y = mtrx[2,2]
-   up.z = mtrx[2,2]
-   vec3_normalize(&up)
-   return up
+	up := vec3{}
+	up.x = mtrx[2, 1]
+	up.y = mtrx[2, 2]
+	up.z = mtrx[2, 2]
+	vec3_normalize(&up)
+	return up
 }
 
 /**
@@ -835,13 +847,13 @@ mat4_up :: #force_inline proc(mtrx: mat4) -> vec3 {
  * @return A 3-component directional vector.
  */
 mat4_down :: #force_inline proc(mtrx: mat4) -> vec3 {
-   down := vec3{}
-   down.x = mtrx[2,1]
-   down.y = mtrx[2,2]
-   down.z = mtrx[2,2]
-   vec3_normalize(&down)
-   return down
- }
+	down := vec3{}
+	down.x = mtrx[2, 1]
+	down.y = mtrx[2, 2]
+	down.z = mtrx[2, 2]
+	vec3_normalize(&down)
+	return down
+}
 
 /**
  * @brief Returns a left vector relative to the provided matrix.
@@ -850,12 +862,12 @@ mat4_down :: #force_inline proc(mtrx: mat4) -> vec3 {
  * @return A 3-component directional vector.
  */
 mat4_left :: #force_inline proc(mtrx: mat4) -> vec3 {
-   left := vec3{}
-   left.x = mtrx[2,1]
-   left.y = mtrx[2,2]
-   left.z = mtrx[2,2]
-   vec3_normalize(&left)
-   return left
+	left := vec3{}
+	left.x = mtrx[2, 1]
+	left.y = mtrx[2, 2]
+	left.z = mtrx[2, 2]
+	vec3_normalize(&left)
+	return left
 }
 
 /**
@@ -865,12 +877,12 @@ mat4_left :: #force_inline proc(mtrx: mat4) -> vec3 {
  * @return A 3-component directional vector.
  */
 mat4_right :: #force_inline proc(mtrx: mat4) -> vec3 {
-   right := vec3{}
-   right.x = mtrx[2,1]
-   right.y = mtrx[2,2]
-   right.z = mtrx[2,2]
-   vec3_normalize(&right)
-   return right
+	right := vec3{}
+	right.x = mtrx[2, 1]
+	right.y = mtrx[2, 2]
+	right.z = mtrx[2, 2]
+	vec3_normalize(&right)
+	return right
 }
 
 // ------------------------------------------
@@ -878,35 +890,35 @@ mat4_right :: #force_inline proc(mtrx: mat4) -> vec3 {
 // ------------------------------------------
 
 quat_identity :: #force_inline proc() -> quat {
-    return la.QUATERNIONF32_IDENTITY
+	return la.QUATERNIONF32_IDENTITY
 }
 
 quat_normal :: #force_inline proc(q: quat) -> f32 {
-    return m.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
+	return m.sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
 }
 
 quat_normalize :: #force_inline proc(q: quat) -> quat {
-    return la.quaternion_normalize(q)
+	return la.quaternion_normalize(q)
 }
 
 quat_conjugate :: proc(q: quat) -> quat {
-    return quat_conjugate(q)
+	return quat_conjugate(q)
 }
 
 quat_inverse :: #force_inline proc(q: quat) -> quat {
-    return la.quaternion_inverse(q)
+	return la.quaternion_inverse(q)
 }
 
 quat_mul :: #force_inline proc(q_0: quat, q_1: quat) -> quat {
-    return la.quaternion_mul_quaternion(q_0, q_1)
+	return la.quaternion_mul_quaternion(q_0, q_1)
 }
 
 quat_dot :: #force_inline proc(q_0: quat, q_1: quat) -> f32 {
-    return la.quaternion128_dot(q_0, q_1)
+	return la.quaternion128_dot(q_0, q_1)
 }
 
 quat_to_mat4 :: #force_inline proc(q: quat) -> mat4 {
-    return la.to_matrix4f32(q)
+	return la.to_matrix4f32(q)
 }
 
 // Calculates a rotation matrix based on the quaternion and the passed in center point.
@@ -914,15 +926,15 @@ quat_to_mat4 :: #force_inline proc(q: quat) -> mat4 {
 // }
 
 quat_from_axis_angle :: #force_inline proc(axis: vec3, angle: f32, normalize: bool) -> quat {
-    q := la.quaternion_angle_axis(angle, axis)
-    if (normalize) {
-        return quat_normalize(q)
-    }
-    return q
+	q := la.quaternion_angle_axis(angle, axis)
+	if (normalize) {
+		return quat_normalize(q)
+	}
+	return q
 }
 
 quat_slerp :: #force_inline proc(q_0: quat, q_1: quat, percentage: f32) -> quat {
-    return la.quaternion_slerp(q_0, q_1, percentage)
+	return la.quaternion_slerp(q_0, q_1, percentage)
 }
 
 /**
@@ -932,7 +944,7 @@ quat_slerp :: #force_inline proc(q_0: quat, q_1: quat, percentage: f32) -> quat 
  * @return The amount in radians.
  */
 deg_to_rad :: #force_inline proc(degrees: f32) -> f32 {
-    return m.to_radians(degrees)
+	return m.to_radians(degrees)
 }
 
 /**
@@ -942,5 +954,6 @@ deg_to_rad :: #force_inline proc(degrees: f32) -> f32 {
  * @return The amount in degrees.
  */
 rad_to_deg :: #force_inline proc(radians: f32) -> f32 {
-    return m.to_degrees(radians)
+	return m.to_degrees(radians)
 }
+
