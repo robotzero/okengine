@@ -15,27 +15,27 @@ linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocat
 	if out_allocator == nil {
 		return
 	}
-	arena: virtual.Arena = {}
+	arena: virtual.Arena
 	out_allocator.total_size = cast(u64)total_size
 	out_allocator.allocated = 0
 	out_allocator.owns_memory = true
 	out_allocator.arena = &arena
 
 	err := virtual.arena_init_static(
-		out_allocator.arena,
+		&arena,
 		reserved = total_size * mem.Megabyte,
-		commit_size = 16 * mem.Megabyte,
+		// commit_size = 16 * mem.Megabyte,
 	)
 	ensure(err == nil)
-	allocator := virtual.arena_allocator(out_allocator.arena)
+	allocator := virtual.arena_allocator(&arena)
 
-	// when ODIN_DEBUG {
-	// 	// track: mem.Tracking_Allocator
-	// 	// mem.tracking_allocator_init(&track, allocator)
-	// 	out_allocator.allocator = allocator
-	// } else {
-	out_allocator.allocator = allocator
-	// }
+	when ODIN_DEBUG {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, allocator)
+		out_allocator.allocator = allocator
+	} else {
+		out_allocator.allocator = allocator
+	}
 }
 
 linear_allocator_destroy :: proc(allocator: ^linear_allocator) {
@@ -56,11 +56,19 @@ linear_allocator_free_all :: proc(allocator: ^linear_allocator) {
 	mem.free_all(allocator.allocator)
 }
 
-linear_allocator_allocate :: proc(allocator: ^linear_allocator, size: u64) -> []byte {
+linear_allocator_allocate :: proc(
+	allocator: ^linear_allocator,
+	size: u64,
+	$T: typeid,
+) -> (
+	^T,
+	mem.Allocator_Error,
+) {
 	if allocator == nil {
-		return nil
+		return nil, nil
 	}
 
+	// @TODO force to handle this error and log only in debug mode, otherwise return error code
 	if allocator.allocated + size > allocator.total_size {
 		remaining := allocator.total_size - allocator.allocated
 		log_error(
@@ -68,7 +76,7 @@ linear_allocator_allocate :: proc(allocator: ^linear_allocator, size: u64) -> []
 			size,
 			remaining,
 		)
-		return nil
+		return nil, mem.Allocator_Error.Out_Of_Memory
 	}
 
 	// data, err := virtual.arena_alloc(allocator.arena, cast(uint) size, 0); if err != nil {
@@ -76,6 +84,7 @@ linear_allocator_allocate :: proc(allocator: ^linear_allocator, size: u64) -> []
 	// }
 
 	allocator.allocated += size
-	return nil
+	obj, err := platform_allocate(size, false, T, allocator.allocator)
+	return obj, err
 }
 

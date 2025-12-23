@@ -16,14 +16,11 @@ create_game: create_game_proc
 main :: proc() {
 	log_options := log.Options{.Level, .Time, .Line, .Short_File_Path, .Terminal_Color, .Procedure}
 
-	systems_allocator_total_size: uint = 64
-	custom_alloc: linear_allocator
-	linear_allocator_create(systems_allocator_total_size, &custom_alloc)
-
 	when ODIN_DEBUG {
 		lowest :: log.Level.Debug
 		track: mem.Tracking_Allocator
-		mem.tracking_allocator_init(&track, custom_alloc.allocator)
+		// mem.tracking_allocator_init(&track, custom_alloc.allocator)
+		mem.tracking_allocator_init(&track, context.allocator)
 		context.allocator = mem.tracking_allocator(&track)
 
 		defer {
@@ -44,18 +41,16 @@ main :: proc() {
 			mem.tracking_allocator_destroy(&track)
 		}
 	} else {
-		context.allocator = custom_alloc.allocator
 		lowest :: log.Level.Info
 	}
 
 	game_inst: game
 
-	game_inst.application_state = kallocate(
-		size_of(application_state),
-		memory_tag.MEMORY_TAG_APPLICATION,
-		application_state,
-	)
-	game_inst.application_state.systems_allocator = custom_alloc
+	if !create_game(&game_inst) {
+		log_fatal("Could not create game")
+		os.exit(-1)
+
+	}
 
 	defer log.destroy_console_logger(context.logger)
 	defer mem.free_all()
@@ -63,11 +58,6 @@ main :: proc() {
 	defer mem.free(game_inst.state)
 	context.logger = log.create_console_logger(lowest, log_options)
 
-	if !create_game(&game_inst) {
-		log_fatal("Could not create game")
-		os.exit(-1)
-
-	}
 
 	if game_inst.render == nil ||
 	   game_inst.update == nil ||

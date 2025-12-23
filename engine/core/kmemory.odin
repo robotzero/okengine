@@ -1,15 +1,15 @@
 package core
 
-import "core:strings"
 import "core:fmt"
+import "core:strings"
 
-@(private="file")
+@(private = "file")
 stats: memory_stats
-@(private="file")
+@(private = "file")
 state_ptr: ^memory_system_state
 
 memory_system_state :: struct {
-	stats: memory_stats,
+	stats:       memory_stats,
 	alloc_count: u64,
 }
 
@@ -36,41 +36,41 @@ memory_tag :: enum {
 }
 
 memory_stats :: struct {
-	total_allocated: u64,
+	total_allocated:    u64,
 	tagged_allocations: [memory_tag.MEMORY_TAG_MAX_TAGS]u64,
 }
 
-memory_tag_strings : [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
+memory_tag_strings: [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"UNKNOWN   ",
-    "ARRAY     ",
+	"ARRAY     ",
 	"ALLC      ",
 	"DARRAY    ",
 	"RING_QUEUE ",
 	"BST        ",
-    "STRING     ",
-    "APPLICATION",
-    "JOB        ",
-    "TEXTURE    ",
-    "MAT_INST   ",
-    "RENDERER   ",
-    "GAME       ",
-    "TRANSFORM  ",
-    "ENTITY     ",
-    "ENTITY_NODE",
-    "SCENE      ",
+	"STRING     ",
+	"APPLICATION",
+	"JOB        ",
+	"TEXTURE    ",
+	"MAT_INST   ",
+	"RENDERER   ",
+	"GAME       ",
+	"TRANSFORM  ",
+	"ENTITY     ",
+	"ENTITY_NODE",
+	"SCENE      ",
 	"NOP        ",
 }
 
-initialize_memory :: proc(memory_requirement: ^u64, $T: typeid, allocator := context.allocator, location := #caller_location) -> ^T {
-	memory_requirement^ = size_of(memory_system_state)
-	if memory_requirement == nil {
-		return nil
-	}
-
-	state_ptr = platform_allocate(memory_requirement^, false, T, allocator, location)
-	state_ptr.alloc_count = 0
-	platform_zero_memory(&stats, size_of(memory_stats))
-	return state_ptr
+initialize_memory :: proc(
+	state: ^memory_system_state,
+	allocator := context.allocator,
+	location := #caller_location,
+) -> ^memory_system_state {
+	memory_state_ptr := state
+	memory_state_ptr.alloc_count = 0
+	// TODO zero this crap
+	// platform_zero_memory(&stats, size_of(memory_stats))
+	return memory_state_ptr
 }
 
 shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
@@ -78,11 +78,12 @@ shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator
 	free_all(context.allocator)
 	platform_free(state_ptr)
 	platform_free(app_state)
+	//@TODO remove this line
 	// linear_allocator_destroy(alloc)
 	state_ptr = nil
 }
 
-kallocate :: proc(size: u64, tag: memory_tag, $T: typeid, location := #caller_location) -> ^T {
+kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
@@ -93,7 +94,9 @@ kallocate :: proc(size: u64, tag: memory_tag, $T: typeid, location := #caller_lo
 		state_ptr.alloc_count = state_ptr.alloc_count + 1
 	}
 
-	block := platform_allocate(size, false, T, location = location)
+	block, err := platform_allocate(size, false, T)
+
+	ensure(err == nil)
 
 	return block
 }
@@ -109,7 +112,7 @@ kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 	platform_free(object)
 }
 
-kzero_memory :: proc (block: rawptr, size: int) -> rawptr {
+kzero_memory :: proc(block: rawptr, size: int) -> rawptr {
 	//@TODO missing stuff
 	return platform_zero_memory(block, size)
 }
@@ -134,15 +137,18 @@ get_memory_usage_str :: proc() -> string {
 	mib :: 1024 * 1024
 	kib :: 1024 * 1024
 
-	msg : [len(stats.tagged_allocations) + 1]string
+	msg: [len(stats.tagged_allocations) + 1]string
 	#no_bounds_check {
 		msg[0] = "\n"
 	}
 	//@TODO handle error from strings.concatenate
+	if state_ptr == nil {
+		return ""
+	}
 	for v, i in state_ptr.stats.tagged_allocations {
-		unit : string
-		amount : f64 = 1.0
-		message : string
+		unit: string
+		amount: f64 = 1.0
+		message: string
 
 		if v >= gib {
 			unit = "GiB"
@@ -158,7 +164,12 @@ get_memory_usage_str :: proc() -> string {
 			amount = cast(f64)v
 		}
 
-		formatted_message := fmt.tprintf("System memory user (tagged):\n %s: %.2f %s\n", memory_tag_strings[i], amount, unit)
+		formatted_message := fmt.tprintf(
+			"System memory user (tagged):\n %s: %.2f %s\n",
+			memory_tag_strings[i],
+			amount,
+			unit,
+		)
 		#no_bounds_check {
 			msg[i + 1] = formatted_message
 		}
@@ -171,3 +182,4 @@ get_memory_usage_str :: proc() -> string {
 	}
 	return str
 }
+

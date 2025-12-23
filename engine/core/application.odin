@@ -4,19 +4,19 @@ import d "../containers"
 import idef "input"
 
 application_state :: struct {
-	game_inst:         ^game,
-	is_running:        bool,
-	is_suspended:      bool,
-	platform:          platform_state,
-	width:             i32,
-	height:            i32,
-	c:                 clock,
-	last_time:         i64,
-	systems_allocator: linear_allocator,
-	// memory_system_memory_requirement:  u64,
-	// memory_system_state:               rawptr,
-	// logging_system_memory_requirement: u64,
-	// logging_system_state:              rawptr,
+	game_inst:                         ^game,
+	is_running:                        bool,
+	is_suspended:                      bool,
+	platform:                          platform_state,
+	width:                             i32,
+	height:                            i32,
+	c:                                 clock,
+	last_time:                         i64,
+	systems_allocator:                 linear_allocator,
+	memory_system_memory_requirement:  u64,
+	memory_system_state:               ^memory_system_state,
+	logging_system_memory_requirement: u64,
+	logging_system_state:              ^logger_system_state,
 }
 
 application_config :: struct {
@@ -35,42 +35,38 @@ application_create :: proc(game_inst: ^game) -> bool {
 		return false
 	}
 
-	// game_inst.application_state = kallocate(
-	// 	size_of(application_state),
-	// 	memory_tag.MEMORY_TAG_APPLICATION,
-	// 	application_state,
-	// )
+	game_inst.application_state = kallocate(
+		size_of(application_state),
+		memory_tag.MEMORY_TAG_APPLICATION,
+		application_state,
+	)
 	app_state = game_inst.application_state
 	app_state.game_inst = game_inst
 	app_state.is_running = false
 	app_state.is_suspended = false
 
-	// systems_allocator_total_size := 64 // 64mb
-	// linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
-	// mem_allocator := app_state.systems_allocator
-	// app_state.systems_allocator = linear_allocator
-	// linear_allocator_allocate(mem_allocator, app_state.memory_system_memory_requirement)
-	// state := initialize_memory(
-	// 	&app_state.memory_system_memory_requirement,
-	// 	memory_system_state,
-	// 	mem_allocator.allocator,
-	// )
-	// app_state.memory_system_state = state
+	systems_allocator_total_size := 64 // 64mb
+	linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
+
+	mem_state, err := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		app_state.memory_system_memory_requirement,
+		memory_system_state,
+	)
+	ensure(err == nil)
+	mem_state = initialize_memory(mem_state, app_state.systems_allocator.allocator)
+	app_state.memory_system_state = mem_state
 
 	// Logging
-	// linear_allocator_allocate(mem_allocator, app_state.logging_system_memory_requirement)
-	// logging_state, success := initialize_logging(
-	// 	&app_state.logging_system_memory_requirement,
-	// 	logger_system_state,
-	// 	mem_allocator,
-	initialize_logging() // )
+	log_state, log_err := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		app_state.logging_system_memory_requirement,
+		logger_system_state,
+	)
+	ensure(log_err == nil)
 
-	// if (!success) {
-	// 	log_error("Failed to initialize logging system; shutting down.")
-	// 	return false
-	// }
-
-	// app_state.logging_system_state = logging_state
+	logging_state := initialize_logging(&app_state.logging_system_memory_requirement, log_state)
+	app_state.logging_system_state = logging_state
 
 	if ok := event_initialize(); !ok {
 		log_error("Event system failed initialization. Application cannot continue.")
