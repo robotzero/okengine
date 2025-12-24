@@ -11,12 +11,15 @@ linear_allocator :: struct {
 	owns_memory: bool,
 }
 
-linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocator) {
-	if out_allocator == nil {
-		return
-	}
+linear_allocator_create :: proc(
+	total_size: uint,
+	out_allocator: ^linear_allocator,
+) -> mem.Allocator {
+
+	ensure(out_allocator != nil)
+
 	arena: virtual.Arena
-	out_allocator.total_size = cast(u64)total_size
+	out_allocator.total_size = cast(u64)total_size * mem.Megabyte
 	out_allocator.allocated = 0
 	out_allocator.owns_memory = true
 	out_allocator.arena = &arena
@@ -32,10 +35,11 @@ linear_allocator_create :: proc(total_size: uint, out_allocator: ^linear_allocat
 	when ODIN_DEBUG {
 		track: mem.Tracking_Allocator
 		mem.tracking_allocator_init(&track, allocator)
-		out_allocator.allocator = allocator
+		out_allocator.allocator = mem.tracking_allocator(&track)
 	} else {
 		out_allocator.allocator = allocator
 	}
+	return allocator
 }
 
 linear_allocator_destroy :: proc(allocator: ^linear_allocator) {
@@ -57,23 +61,23 @@ linear_allocator_free_all :: proc(allocator: ^linear_allocator) {
 }
 
 linear_allocator_allocate :: proc(
-	allocator: ^linear_allocator,
-	size: u64,
+	linear_alloc: ^linear_allocator,
 	$T: typeid,
+	allocator := context.allocator,
 ) -> (
 	^T,
 	mem.Allocator_Error,
 ) {
-	if allocator == nil {
+	if linear_alloc == nil {
 		return nil, nil
 	}
 
 	// @TODO force to handle this error and log only in debug mode, otherwise return error code
-	if allocator.allocated + size > allocator.total_size {
-		remaining := allocator.total_size - allocator.allocated
+	if linear_alloc.allocated + size_of(T) > linear_alloc.total_size * mem.Megabyte {
+		remaining := linear_alloc.total_size - linear_alloc.allocated
 		log_error(
 			"linear_allocator_allocate = Tried to allocate %v, only %v remaining",
-			size,
+			size_of(T),
 			remaining,
 		)
 		return nil, mem.Allocator_Error.Out_Of_Memory
@@ -83,8 +87,8 @@ linear_allocator_allocate :: proc(
 	// 	panic("AAAAAAAAAAAAAAAAAAA2")
 	// }
 
-	allocator.allocated += size
-	obj, err := platform_allocate(size, false, T, allocator.allocator)
-	return obj, err
+	linear_alloc.allocated += size_of(T)
+	obj := kallocate(memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR, T, allocator)
+	return obj, nil
 }
 

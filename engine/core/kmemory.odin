@@ -4,13 +4,16 @@ import "core:fmt"
 import "core:strings"
 
 @(private = "file")
-stats: memory_stats
-@(private = "file")
-state_ptr: ^memory_system_state
+memory_state_ptr: ^memory_system_state
 
 memory_system_state :: struct {
 	stats:       memory_stats,
 	alloc_count: u64,
+}
+
+memory_stats :: struct {
+	total_allocated:    u64,
+	tagged_allocations: [memory_tag.MEMORY_TAG_MAX_TAGS]u64,
 }
 
 memory_tag :: enum {
@@ -23,6 +26,7 @@ memory_tag :: enum {
 	MEMORY_TAG_BST,
 	MEMORY_TAG_STRING,
 	MEMORY_TAG_APPLICATION,
+	MEMORY_TAG_LINEAR_ALLOCATOR,
 	MEMORY_TAG_JOB,
 	MEMORY_TAG_TEXTURE,
 	MEMORY_TAG_MATERIAL_INSTANCE,
@@ -35,20 +39,17 @@ memory_tag :: enum {
 	MEMORY_TAG_MAX_TAGS,
 }
 
-memory_stats :: struct {
-	total_allocated:    u64,
-	tagged_allocations: [memory_tag.MEMORY_TAG_MAX_TAGS]u64,
-}
-
 memory_tag_strings: [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"UNKNOWN   ",
 	"ARRAY     ",
 	"ALLC      ",
 	"DARRAY    ",
+	"DICT      ",
 	"RING_QUEUE ",
 	"BST        ",
 	"STRING     ",
 	"APPLICATION",
+	"LINEAR_ALLOCATOR",
 	"JOB        ",
 	"TEXTURE    ",
 	"MAT_INST   ",
@@ -58,7 +59,6 @@ memory_tag_strings: [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"ENTITY     ",
 	"ENTITY_NODE",
 	"SCENE      ",
-	"NOP        ",
 }
 
 initialize_memory :: proc(
@@ -66,39 +66,38 @@ initialize_memory :: proc(
 	allocator := context.allocator,
 	location := #caller_location,
 ) -> ^memory_system_state {
-	memory_state_ptr := state
+	memory_state_ptr = state
 	memory_state_ptr.alloc_count = 0
 	// TODO zero this crap
-	// platform_zero_memory(&stats, size_of(memory_stats))
+	platform_zero_memory(&memory_state_ptr.stats, size_of(memory_stats))
 	return memory_state_ptr
 }
 
 shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
-	linear_allocator_free_all(alloc)
+	// platform_free(memory_state_ptr)
+	// platform_free(app_state)
+	// linear_allocator_free_all(context.systems_allocator)
 	free_all(context.allocator)
-	platform_free(state_ptr)
-	platform_free(app_state)
-	//@TODO remove this line
 	// linear_allocator_destroy(alloc)
-	state_ptr = nil
 }
 
-kallocate :: proc(size: u64, tag: memory_tag, $T: typeid) -> ^T {
+kallocate :: proc(tag: memory_tag, $T: typeid, allocator := context.allocator) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	if state_ptr != nil {
-		state_ptr.stats.total_allocated += size
-		state_ptr.stats.tagged_allocations[tag] += size
-		state_ptr.alloc_count = state_ptr.alloc_count + 1
+	if memory_state_ptr != nil {
+		log_info("AAAAAA", tag)
+		memory_state_ptr.stats.total_allocated += size_of(T)
+		memory_state_ptr.stats.tagged_allocations[tag] += size_of(T)
+		memory_state_ptr.alloc_count = memory_state_ptr.alloc_count + 1
 	}
 
-	block, err := platform_allocate(size, false, T)
+	obj, err := platform_allocate(false, T, allocator)
 
 	ensure(err == nil)
 
-	return block
+	return obj
 }
 
 kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
@@ -106,8 +105,8 @@ kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	state_ptr.stats.total_allocated -= size
-	state_ptr.stats.tagged_allocations[tag] -= size
+	memory_state_ptr.stats.total_allocated -= size
+	memory_state_ptr.stats.tagged_allocations[tag] -= size
 
 	platform_free(object)
 }
@@ -118,8 +117,8 @@ kzero_memory :: proc(block: rawptr, size: int) -> rawptr {
 }
 
 get_memory_alloc_count :: proc() -> u64 {
-	if state_ptr != nil {
-		return state_ptr.alloc_count
+	if memory_state_ptr != nil {
+		return memory_state_ptr.alloc_count
 	}
 	return 0
 }
@@ -137,15 +136,14 @@ get_memory_usage_str :: proc() -> string {
 	mib :: 1024 * 1024
 	kib :: 1024 * 1024
 
-	msg: [len(stats.tagged_allocations) + 1]string
+	msg: [len(memory_state_ptr.stats.tagged_allocations) + 1]string
 	#no_bounds_check {
 		msg[0] = "\n"
 	}
-	//@TODO handle error from strings.concatenate
-	if state_ptr == nil {
+	if memory_state_ptr == nil {
 		return ""
 	}
-	for v, i in state_ptr.stats.tagged_allocations {
+	for v, i in memory_state_ptr.stats.tagged_allocations {
 		unit: string
 		amount: f64 = 1.0
 		message: string

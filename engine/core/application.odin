@@ -1,6 +1,8 @@
 package core
 
 import d "../containers"
+import "core:mem"
+import "core:mem/virtual"
 import idef "input"
 
 application_state :: struct {
@@ -29,39 +31,38 @@ application_config :: struct {
 
 app_state: ^application_state
 
-application_create :: proc(game_inst: ^game) -> bool {
+application_create :: proc(
+	game_inst: ^game,
+	sys_alloc: mem.Allocator,
+	systems_allocator_total_size: uint,
+) -> bool {
 	if game_inst.application_state != nil {
 		log_error("application called more than once")
 		return false
 	}
 
-	game_inst.application_state = kallocate(
-		size_of(application_state),
-		memory_tag.MEMORY_TAG_APPLICATION,
-		application_state,
-	)
+	game_inst.application_state = kallocate(memory_tag.MEMORY_TAG_APPLICATION, application_state)
 	app_state = game_inst.application_state
 	app_state.game_inst = game_inst
 	app_state.is_running = false
 	app_state.is_suspended = false
 
-	systems_allocator_total_size := 64 // 64mb
-	linear_allocator_create(cast(uint)systems_allocator_total_size, &app_state.systems_allocator)
+	linear_allocator_create(systems_allocator_total_size, &app_state.systems_allocator)
 
 	mem_state, err := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		app_state.memory_system_memory_requirement,
 		memory_system_state,
+		sys_alloc,
 	)
 	ensure(err == nil)
-	mem_state = initialize_memory(mem_state, app_state.systems_allocator.allocator)
+	mem_state = initialize_memory(mem_state)
 	app_state.memory_system_state = mem_state
 
 	// Logging
 	log_state, log_err := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		app_state.logging_system_memory_requirement,
 		logger_system_state,
+		sys_alloc,
 	)
 	ensure(log_err == nil)
 

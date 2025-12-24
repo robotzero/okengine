@@ -282,7 +282,6 @@ platform_sleep :: proc(ms: f64) {
 }
 
 platform_allocate :: proc(
-	size: u64,
 	aligned: bool,
 	$T: typeid,
 	allocator := context.allocator,
@@ -292,7 +291,7 @@ platform_allocate :: proc(
 	mem.Allocator_Error,
 ) {
 	//platform_console_write(log.Level.Debug, "OBJECT NEW %s", location)
-	obj, err := new(T)
+	obj, err := new(T, allocator)
 	if err != nil {
 		log.fatal(err)
 	}
