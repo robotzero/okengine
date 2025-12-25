@@ -74,26 +74,28 @@ initialize_memory :: proc(
 }
 
 shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
-	// platform_free(memory_state_ptr)
-	// platform_free(app_state)
-	// linear_allocator_free_all(context.systems_allocator)
-	free_all(context.allocator)
+	platform_free(app_state)
+	// linear_allocator_free_all(linear_allocator.allocator)
 	// linear_allocator_destroy(alloc)
 }
 
-kallocate :: proc(tag: memory_tag, $T: typeid, allocator := context.allocator) -> ^T {
+kallocate :: proc(
+	tag: memory_tag,
+	$T: typeid,
+	allocator := context.allocator,
+	location := #caller_location,
+) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
 	if memory_state_ptr != nil {
-		log_info("AAAAAA", tag)
 		memory_state_ptr.stats.total_allocated += size_of(T)
 		memory_state_ptr.stats.tagged_allocations[tag] += size_of(T)
 		memory_state_ptr.alloc_count = memory_state_ptr.alloc_count + 1
 	}
 
-	obj, err := platform_allocate(false, T, allocator)
+	obj, err := platform_allocate(false, T, allocator, location)
 
 	ensure(err == nil)
 

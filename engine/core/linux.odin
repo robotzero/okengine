@@ -49,11 +49,16 @@ platform_startup :: proc(
 	y: i32,
 	width: i32,
 	height: i32,
+	allocator := context.allocator,
 ) -> bool {
-	// @TODO use custom allocator? and maybe catch the error
+	// @TODO and maybe catch the error
 	app_name: cstring = strings.clone_to_cstring(application_name)
 	defer delete(app_name)
-	plat_state.internal_state = new(internal_state)
+	plat_state.internal_state = kallocate(
+		memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR,
+		internal_state,
+		allocator,
+	)
 	length := cast(u32)len(application_name)
 	state: ^internal_state = cast(^internal_state)plat_state.internal_state
 	state.display = xlib.OpenDisplay(nil)
@@ -246,7 +251,7 @@ platform_shutdown :: proc(plat_state: ^platform_state) {
 	state: ^internal_state = cast(^internal_state)plat_state.internal_state
 	xlib.AutoRepeatOn(state.display)
 	l.destroy_window(state.connection, state.window)
-	defer free(plat_state.internal_state)
+	// defer free(plat_state.internal_state)
 }
 
 platform_console_write :: proc(
@@ -285,7 +290,7 @@ platform_allocate :: proc(
 	aligned: bool,
 	$T: typeid,
 	allocator := context.allocator,
-	// location := #caller_location,
+	location := #caller_location,
 ) -> (
 	^T,
 	mem.Allocator_Error,
@@ -295,12 +300,14 @@ platform_allocate :: proc(
 	if err != nil {
 		log.fatal(err)
 	}
-	// log.log(log.Level.Info, "object %v, location %s", obj, location)
+	// log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
+	// log.log(log.Level.Info, "size of %d", size_of(obj))
 	return obj, err
 }
 
 platform_free :: proc(object: ^$T) {
-	mem.free(object)
+	err := mem.free(object)
+	ensure(err == nil)
 }
 
 platform_zero_memory :: proc(ptr: rawptr, size: int) -> rawptr {

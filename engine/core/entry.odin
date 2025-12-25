@@ -30,7 +30,6 @@ main :: proc() {
 	when ODIN_DEBUG {
 		lowest :: log.Level.Debug
 		track: mem.Tracking_Allocator
-		// mem.tracking_allocator_init(&track, custom_alloc.allocator)
 		mem.tracking_allocator_init(&track, context.allocator)
 		context.allocator = mem.tracking_allocator(&track)
 		track_sys: mem.Tracking_Allocator
@@ -39,9 +38,8 @@ main :: proc() {
 
 		defer {
 			virtual.arena_free_all(&arena)
-			mem.free_all(context.temp_allocator)
-			mem.free_all(context.allocator)
-			mem.free_all(sys_alloc)
+			mem.tracking_allocator_destroy(&track)
+			mem.tracking_allocator_destroy(&track_sys)
 
 			if len(track.allocation_map) > 0 {
 				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
@@ -55,8 +53,21 @@ main :: proc() {
 					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
 				}
 			}
-			mem.tracking_allocator_destroy(&track)
-			mem.tracking_allocator_destroy(&track_sys)
+			if len(track_sys.allocation_map) > 0 {
+				fmt.eprintf(
+					"=== %v allocations not freed sys: ===\n",
+					len(track_sys.allocation_map),
+				)
+				for _, entry in track_sys.allocation_map {
+					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+				}
+			}
+			if len(track_sys.bad_free_array) > 0 {
+				fmt.eprintf("=== %v incorrect frees sys: ===\n", len(track_sys.bad_free_array))
+				for entry in track_sys.bad_free_array {
+					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
+				}
+			}
 		}
 	} else {
 		lowest :: log.Level.Info
@@ -70,14 +81,16 @@ main :: proc() {
 
 	}
 
-	defer log.destroy_console_logger(context.logger)
-	defer mem.free_all()
-	// defer shutdown_memory()
-	defer mem.free(game_inst.state)
-	defer mem.free_all(sys_alloc)
-	defer mem.free_all(context.allocator)
 	context.logger = log.create_console_logger(lowest, log_options)
-
+	defer {
+		log.destroy_console_logger(context.logger)
+		err := mem.free_all(sys_alloc)
+		ensure(err == nil)
+		err = mem.free(game_inst.state)
+		ensure(err == nil)
+		err = mem.free_all(context.temp_allocator)
+		ensure(err == nil)
+	}
 
 	if game_inst.render == nil ||
 	   game_inst.update == nil ||
@@ -87,7 +100,7 @@ main :: proc() {
 		os.exit(-2)
 	}
 
-	if !application_create(&game_inst, sys_alloc, cast(uint)systems_allocator_total_size) {
+	if !application_create(&game_inst, &sys_alloc, cast(uint)systems_allocator_total_size) {
 		log_info("application failed to create!")
 		os.exit(1)
 	}

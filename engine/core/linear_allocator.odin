@@ -63,6 +63,7 @@ linear_allocator_free_all :: proc(allocator: ^linear_allocator) {
 linear_allocator_allocate :: proc(
 	linear_alloc: ^linear_allocator,
 	$T: typeid,
+	sys_alloc: ^mem.Allocator,
 	allocator := context.allocator,
 ) -> (
 	^T,
@@ -88,7 +89,7 @@ linear_allocator_allocate :: proc(
 	// }
 
 	linear_alloc.allocated += size_of(T)
-	obj := kallocate(memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR, T, allocator)
+	obj := kallocate(memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR, T, sys_alloc^)
 	return obj, nil
 }
 

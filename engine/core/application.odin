@@ -19,6 +19,9 @@ application_state :: struct {
 	memory_system_state:               ^memory_system_state,
 	logging_system_memory_requirement: u64,
 	logging_system_state:              ^logger_system_state,
+	platform_system_state:             ^platform_system_state,
+	input_system_state:                ^input_system_state,
+	renderer_system_state:             ^renderer_system_state,
 }
 
 application_config :: struct {
@@ -33,7 +36,7 @@ app_state: ^application_state
 
 application_create :: proc(
 	game_inst: ^game,
-	sys_alloc: mem.Allocator,
+	sys_alloc: ^mem.Allocator,
 	systems_allocator_total_size: uint,
 ) -> bool {
 	if game_inst.application_state != nil {
@@ -90,6 +93,7 @@ application_create :: proc(
 		game_inst.app_config.start_pos_y,
 		game_inst.app_config.start_width,
 		game_inst.app_config.start_height,
+		sys_alloc^,
 	); !ok {
 		return false
 	}
@@ -205,7 +209,6 @@ application_on_resized :: proc(
 application_run :: proc() -> bool {
 	defer shutdown_memory(&app_state.systems_allocator)
 	defer platform_shutdown(&app_state.platform)
-	// defer platform_free(&app_state.game_inst.state)
 	defer renderer_shutdown()
 	defer input_shutdown()
 	defer event_shutdown()

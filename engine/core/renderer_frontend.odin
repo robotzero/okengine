@@ -3,8 +3,11 @@ package core
 static_mesh_data :: struct {
 }
 
-// Backend renderer context
-backend: ^renderer_backend = nil
+// // Backend renderer context
+// backend: ^renderer_backend = nil
+renderer_system_state :: struct {
+	backend: ^renderer_backend,
+}
 
 renderer_initialize :: proc(application_name: string, plat_state: ^platform_state) -> bool {
 	backend = kallocate(.MEMORY_TAG_RENDERER, renderer_backend)
