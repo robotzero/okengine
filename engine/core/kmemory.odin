@@ -61,7 +61,7 @@ memory_tag_strings: [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"SCENE      ",
 }
 
-initialize_memory :: proc(
+memory_system_initialize :: proc(
 	state: ^memory_system_state,
 	allocator := context.allocator,
 	location := #caller_location,
@@ -73,7 +73,7 @@ initialize_memory :: proc(
 	return memory_state_ptr
 }
 
-shutdown_memory :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
+memory_system_shutdown :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
 	platform_free(app_state)
 	// linear_allocator_free_all(linear_allocator.allocator)
 	// linear_allocator_destroy(alloc)
@@ -107,8 +107,10 @@ kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
-	memory_state_ptr.stats.total_allocated -= size
-	memory_state_ptr.stats.tagged_allocations[tag] -= size
+	if memory_state_ptr != nil {
+		memory_state_ptr.stats.total_allocated -= size
+		memory_state_ptr.stats.tagged_allocations[tag] -= size
+	}
 
 	platform_free(object)
 }

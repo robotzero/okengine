@@ -90,33 +90,25 @@ registered_event :: struct {
 	callback: PFN_on_event,
 }
 
-is_initialized: bool = false
-state: event_system_state
+state_ptr: ^event_system_state
 
-event_initialize :: proc() -> bool {
-	if is_initialized == true {
-		return false
-	}
-
-	is_initialized = false
-	kzero_memory(&state, size_of(state))
-	is_initialized = true
-
-	return true
+event_system_initialize :: proc(state: ^event_system_state) {
+	kzero_memory(state, size_of(state))
+	state_ptr = state
 }
 
 event_register :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> bool {
-	if is_initialized == false {
+	if state_ptr == nil {
 		return false
 	}
 
-	if state.registered[code].events == nil {
-		state.registered[code].events = cnt.darray_create_default(registered_event)
+	if state_ptr.registered[code].events == nil {
+		state_ptr.registered[code].events = cnt.darray_create_default(registered_event)
 	}
 
-	registered_counts := cnt.darray_length(state.registered[code].events)
+	registered_counts := cnt.darray_length(state_ptr.registered[code].events)
 
-	for v, _ in state.registered[code].events {
+	for v, _ in state_ptr.registered[code].events {
 		if v.listener == listener {
 			return false
 		}
@@ -126,25 +118,25 @@ event_register :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> b
 	event: registered_event
 	event.listener = listener
 	event.callback = on_event
-	cnt.darray_push(&state.registered[code].events, event)
+	cnt.darray_push(state_ptr.registered[code].events, event)
 
 	return true
 }
 
 event_unregister :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> bool {
-	if is_initialized == false {
+	if state_ptr == nil {
 		return false
 	}
 
 	// On nothing is registered for the code, boot out.
-	if state.registered[code].events == nil {
+	if state_ptr.registered[code].events == nil {
 		return false
 	}
 
-	for v, index in state.registered[code].events {
+	for v, index in state_ptr.registered[code].events {
 		if v.listener == listener && v.callback == on_event {
 			// Found it, remove it
-			cnt.darray_pop_at(&state.registered[code].events, index)
+			cnt.darray_pop_at(&state_ptr.registered[code].events, index)
 			return true
 		}
 	}
@@ -153,15 +145,15 @@ event_unregister :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) ->
 }
 
 event_fire :: proc(code: u16, sender: rawptr, ev_context: event_context) -> bool {
-	if is_initialized == false {
+	if state_ptr == nil {
 		return false
 	}
 
-	if state.registered[code].events == nil {
+	if state_ptr.registered[code].events == nil {
 		return false
 	}
 
-	for v, _ in state.registered[code].events {
+	for v, _ in state_ptr.registered[code].events {
 		if v.callback(code, sender, v.listener, ev_context) {
 			return true
 		}
@@ -171,12 +163,15 @@ event_fire :: proc(code: u16, sender: rawptr, ev_context: event_context) -> bool
 	return false
 }
 
-event_shutdown :: proc() {
-	for &v, index in &state.registered {
-		if v.events != nil {
-			cnt.darray_destroy(v.events)
-			v.events = nil
+event_system_shutdown :: proc(state: ^event_system_state) {
+	if (state_ptr != nil) {
+		for &v, index in state_ptr.registered {
+			if v.events != nil {
+				cnt.darray_destroy(v.events)
+				v.events = nil
+			}
 		}
 	}
+	state_ptr = nil
 }
 

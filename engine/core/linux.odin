@@ -28,7 +28,9 @@ foreign XCBUTIL {
 	xcb_aux_get_screen :: proc(connection: ^l.Connection, screen: i32) -> ^l.Screen ---
 }
 
-internal_state :: struct {
+state_ptr: ^platform_state
+
+platform_state :: struct {
 	display:       ^xlib.Display,
 	connection:    ^l.Connection,
 	window:        l.Window,
@@ -38,11 +40,7 @@ internal_state :: struct {
 	surface:       vk.SurfaceKHR,
 }
 
-platform_state :: struct {
-	internal_state: rawptr,
-}
-
-platform_startup :: proc(
+platform_system_startup :: proc(
 	plat_state: ^platform_state,
 	application_name: string,
 	x: i32,
@@ -54,31 +52,26 @@ platform_startup :: proc(
 	// @TODO and maybe catch the error
 	app_name: cstring = strings.clone_to_cstring(application_name)
 	defer delete(app_name)
-	plat_state.internal_state = kallocate(
-		memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR,
-		internal_state,
-		allocator,
-	)
+	state_ptr = plat_state
 	length := cast(u32)len(application_name)
-	state: ^internal_state = cast(^internal_state)plat_state.internal_state
-	state.display = xlib.OpenDisplay(nil)
-	xlib.AutoRepeatOff(state.display)
+	state_ptr.display = xlib.OpenDisplay(nil)
+	xlib.AutoRepeatOff(state_ptr.display)
 	screen_p: i32 = 0
-	state.connection = XGetXCBConnection(state.display)
+	state_ptr.connection = XGetXCBConnection(state_ptr.display)
 	// state.connection = l.connect(nil, &screen_p)
-	if (l.connection_has_error(state.connection) == 1) {
+	if (l.connection_has_error(state_ptr.connection) == 1) {
 		return false
 	}
 
-	setup: ^l.Setup = l.get_setup(state.connection)
+	setup: ^l.Setup = l.get_setup(state_ptr.connection)
 	it: l.ScreenIterator = l.setup_roots_iterator(setup)
 
 	for s: i32 = 0; s < screen_p; s -= 1 {
 		l.screen_next(&it)
 	}
-	state.screen = it.data
+	state_ptr.screen = it.data
 	// state.screen = xcb_aux_get_screen(state.connection, screen_p)
-	state.window = l.generate_id(state.connection)
+	state_ptr.window = l.generate_id(state_ptr.connection)
 	event_mask := cast(u32)(l.Cw.BackPixel | l.Cw.EventMask)
 
 	event_values := cast(u32)(l.EventMask.ButtonPress |
@@ -88,26 +81,26 @@ platform_startup :: proc(
 		l.EventMask.Exposure |
 		l.EventMask.PointerMotion |
 		l.EventMask.StructureNotify)
-	value_list: [3]u32 = {state.screen.blackPixel, event_values, 0}
+	value_list: [3]u32 = {state_ptr.screen.blackPixel, event_values, 0}
 	cookie: l.VoidCookie = l.create_window(
-		state.connection,
+		state_ptr.connection,
 		cast(u8)l.WindowClass.CopyFromParent,
-		state.window,
-		state.screen.root,
+		state_ptr.window,
+		state_ptr.screen.root,
 		cast(i16)x,
 		cast(i16)y,
 		cast(u16)width,
 		cast(u16)height,
 		0,
 		cast(u16)l.WindowClass.InputOutput,
-		state.screen.rootVisual,
+		state_ptr.screen.rootVisual,
 		event_mask,
 		&value_list[0],
 	)
 	l.change_property(
-		state.connection,
+		state_ptr.connection,
 		cast(u8)l.PropMode.Replace,
-		state.window,
+		state_ptr.window,
 		cast(u32)l.AtomEnum.AtomWmName,
 		cast(u32)l.AtomEnum.AtomString,
 		8,
@@ -115,41 +108,41 @@ platform_startup :: proc(
 		cast(rawptr)(app_name),
 	)
 	wm_delete_cookie: l.InternAtomCookie = l.intern_atom(
-		state.connection,
+		state_ptr.connection,
 		0,
 		len("WM_DELETE_WINDOW"),
 		"DELETE_WINDOW",
 	)
 	wm_protocols_cookie: l.InternAtomCookie = l.intern_atom(
-		state.connection,
+		state_ptr.connection,
 		0,
 		len("WM_PROTOCOLS"),
 		"WM_PROTOCOLS",
 	)
 	wm_delete_reply: ^l.InternAtomReply = l.intern_atom_reply(
-		state.connection,
+		state_ptr.connection,
 		wm_delete_cookie,
 		nil,
 	)
 	wm_protocols_reply: ^l.InternAtomReply = l.intern_atom_reply(
-		state.connection,
+		state_ptr.connection,
 		wm_protocols_cookie,
 		nil,
 	)
-	state.wm_delete_win = wm_delete_reply.atom
-	state.wm_protocols = wm_protocols_reply.atom
+	state_ptr.wm_delete_win = wm_delete_reply.atom
+	state_ptr.wm_protocols = wm_protocols_reply.atom
 	l.change_property(
-		state.connection,
+		state_ptr.connection,
 		cast(u8)l.PropMode.Replace,
-		state.window,
+		state_ptr.window,
 		wm_protocols_reply.atom,
 		4,
 		32,
 		1,
 		&wm_delete_reply.atom,
 	)
-	l.map_window(state.connection, state.window)
-	stream_result: i32 = l.flush(state.connection)
+	l.map_window(state_ptr.connection, state_ptr.window)
+	stream_result: i32 = l.flush(state_ptr.connection)
 	if stream_result <= 0 {
 		// l.fatal("An error occured when flushing the stream: %d", stream_result)
 		return false
@@ -157,8 +150,7 @@ platform_startup :: proc(
 	return true
 }
 
-platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
-	state: ^internal_state = cast(^internal_state)plat_state.internal_state
+platform_pump_messages :: proc() -> bool {
 	quit_flagged := false
 	e: l.GenericEvent = {}
 	c: l.ClientMessageEvent = {}
@@ -167,7 +159,7 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 	cm := &c
 
 	for event != nil {
-		event = l.poll_for_event(state.connection)
+		event = l.poll_for_event(state_ptr.connection)
 		if event == nil {
 			break
 		}
@@ -178,7 +170,7 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 				pressed := event.responseType == l.KEY_PRESS
 				code: l.Keycode = keyPressEvent.detail
 				key_sym: xlib.KeySym = xlib.KeycodeToKeysym(
-					state.display,
+					state_ptr.display,
 					cast(xlib.KeyCode)code,
 					0,
 				)
@@ -246,11 +238,10 @@ platform_pump_messages :: proc(plat_state: ^platform_state) -> bool {
 	return !quit_flagged
 }
 
-platform_shutdown :: proc(plat_state: ^platform_state) {
+platform_system_shutdown :: proc(plat_state: ^platform_state) {
 	platform_console_write(log.Level.Info, "Platform Shutdown")
-	state: ^internal_state = cast(^internal_state)plat_state.internal_state
-	xlib.AutoRepeatOn(state.display)
-	l.destroy_window(state.connection, state.window)
+	xlib.AutoRepeatOn(state_ptr.display)
+	l.destroy_window(state_ptr.connection, state_ptr.window)
 	// defer free(plat_state.internal_state)
 }
 
@@ -333,26 +324,21 @@ platform_initialize_vulkan :: proc() -> rawptr {
 	return get_instance_proc_address
 }
 
-platform_create_vulkan_surface :: proc(
-	plat_state: ^platform_state,
-	v_context: ^vulkan_context,
-) -> bool {
+platform_create_vulkan_surface :: proc(v_context: ^vulkan_context) -> bool {
 	// Simply cold-cast to the known type.
-	state: ^internal_state = cast(^internal_state)plat_state.internal_state
-
 	l.load_proc_addresses(v_context.instance)
 
 	create_info: l.XcbSurfaceCreateInfoKHR = {
 		sType      = vk.StructureType.XCB_SURFACE_CREATE_INFO_KHR,
-		connection = state.connection,
-		window     = state.window,
+		connection = state_ptr.connection,
+		window     = state_ptr.window,
 	}
 
 	result: vk.Result = l.CreateXcbSurfaceKHR(
 		v_context.instance,
 		&create_info,
 		v_context.allocator,
-		&state.surface,
+		&state_ptr.surface,
 	)
 
 	if result != vk.Result.SUCCESS {
@@ -360,7 +346,7 @@ platform_create_vulkan_surface :: proc(
 		return false
 	}
 
-	v_context.surface = state.surface
+	v_context.surface = state_ptr.surface
 	return true
 }
 

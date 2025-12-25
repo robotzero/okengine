@@ -41,7 +41,6 @@ vulkan_debug_callback :: proc "stdcall" (
 vulkan_renderer_backend_initialize :: proc(
 	backend: ^renderer_backend,
 	application_name: string,
-	plat_state: ^platform_state,
 ) -> bool {
 	vulkan_proc_addr := platform_initialize_vulkan()
 	vk.load_proc_addresses_global(vulkan_proc_addr)
@@ -218,7 +217,7 @@ vulkan_renderer_backend_initialize :: proc(
 	}
 
 	log_debug("Creating Vulkan surface...")
-	if platform_create_vulkan_surface(plat_state, &v_context) == false {
+	if platform_create_vulkan_surface(&v_context) == false {
 		log_error("Failed to create platform surface")
 		return false
 	}

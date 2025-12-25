@@ -21,6 +21,7 @@ application_state :: struct {
 	logging_system_state:              ^logger_system_state,
 	platform_system_state:             ^platform_system_state,
 	input_system_state:                ^input_system_state,
+	event_system_state:                ^event_system_state,
 	renderer_system_state:             ^renderer_system_state,
 }
 
@@ -52,13 +53,25 @@ application_create :: proc(
 
 	linear_allocator_create(systems_allocator_total_size, &app_state.systems_allocator)
 
-	mem_state, err := linear_allocator_allocate(
+	// Initialize subsystems
+	// Events
+	event_state, err := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		event_system_state,
+		sys_alloc,
+	)
+	ensure(err == nil)
+	event_system_initialize(event_state)
+	app_state.event_system_state = event_state
+
+	// Memory
+	mem_state, mem_err := linear_allocator_allocate(
 		&app_state.systems_allocator,
 		memory_system_state,
 		sys_alloc,
 	)
-	ensure(err == nil)
-	mem_state = initialize_memory(mem_state)
+	ensure(mem_err == nil)
+	mem_state = memory_system_initialize(mem_state)
 	app_state.memory_system_state = mem_state
 
 	// Logging
@@ -72,10 +85,15 @@ application_create :: proc(
 	logging_state := initialize_logging(&app_state.logging_system_memory_requirement, log_state)
 	app_state.logging_system_state = logging_state
 
-	if ok := event_initialize(); !ok {
-		log_error("Event system failed initialization. Application cannot continue.")
-		return false
-	}
+	// Input
+	input_state, i_err := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		input_system_state,
+		sys_alloc,
+	)
+	ensure(i_err == nil)
+	input_system_initialize(input_state)
+	app_state.input_system_state = input_state
 
 	event_register(
 		cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT,
@@ -86,8 +104,16 @@ application_create :: proc(
 	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
 	event_register(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, application_on_resized)
 
-	if ok := platform_startup(
-		&app_state.platform,
+	// Platform
+	platform_state, pl_err := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		platform_system_state,
+		sys_alloc,
+	)
+	app_state.platform_system_state = platform_state
+
+	if ok := platform_system_startup(
+		app_state.platform_system_state,
 		game_inst.app_config.name,
 		game_inst.app_config.start_pos_x,
 		game_inst.app_config.start_pos_y,
@@ -98,7 +124,15 @@ application_create :: proc(
 		return false
 	}
 
-	if ok := renderer_initialize(game_inst.app_config.name, &app_state.platform); !ok {
+	// Renderer
+	r_state, r_error := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		renderer_system_state,
+		sys_alloc,
+	)
+	app_state.renderer_system_state = r_state
+	if ok := renderer_system_initialize(r_state, game_inst.app_config.name, &app_state.platform);
+	   !ok {
 		log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}
@@ -207,11 +241,11 @@ application_on_resized :: proc(
 }
 
 application_run :: proc() -> bool {
-	defer shutdown_memory(&app_state.systems_allocator)
-	defer platform_shutdown(&app_state.platform)
-	defer renderer_shutdown()
-	defer input_shutdown()
-	defer event_shutdown()
+	defer memory_system_shutdown(app_state.memory_system_state)
+	defer platform_system_shutdown(app_state.platform_system_state)
+	defer renderer_system_shutdown(app_state.renderer_system_state)
+	defer input_system_shutdown(app_state.input_system_state)
+	defer event_system_shutdown(app_state.event_system_state)
 	defer event_unregister(
 		cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT,
 		nil,
@@ -242,7 +276,7 @@ application_run :: proc() -> bool {
 	log_info(mem_info)
 
 	for app_state.is_running {
-		if !platform_pump_messages(&app_state.platform) {
+		if !platform_pump_messages() {
 			app_state.is_running = false
 		}
 

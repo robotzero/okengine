@@ -3,21 +3,20 @@ package core
 static_mesh_data :: struct {
 }
 
-// // Backend renderer context
-// backend: ^renderer_backend = nil
 renderer_system_state :: struct {
-	backend: ^renderer_backend,
+	backend: renderer_backend,
 }
 
-renderer_initialize :: proc(application_name: string, plat_state: ^platform_state) -> bool {
-	backend = kallocate(.MEMORY_TAG_RENDERER, renderer_backend)
+state_ptr: ^renderer_system_state
 
+renderer_initialize :: proc(application_name: string, state: ^renderer_system_state) -> bool {
+	state_ptr = state
 	// @TODO: make this configurable
-	renderer_backend_create(.RENDERER_BACKEND_TYPE_VULKAN, plat_state, backend)
-	backend.frame_number = 0
+	renderer_backend_create(.RENDERER_BACKEND_TYPE_VULKAN, &state_ptr.backend)
+	state_ptr.backend.frame_number = 0
 
-	if !backend.initialize(backend, application_name, plat_state) {
-		log_fatal("Renderer backend failed to initialize. Shuttind down")
+	if !state_ptr.backend.initialize(state_ptr.backend, application_name) {
+		log_fatal("Renderer backend failed to initialize. Shutting down")
 		return false
 	}
 
@@ -25,18 +24,25 @@ renderer_initialize :: proc(application_name: string, plat_state: ^platform_stat
 }
 
 
-renderer_shutdown :: proc() {
-	backend.shutdown(backend)
-	kfree(backend, size_of(renderer_backend), .MEMORY_TAG_RENDERER)
+renderer_shutdown :: proc(state: ^renderer_system_state) {
+	if state_ptr != nil {
+		state_ptr.backend.shutdown(&state_ptr.backend)
+	}
+	state_ptr = nil
 }
 
 renderer_begin_frame :: proc(delta_time: f32) -> bool {
-	return backend.begin_frame(backend, delta_time)
+	if state_ptr != nil {
+		return state_ptr.backend.begin_frame(&state_ptr.backend, delta_time)
+	}
 }
 
 renderer_end_frame :: proc(delta_time: f32) -> bool {
-	result: bool = backend.end_frame(backend, delta_time)
-	backend.frame_number = backend.frame_number + 1
+	if state_ptr == nil {
+		return false
+	}
+	result: bool = state_ptr.backend.end_frame(&state_ptr.backend, delta_time)
+	state_ptr.backend.frame_number = state_ptr.backend.frame_number + 1
 	return result
 }
 
@@ -56,8 +62,8 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 }
 
 renderer_on_resized :: proc(width: u16, height: u16) {
-	if backend != nil {
-		backend.resized(backend, width, height)
+	if state_ptr != nil {
+		state_ptr.backend.resized(&state_ptr.backend, width, height)
 	} else {
 		log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
 	}
