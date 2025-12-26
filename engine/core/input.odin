@@ -11,22 +11,23 @@ mouse_state :: struct {
 	buttons: [idef.buttons.BUTTON_MAX_BUTTONS]bool,
 }
 
-input_state :: struct {
+input_system_state :: struct {
 	keyboard_current:  keyboard_state,
 	keyboard_previous: keyboard_state,
 	mouse_current:     mouse_state,
 	mouse_previous:    mouse_state,
 }
 
-state_ptr: ^input_state
+@(private = "file")
+state_ptr: ^input_system_state
 
-input_system_initialize :: proc(state: ^input_state) {
-	kzero_memory(&state, size_of(input_state))
+input_system_initialize :: proc(state: ^input_system_state) {
+	kzero_memory(state, size_of(input_system_state))
 	state_ptr = state
 	log_info("Input subsystem initialized.")
 }
 
-input_shutdown :: proc(state: ^input_state) {
+input_system_shutdown :: proc(state: ^input_system_state) {
 	state_ptr = nil
 	// kfree(&inpt_state, size_of(inpt_state), .MEMORY_TAG_UNKNOWN)
 }
@@ -36,8 +37,12 @@ input_update :: proc(delta_time: f64) {
 		return
 	}
 
-	kcopy_memory(state_ptr.keyboard_previous, state_ptr.keyboard_current, size_of(keyboard_state))
-	kcopy_memory(state_ptr.mouse_previous, state_ptr.mouse_current, size_of(mouse_state))
+	kcopy_memory(
+		&state_ptr.keyboard_previous,
+		&state_ptr.keyboard_current,
+		size_of(keyboard_state),
+	)
+	kcopy_memory(&state_ptr.mouse_previous, &state_ptr.mouse_current, size_of(mouse_state))
 }
 
 input_process_key :: proc(key: idef.keys, pressed: bool) {
@@ -92,7 +97,7 @@ input_process_button :: proc(button: idef.buttons, pressed: bool) {
 input_process_mouse_move :: proc(x, y: i16) {
 	// Only process if actually different
 	// log_debug("Mouse %i, %i", x, y)
-	if state_ptr.mouse_current.x != x || inpt_state.mouse_current.y != y {
+	if state_ptr.mouse_current.x != x || state_ptr.mouse_current.y != y {
 		// Update internal state
 		state_ptr.mouse_current.x = x
 		state_ptr.mouse_current.y = y

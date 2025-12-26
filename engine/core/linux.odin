@@ -28,9 +28,10 @@ foreign XCBUTIL {
 	xcb_aux_get_screen :: proc(connection: ^l.Connection, screen: i32) -> ^l.Screen ---
 }
 
-state_ptr: ^platform_state
+@(private = "file")
+state_ptr: ^platform_system_state
 
-platform_state :: struct {
+platform_system_state :: struct {
 	display:       ^xlib.Display,
 	connection:    ^l.Connection,
 	window:        l.Window,
@@ -41,7 +42,7 @@ platform_state :: struct {
 }
 
 platform_system_startup :: proc(
-	plat_state: ^platform_state,
+	state: ^platform_system_state,
 	application_name: string,
 	x: i32,
 	y: i32,
@@ -52,7 +53,7 @@ platform_system_startup :: proc(
 	// @TODO and maybe catch the error
 	app_name: cstring = strings.clone_to_cstring(application_name)
 	defer delete(app_name)
-	state_ptr = plat_state
+	state_ptr = state
 	length := cast(u32)len(application_name)
 	state_ptr.display = xlib.OpenDisplay(nil)
 	xlib.AutoRepeatOff(state_ptr.display)
@@ -232,13 +233,13 @@ platform_pump_messages :: proc() -> bool {
 				event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
 			}
 		}
-		l.flush(state.connection)
+		l.flush(state_ptr.connection)
 	}
 
 	return !quit_flagged
 }
 
-platform_system_shutdown :: proc(plat_state: ^platform_state) {
+platform_system_shutdown :: proc(plat_state: ^platform_system_state) {
 	platform_console_write(log.Level.Info, "Platform Shutdown")
 	xlib.AutoRepeatOn(state_ptr.display)
 	l.destroy_window(state_ptr.connection, state_ptr.window)

@@ -73,8 +73,9 @@ memory_system_initialize :: proc(
 	return memory_state_ptr
 }
 
-memory_system_shutdown :: proc(alloc: ^linear_allocator, allocator := context.allocator) {
+memory_system_shutdown :: proc(state: ^memory_system_state, allocator := context.allocator) {
 	platform_free(app_state)
+	memory_state_ptr = nil
 	// linear_allocator_free_all(linear_allocator.allocator)
 	// linear_allocator_destroy(alloc)
 }

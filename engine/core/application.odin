@@ -9,7 +9,7 @@ application_state :: struct {
 	game_inst:                         ^game,
 	is_running:                        bool,
 	is_suspended:                      bool,
-	platform:                          platform_state,
+	platform:                          platform_system_state,
 	width:                             i32,
 	height:                            i32,
 	c:                                 clock,
@@ -131,8 +131,7 @@ application_create :: proc(
 		sys_alloc,
 	)
 	app_state.renderer_system_state = r_state
-	if ok := renderer_system_initialize(r_state, game_inst.app_config.name, &app_state.platform);
-	   !ok {
+	if ok := renderer_system_initialize(game_inst.app_config.name, r_state); !ok {
 		log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}

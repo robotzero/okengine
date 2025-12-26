@@ -90,6 +90,8 @@ registered_event :: struct {
 	callback: PFN_on_event,
 }
 
+
+@(private = "file")
 state_ptr: ^event_system_state
 
 event_system_initialize :: proc(state: ^event_system_state) {
@@ -118,7 +120,7 @@ event_register :: proc(code: u16, listener: rawptr, on_event: PFN_on_event) -> b
 	event: registered_event
 	event.listener = listener
 	event.callback = on_event
-	cnt.darray_push(state_ptr.registered[code].events, event)
+	cnt.darray_push(&state_ptr.registered[code].events, event)
 
 	return true
 }

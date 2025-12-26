@@ -9,13 +9,16 @@ renderer_system_state :: struct {
 
 state_ptr: ^renderer_system_state
 
-renderer_initialize :: proc(application_name: string, state: ^renderer_system_state) -> bool {
+renderer_system_initialize :: proc(
+	application_name: string,
+	state: ^renderer_system_state,
+) -> bool {
 	state_ptr = state
 	// @TODO: make this configurable
 	renderer_backend_create(.RENDERER_BACKEND_TYPE_VULKAN, &state_ptr.backend)
 	state_ptr.backend.frame_number = 0
 
-	if !state_ptr.backend.initialize(state_ptr.backend, application_name) {
+	if !state_ptr.backend.initialize(&state_ptr.backend, application_name) {
 		log_fatal("Renderer backend failed to initialize. Shutting down")
 		return false
 	}
@@ -24,7 +27,7 @@ renderer_initialize :: proc(application_name: string, state: ^renderer_system_st
 }
 
 
-renderer_shutdown :: proc(state: ^renderer_system_state) {
+renderer_system_shutdown :: proc(state: ^renderer_system_state) {
 	if state_ptr != nil {
 		state_ptr.backend.shutdown(&state_ptr.backend)
 	}
@@ -35,6 +38,7 @@ renderer_begin_frame :: proc(delta_time: f32) -> bool {
 	if state_ptr != nil {
 		return state_ptr.backend.begin_frame(&state_ptr.backend, delta_time)
 	}
+	return false
 }
 
 renderer_end_frame :: proc(delta_time: f32) -> bool {
