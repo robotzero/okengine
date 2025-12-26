@@ -13,30 +13,30 @@ vulkan_graphics_pipeline_create :: proc(
 	descriptor_set_layouts: [^]vk.DescriptorSetLayout,
 	stage_count: u32,
 	stages: [^]vk.PipelineShaderStageCreateInfo,
-	viewport: vk.Viewport,
-	scissor: vk.Rect2D,
-	is_wireframe: b8,
+	viewport: ^vk.Viewport,
+	scissor: ^vk.Rect2D,
+	is_wireframe: bool,
 	out_pipeline: ^vulkan_pipeline,
 ) -> bool {
 	// Viewport state
 	viewport_state := vk.PipelineViewportStateCreateInfo {
-		sType         = vk.STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		sType         = vk.StructureType.PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 		viewportCount = 1,
-		pViewports    = &viewport,
+		pViewports    = viewport,
 		scissorCount  = 1,
-		pScissors     = &scissor,
+		pScissors     = scissor,
 	}
 
 	// Rasterizer
 	rasterizer_create_info := vk.PipelineRasterizationStateCreateInfo {
-		sType                   = vk.STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		depthClampEnable        = vk.FALSE,
-		rasterizerDiscardEnable = vk.FALSE,
-		polygonMode             = (is_wireframe != 0) ? vk.POLYGON_MODE_LINE : vk.POLYGON_MODE_FILL,
+		sType                   = vk.StructureType.PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		depthClampEnable        = 0,
+		rasterizerDiscardEnable = 0,
+		polygonMode             = (is_wireframe) ? vk.PolygonMode.LINE : vk.PolygonMode.FILL,
 		lineWidth               = 1.0,
-		cullMode                = vk.CULL_MODE_BACK_BIT,
-		frontFace               = vk.FRONT_FACE_COUNTER_CLOCKWISE,
-		depthBiasEnable         = vk.FALSE,
+		cullMode                = vk.CullModeFlag.BACK,
+		frontFace               = vk.FrontFace.COUNTER_CLOCKWISE,
+		depthBiasEnable         = 0,
 		depthBiasConstantFactor = 0.0,
 		depthBiasClamp          = 0.0,
 		depthBiasSlopeFactor    = 0.0,
@@ -44,9 +44,9 @@ vulkan_graphics_pipeline_create :: proc(
 
 	// Multisampling
 	multisampling_create_info := vk.PipelineMultisampleStateCreateInfo {
-		sType                 = vk.STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		sType                 = vk.StructureType.PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		sampleShadingEnable   = vk.FALSE,
-		rasterizationSamples  = vk.SAMPLE_COUNT_1_BIT,
+		rasterizationSamples  = vk.SampleCountFlag._1,
 		minSampleShading      = 1.0,
 		pSampleMask           = nil,
 		alphaToCoverageEnable = vk.FALSE,
@@ -55,10 +55,10 @@ vulkan_graphics_pipeline_create :: proc(
 
 	// Depth and stencil testing
 	depth_stencil := vk.PipelineDepthStencilStateCreateInfo {
-		sType                 = vk.STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		sType                 = vk.StructureType.PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		depthTestEnable       = vk.TRUE,
 		depthWriteEnable      = vk.TRUE,
-		depthCompareOp        = vk.COMPARE_OP_LESS,
+		depthCompareOp        = vk.CompareOp.LESS,
 		depthBoundsTestEnable = vk.FALSE,
 		stencilTestEnable     = vk.FALSE,
 	}
@@ -66,32 +66,32 @@ vulkan_graphics_pipeline_create :: proc(
 	// Color blending
 	color_blend_attachment_state := vk.PipelineColorBlendAttachmentState {
 		blendEnable         = vk.TRUE,
-		srcColorBlendFactor = vk.BLEND_FACTOR_SRC_ALPHA,
-		dstColorBlendFactor = vk.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-		colorBlendOp        = vk.BLEND_OP_ADD,
-		srcAlphaBlendFactor = vk.BLEND_FACTOR_SRC_ALPHA,
-		dstAlphaBlendFactor = vk.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-		alphaBlendOp        = vk.BLEND_OP_ADD,
-		colorWriteMask      = vk.COLOR_COMPONENT_R_BIT | vk.COLOR_COMPONENT_G_BIT | vk.COLOR_COMPONENT_B_BIT | vk.COLOR_COMPONENT_A_BIT,
+		srcColorBlendFactor = vk.BlendFactor.SRC_ALPHA,
+		dstColorBlendFactor = vk.BlendFactor.ONE_MINUS_SRC_ALPHA,
+		colorBlendOp        = vk.BlendOp.ADD,
+		srcAlphaBlendFactor = vk.BlendFactor.SRC_ALPHA,
+		dstAlphaBlendFactor = vk.BlendFactor.ONE_MINUS_SRC_ALPHA,
+		alphaBlendOp        = vk.BlendOp.ADD,
+		colorWriteMask      = vk.ColorComponentFlag.R | vk.ColorComponentFlag.G | vk.ColorComponentFlag.B | vk.ColorComponentFlag.A,
 	}
 
 	color_blend_state_create_info := vk.PipelineColorBlendStateCreateInfo {
-		sType           = vk.STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		sType           = vk.StructureType.PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 		logicOpEnable   = vk.FALSE,
-		logicOp         = vk.LOGIC_OP_COPY,
+		logicOp         = vk.LogicOp.COPY,
 		attachmentCount = 1,
 		pAttachments    = &color_blend_attachment_state,
 	}
 
 	// Dynamic state
 	dynamic_states: [3]vk.DynamicState = {
-		vk.DYNAMIC_STATE_VIEWPORT,
-		vk.DYNAMIC_STATE_SCISSOR,
-		vk.DYNAMIC_STATE_LINE_WIDTH,
+		vk.DynamicState.VIEWPORT,
+		vk.DynamicState.SCISSOR,
+		vk.DynamicState.LINE_WIDTH,
 	}
 
 	dynamic_state_create_info := vk.PipelineDynamicStateCreateInfo {
-		sType             = vk.STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		sType             = vk.StructureType.PIPELINE_DYNAMIC_STATE_CREATE_INFO,
 		dynamicStateCount = u32(len(dynamic_states)),
 		pDynamicStates    = &dynamic_states[0],
 	}
@@ -100,11 +100,11 @@ vulkan_graphics_pipeline_create :: proc(
 	binding_description := vk.VertexInputBindingDescription {
 		binding   = 0,
 		stride    = u32(size_of(okmath.vertex_3d)),
-		inputRate = vk.VERTEX_INPUT_RATE_VERTEX,
+		inputRate = vk.VertexInputRate.VERTEX,
 	}
 
 	vertex_input_info := vk.PipelineVertexInputStateCreateInfo {
-		sType                           = vk.STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		sType                           = vk.StructureType.PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		vertexBindingDescriptionCount   = 1,
 		pVertexBindingDescriptions      = &binding_description,
 		vertexAttributeDescriptionCount = attribute_count,
@@ -113,14 +113,14 @@ vulkan_graphics_pipeline_create :: proc(
 
 	// Input assembly
 	input_assembly := vk.PipelineInputAssemblyStateCreateInfo {
-		sType                  = vk.STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		topology               = vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		sType                  = vk.StructureType.PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		topology               = vk.PrimitiveTopology.TRIANGLE_LIST,
 		primitiveRestartEnable = vk.FALSE,
 	}
 
 	// Pipeline layout
 	pipeline_layout_create_info := vk.PipelineLayoutCreateInfo {
-		sType          = vk.STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		sType          = vk.StructureType.PIPELINE_LAYOUT_CREATE_INFO,
 		setLayoutCount = descriptor_set_layout_count,
 		pSetLayouts    = descriptor_set_layouts,
 	}
@@ -140,7 +140,7 @@ vulkan_graphics_pipeline_create :: proc(
 
 	// Pipeline create
 	pipeline_create_info := vk.GraphicsPipelineCreateInfo {
-		sType               = vk.STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		sType               = vk.StructureType.GRAPHICS_PIPELINE_CREATE_INFO,
 		stageCount          = stage_count,
 		pStages             = stages,
 		pVertexInputState   = &vertex_input_info,

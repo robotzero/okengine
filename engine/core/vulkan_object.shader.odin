@@ -1,5 +1,6 @@
 package core
 
+import "../okmath"
 import vk "vendor:vulkan"
 
 BUILDIN_SHADER_NAME_OBJECT :: "Builtin.ObjectShader"
@@ -28,9 +29,9 @@ vulkan_object_shader_create :: proc(
 
 	viewport: vk.Viewport
 	viewport.x = 0.0
-	viewport.y = v_context.framebuffer_height
-	viewport.width = v_context.framebuffer_width
-	viewport.height = v_context.framebuffer_height
+	viewport.y = cast(f32)v_context.framebuffer_height
+	viewport.width = cast(f32)v_context.framebuffer_width
+	viewport.height = cast(f32)v_context.framebuffer_height
 	viewport.minDepth = 0.0
 	viewport.maxDepth = 0.0
 
@@ -47,11 +48,11 @@ vulkan_object_shader_create :: proc(
 	attribute_descriptions: [attribute_count]vk.VertexInputAttributeDescription
 
 	formats: [attribute_count]vk.Format = {vk.Format.R32G32B32A32_SFLOAT}
-	sizes: [attribute_count]u64 = {size_of(vec3)}
+	sizes: [attribute_count]u64 = {size_of(okmath.vec3)}
 
 	for i in 0 ..< attribute_count {
 		attribute_descriptions[i].binding = 0
-		attribute_descriptions[i].location = i
+		attribute_descriptions[i].location = cast(u32)i
 		attribute_descriptions[i].format = formats[i]
 		attribute_descriptions[i].offset = offset
 		offset = offset + sizes[i]
@@ -75,8 +76,8 @@ vulkan_object_shader_create :: proc(
 		0,
 		OBJECT_SHADER_STAGE_COUNT,
 		stage_create_infos,
-		viewport,
-		scissor,
+		&viewport,
+		&scissor,
 		false,
 		&out_shader.pipeline,
 	) {
