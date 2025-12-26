@@ -310,6 +310,12 @@ vulkan_renderer_backend_initialize :: proc(
 		v_context.images_in_flight[i] = nil
 	}
 
+	// Create buildin shaders
+	if !vulkan_object_shader_create(&v_context, &v_context.object_shader) {
+		log_error("Error loading built-in basic_lighting shader")
+		return false
+	}
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
