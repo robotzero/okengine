@@ -25,6 +25,75 @@ vulkan_object_shader_create :: proc(
 			return false
 		}
 	}
+
+	viewport: vk.Viewport
+	viewport.x = 0.0
+	viewport.y = v_context.framebuffer_height
+	viewport.width = v_context.framebuffer_width
+	viewport.height = v_context.framebuffer_height
+	viewport.minDepth = 0.0
+	viewport.maxDepth = 0.0
+
+	// Scissor
+	scissor: vk.Rect2D
+	scissor.offset.x = 0
+	scissor.offset.y = 0
+	scissor.extent.width = v_context.framebuffer_width
+	scissor.extent.height = v_context.framebuffer_height
+
+	// Attributes
+	offset: u32 = 0
+	attribute_count :: 1
+	attribute_descriptions: [attribute_count]vk.VertexInputAttributeDescription
+
+	formats: [attribute_count]vk.Format = {vk.Format.R32G32B32A32_SFLOAT}
+	sizes: [attribute_count]u64 = {size_of(vec3)}
+
+	for i in 0 ..< attribute_count {
+		attribute_descriptions[i].binding = 0
+		attribute_descriptions[i].location = i
+		attribute_descriptions[i].format = formats[i]
+		attribute_descriptions[i].offset = offset
+		offset = offset + sizes[i]
+	}
+
+
+	// Stages
+	// NOTE: Should match the number of shader->stages
+	stage_create_infos: [OBJECT_SHADER_STAGE_COUNT]vk.PipelineShaderStageCreateInfo
+	for i in 0 ..< OBJECT_SHADER_STAGE_COUNT {
+		stage_create_infos[i].sType = out_shader.stages[i].shader_stage_create_info.sType
+		stage_create_infos[i] = out_shader.stages[i].shader_stage_create_info
+	}
+
+	if !vulkan_graphics_pipeline_create(
+		v_context,
+		&v_context->main_renderpass,
+		attribute_count,
+		attribute_descriptions,
+		0,
+		0,
+		OBJECT_SHADER_STAGE_COUNT,
+		stage_create_infos,
+		viewport,
+		scissor,
+		false,
+		&out_shader.pipeline,
+	) {
+		log_error("Failed to load graphics pipeline for object shader.")
+		return false
+	}
 	return true
+}
+
+vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
+	for i in 0 ..< OBJECT_SHADER_STAGE_COUNT {
+		vk.DestroyShaderModule(
+			v_context.device.logical_device,
+			shader.stages[i].handle,
+			v_context.allocator,
+		)
+		shader.stages[i].handle = 0
+	}
 }
 

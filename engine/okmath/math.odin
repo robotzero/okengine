@@ -38,6 +38,10 @@ vec4 :: la.Vector4f32
 mat4 :: la.Matrix4f32
 quat :: la.Quaternionf32
 
+vertex_3d :: struct {
+	position: vec3,
+}
+
 @(private = "file")
 rand_seeded: bool = false
 

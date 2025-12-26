@@ -324,6 +324,7 @@ vulkan_renderer_backend_initialize :: proc(
 vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
 	// Destroy is the opposide order of creation.
+	vulkan_object_shader_destroy(&v_context, &v_context.object_shader)
 
 	// Sync objects
 	for i in 0 ..< v_context.swapchain.max_frames_in_flight {
