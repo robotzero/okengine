@@ -15,11 +15,7 @@ create_shader_module :: proc(
 	shader_stages: ^[OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
 ) -> bool {
 
-	file_name := fmt.aprintf(
-		"/home/agnieszka/Code/okengine/bin/assets/shaders/%s.%s.spv",
-		name,
-		type_str,
-	)
+	file_name := fmt.aprintf("bin/assets/shaders/%s.%s.spv", name, type_str)
 	defer delete(file_name)
 	// kzero_memory(shader_stages[stage_index].create_info, size_of(vk.ShaderModuleCreateInfo))
 	shader_stages[stage_index].create_info.sType = vk.StructureType.SHADER_MODULE_CREATE_INFO
