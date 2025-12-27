@@ -121,8 +121,8 @@ vulkan_shader_stage :: struct {
 }
 
 vulkan_pipeline :: struct {
-	handle:         vk.Pipeline,
-	pieline_layout: vk.PipelineLayout,
+	handle:          vk.Pipeline,
+	pipeline_layout: vk.PipelineLayout,
 }
 
 vulkan_object_shader :: struct {

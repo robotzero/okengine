@@ -31,9 +31,9 @@ vulkan_object_shader_create :: proc(
 	viewport.x = 0.0
 	viewport.y = cast(f32)v_context.framebuffer_height
 	viewport.width = cast(f32)v_context.framebuffer_width
-	viewport.height = cast(f32)v_context.framebuffer_height
+	viewport.height = -cast(f32)v_context.framebuffer_height
 	viewport.minDepth = 0.0
-	viewport.maxDepth = 0.0
+	viewport.maxDepth = 1.0
 
 	// Scissor
 	scissor: vk.Rect2D
@@ -48,7 +48,7 @@ vulkan_object_shader_create :: proc(
 	attribute_descriptions: [attribute_count]vk.VertexInputAttributeDescription
 
 	formats: [attribute_count]vk.Format = {vk.Format.R32G32B32A32_SFLOAT}
-	sizes: [attribute_count]u64 = {size_of(okmath.vec3)}
+	sizes: [attribute_count]u32 = {size_of(okmath.vec3)}
 
 	for i in 0 ..< attribute_count {
 		attribute_descriptions[i].binding = 0
@@ -57,7 +57,6 @@ vulkan_object_shader_create :: proc(
 		attribute_descriptions[i].offset = offset
 		offset = offset + sizes[i]
 	}
-
 
 	// Stages
 	// NOTE: Should match the number of shader->stages
@@ -69,13 +68,13 @@ vulkan_object_shader_create :: proc(
 
 	if !vulkan_graphics_pipeline_create(
 		v_context,
-		&v_context->main_renderpass,
+		&v_context.main_renderpass,
 		attribute_count,
-		attribute_descriptions,
+		attribute_descriptions[:],
 		0,
-		0,
+		nil,
 		OBJECT_SHADER_STAGE_COUNT,
-		stage_create_infos,
+		stage_create_infos[:],
 		&viewport,
 		&scissor,
 		false,

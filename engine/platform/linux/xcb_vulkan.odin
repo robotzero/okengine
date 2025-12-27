@@ -113,6 +113,12 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.WaitForFences = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkWaitForFences"))
 	vk.CreateShaderModule =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateShaderModule"))
+	vk.CreateGraphicsPipelines =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateGraphicsPipelines"))
+	vk.CreatePipelineLayout =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreatePipelineLayout"))
+	vk.DestroyShaderModule =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyShaderModule"))
 }
 
 load_proc_addresses :: proc {
