@@ -53,6 +53,8 @@ vulkan_context :: struct {
 	framebuffer_size_last_generation: u64,
 	swapchain:                        vulkan_swapchain,
 	main_renderpass:                  vulkan_renderpass,
+	object_vertex_buffer:             vulkan_buffer,
+	object_index_buffer:              vulkan_buffer,
 	graphics_command_buffers:         [dynamic]vulkan_command_buffer,
 	image_available_semaphores:       [dynamic]vk.Semaphore,
 	queue_complete_semaphores:        [dynamic]vk.Semaphore,
@@ -66,6 +68,8 @@ vulkan_context :: struct {
 	recreating_swapchain:             bool,
 	object_shader:                    vulkan_object_shader,
 	find_memory_index_proc:           find_memory_index,
+	geometry_vertex_offset:           u64,
+	geometry_index_offset:            u64,
 }
 
 vulkan_image :: struct {
@@ -128,6 +132,16 @@ vulkan_pipeline :: struct {
 vulkan_object_shader :: struct {
 	pipeline: vulkan_pipeline,
 	stages:   [OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
+}
+
+vulkan_buffer :: struct {
+	total_size:            u64,
+	handle:                vk.Buffer,
+	usage:                 vk.BufferUsageFlags,
+	is_locked:             bool,
+	memory:                vk.DeviceMemory,
+	memory_index:          i32,
+	memory_property_flags: vk.MemoryPropertyFlags,
 }
 
 must :: proc(result: vk.Result, loc := #caller_location) {

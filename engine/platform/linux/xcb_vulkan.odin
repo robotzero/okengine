@@ -119,6 +119,15 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreatePipelineLayout"))
 	vk.DestroyShaderModule =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyShaderModule"))
+	vk.CreateBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateBuffer"))
+	vk.GetBufferMemoryRequirements =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkGetBufferMemoryRequirements"))
+	vk.AllocateMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkAllocateMemory"))
+	vk.MapMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkMapMemory"))
+	vk.UnmapMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkUnmapMemory"))
+	vk.BindBufferMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkBindBufferMemory"))
+	vk.CmdCopyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdCopyBuffer"))
+	vk.DestroyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyBuffer"))
 }
 
 load_proc_addresses :: proc {

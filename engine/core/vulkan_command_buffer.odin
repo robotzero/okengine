@@ -1,7 +1,7 @@
 package core
 
-import vk "vendor:vulkan"
 import arr "../containers"
+import vk "vendor:vulkan"
 
 vulkan_command_buffer_allocate :: proc(
 	v_context: ^vulkan_context,
@@ -9,17 +9,24 @@ vulkan_command_buffer_allocate :: proc(
 	is_primary: bool,
 	out_command_buffer: ^vulkan_command_buffer,
 ) {
-		allocate_info : vk.CommandBufferAllocateInfo = {
-			sType = vk.StructureType.COMMAND_BUFFER_ALLOCATE_INFO,
-			commandPool = pool,
-			level = is_primary ? vk.CommandBufferLevel.PRIMARY : vk.CommandBufferLevel.SECONDARY,
-			commandBufferCount = 1,
-			pNext = nil,
-		}
+	allocate_info: vk.CommandBufferAllocateInfo = {
+		sType              = vk.StructureType.COMMAND_BUFFER_ALLOCATE_INFO,
+		commandPool        = pool,
+		level              = is_primary ? vk.CommandBufferLevel.PRIMARY : vk.CommandBufferLevel.SECONDARY,
+		commandBufferCount = 1,
+		pNext              = nil,
+	}
 
-		out_command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_NOT_ALLOCATED
-		assert(vk.AllocateCommandBuffers(v_context.device.logical_device, &allocate_info, &out_command_buffer.handle) == vk.Result.SUCCESS)
-		out_command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_READY
+	out_command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_NOT_ALLOCATED
+	assert(
+		vk.AllocateCommandBuffers(
+			v_context.device.logical_device,
+			&allocate_info,
+			&out_command_buffer.handle,
+		) ==
+		vk.Result.SUCCESS,
+	)
+	out_command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_READY
 }
 
 vulkan_command_buffer_free :: proc(
@@ -40,27 +47,27 @@ vulkan_command_buffer_begin :: proc(
 	is_renderpass_continue: bool,
 	is_simultaneous_use: bool,
 ) {
-		begin_info : vk.CommandBufferBeginInfo = {
-			sType = vk.StructureType.COMMAND_BUFFER_BEGIN_INFO,
-			flags = {},
-		}
+	begin_info: vk.CommandBufferBeginInfo = {
+		sType = vk.StructureType.COMMAND_BUFFER_BEGIN_INFO,
+		flags = {},
+	}
 
-		if is_single_use {
-			begin_info.flags |= {.ONE_TIME_SUBMIT}
-		}
+	if is_single_use {
+		begin_info.flags |= {.ONE_TIME_SUBMIT}
+	}
 
-		if is_renderpass_continue {
-			begin_info.flags |= {.RENDER_PASS_CONTINUE}
-		}
+	if is_renderpass_continue {
+		begin_info.flags |= {.RENDER_PASS_CONTINUE}
+	}
 
-		if is_simultaneous_use {
-			begin_info.flags |= {.SIMULTANEOUS_USE}
-		}
+	if is_simultaneous_use {
+		begin_info.flags |= {.SIMULTANEOUS_USE}
+	}
 
-		assert(vk.BeginCommandBuffer(command_buffer.handle, &begin_info) == vk.Result.SUCCESS)
-		command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_RECORDING
+	assert(vk.BeginCommandBuffer(command_buffer.handle, &begin_info) == vk.Result.SUCCESS)
+	command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_RECORDING
 }
-	
+
 vulkan_command_buffer_end :: proc(command_buffer: ^vulkan_command_buffer) {
 	assert(vk.EndCommandBuffer(command_buffer.handle) == vk.Result.SUCCESS)
 	command_buffer.state = vulkan_command_buffer_state.COMMAND_BUFFER_STATE_RECORDING_ENDED
@@ -79,32 +86,32 @@ vulkan_command_buffer_allocate_and_begin_single_use :: proc(
 	pool: vk.CommandPool,
 	out_command_buffer: ^vulkan_command_buffer,
 ) {
-		vulkan_command_buffer_allocate(v_context, pool, true, out_command_buffer)
-		vulkan_command_buffer_begin(out_command_buffer, true, false, false)
-	}
+	vulkan_command_buffer_allocate(v_context, pool, true, out_command_buffer)
+	vulkan_command_buffer_begin(out_command_buffer, true, false, false)
+}
 
-vvulkan_command_buffer_end_single_use :: proc(
+vulkan_command_buffer_end_single_use :: proc(
 	v_context: ^vulkan_context,
 	pool: vk.CommandPool,
 	command_buffer: ^vulkan_command_buffer,
 	queue: vk.Queue,
 ) {
-		// End the command buffer.
-		vulkan_command_buffer_end(command_buffer)
+	// End the command buffer.
+	vulkan_command_buffer_end(command_buffer)
 
-		// Submit queue
-		submit_info : vk.SubmitInfo = {
-			sType = vk.StructureType.SUBMIT_INFO,
-			commandBufferCount = 1,
-			pCommandBuffers = &command_buffer.handle,
-		}
-
-		assert(vk.QueueSubmit(queue, 1, &submit_info, 0) == vk.Result.SUCCESS)
-		
-		// Wait for it to finish
-		assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
-
-		// Free the command buffer
-		vulkan_command_buffer_free(v_context, pool, command_buffer)
+	// Submit queue
+	submit_info: vk.SubmitInfo = {
+		sType              = .SUBMIT_INFO,
+		commandBufferCount = 1,
+		pCommandBuffers    = &command_buffer.handle,
 	}
+
+	assert(vk.QueueSubmit(queue, 1, &submit_info, 0) == vk.Result.SUCCESS)
+
+	// Wait for it to finish
+	assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
+
+	// Free the command buffer
+	vulkan_command_buffer_free(v_context, pool, command_buffer)
+}
 

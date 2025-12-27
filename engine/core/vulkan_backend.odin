@@ -1,6 +1,7 @@
 #+feature dynamic-literals
 package core
 
+import "../okmath"
 import "base:runtime"
 import "core:c"
 import "core:strings"
@@ -316,6 +317,8 @@ vulkan_renderer_backend_initialize :: proc(
 		return false
 	}
 
+	create_buffers(&v_context)
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -324,6 +327,8 @@ vulkan_renderer_backend_initialize :: proc(
 vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
 	// Destroy is the opposide order of creation.
+	vulkan_buffer_destroy(&v_context, &v_context.object_vertex_buffer)
+	vulkan_buffer_destroy(&v_context, &v_context.object_index_buffer)
 	vulkan_object_shader_destroy(&v_context, &v_context.object_shader)
 
 	// Sync objects
@@ -759,5 +764,50 @@ regenerate_framebuffers :: proc(
 		)
 		defer arr.darray_destroy(attachments)
 	}
+}
+
+create_buffers :: proc(v_context: ^vulkan_context) -> bool {
+	memory_property_flags := vk.MemoryPropertyFlags{.DEVICE_LOCAL}
+
+	vertex_buffer_size :: size_of(okmath.vertex_3d) * 1024 * 1024
+
+	if !vulkan_buffer_create(
+		v_context,
+		vertex_buffer_size,
+		{
+			vk.BufferUsageFlag.VERTEX_BUFFER,
+			vk.BufferUsageFlag.TRANSFER_DST,
+			vk.BufferUsageFlag.TRANSFER_SRC,
+		},
+		memory_property_flags,
+		true,
+		&v_context.object_vertex_buffer,
+	) {
+		log_error("Error creating vertex buffer")
+		return false
+	}
+
+	v_context.geometry_vertex_offset = 0
+
+	index_buffer_size :: size_of(u32) * 1024 * 1024
+
+	if !vulkan_buffer_create(
+		v_context,
+		index_buffer_size,
+		{
+			vk.BufferUsageFlag.INDEX_BUFFER,
+			vk.BufferUsageFlag.TRANSFER_DST,
+			vk.BufferUsageFlag.TRANSFER_SRC,
+		},
+		memory_property_flags,
+		true,
+		&v_context.object_index_buffer,
+	) {
+		log_error("Error creating index buffer")
+		return false
+	}
+
+	v_context.geometry_index_offset = 0
+	return true
 }
 
