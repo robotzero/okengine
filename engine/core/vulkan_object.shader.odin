@@ -97,3 +97,12 @@ vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan
 	}
 }
 
+vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
+	image_index := v_context.image_index
+	vulkan_pipeline_bind(
+		&v_context.graphics_command_buffers[image_index],
+		vk.PipelineBindPoint.GRAPHICS,
+		&shader.pipeline,
+	)
+}
+

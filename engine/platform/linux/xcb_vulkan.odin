@@ -128,6 +128,13 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.BindBufferMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkBindBufferMemory"))
 	vk.CmdCopyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdCopyBuffer"))
 	vk.DestroyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyBuffer"))
+	vk.CmdBindVertexBuffers =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindVertexBuffers"))
+	vk.CmdBindIndexBuffer =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindIndexBuffer"))
+	vk.CmdDrawIndexed = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdDrawIndexed"))
+	vk.QueueWaitIdle = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkQueueWaitIdle"))
+	vk.CmdBindPipeline = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindPipeline"))
 }
 
 load_proc_addresses :: proc {

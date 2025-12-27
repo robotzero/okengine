@@ -319,6 +319,44 @@ vulkan_renderer_backend_initialize :: proc(
 
 	create_buffers(&v_context)
 
+	// TODO: temporary code
+
+	vert_count :: 4
+	verts: [vert_count]okmath.vertex_3d
+
+	verts[0].position.x = 0.0
+	verts[0].position.y = -0.5
+	verts[1].position.x = 0.5
+	verts[1].position.y = 0.5
+	verts[2].position.x = 0
+	verts[2].position.y = 0.5
+	verts[3].position.x = 0.5
+	verts[3].position.y = -0.5
+
+	index_count :: 6
+	indices: [index_count]u32 = {0, 1, 2, 0, 3, 1}
+
+	upload_data_range(
+		&v_context,
+		v_context.device.graphics_command_pool,
+		0,
+		v_context.device.graphics_queue,
+		&v_context.object_vertex_buffer,
+		0,
+		size_of(okmath.vertex_3d) * vert_count,
+		raw_data(verts[:]),
+	)
+	upload_data_range(
+		&v_context,
+		v_context.device.graphics_command_pool,
+		0,
+		v_context.device.graphics_queue,
+		&v_context.object_index_buffer,
+		0,
+		size_of(u32) * index_count,
+		raw_data(indices[:]),
+	)
+
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -439,10 +477,6 @@ vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u1
 }
 
 vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
-	blah := false
-	if blah {
-		return true
-	}
 	device: ^vulkan_device = &v_context.device
 
 	// Check if recreating swap chain and boot out.
@@ -539,6 +573,31 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 		&v_context.main_renderpass,
 		v_context.swapchain.framebuffers[v_context.image_index].handle,
 	)
+	// TODO: temporary
+
+	vulkan_object_shader_use(&v_context, &v_context.object_shader)
+
+	// Bind vertex buffer at offset
+
+	offsets: [1]vk.DeviceSize = {0}
+	vk.CmdBindVertexBuffers(
+		command_buffer.handle,
+		0,
+		1,
+		&v_context.object_vertex_buffer.handle,
+		&offsets[0],
+	)
+
+	// Bind index buffer at offset
+	vk.CmdBindIndexBuffer(
+		command_buffer.handle,
+		v_context.object_index_buffer.handle,
+		0,
+		vk.IndexType.UINT32,
+	)
+
+	// Issue the draw.
+	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
 
 	return true
 }
@@ -809,5 +868,44 @@ create_buffers :: proc(v_context: ^vulkan_context) -> bool {
 
 	v_context.geometry_index_offset = 0
 	return true
+}
+
+upload_data_range :: proc(
+	v_context: ^vulkan_context,
+	pool: vk.CommandPool,
+	fence: vk.Fence,
+	queue: vk.Queue,
+	buffer: ^vulkan_buffer,
+	offset: u64,
+	size: u64,
+	data: rawptr,
+) {
+	// Create a host-visible staging buffer to upload to. Mark it as the source of the transfer.
+	flags: vk.MemoryPropertyFlags = {
+		vk.MemoryPropertyFlag.HOST_VISIBLE,
+		vk.MemoryPropertyFlag.HOST_COHERENT,
+	}
+
+	staging: vulkan_buffer
+	vulkan_buffer_create(v_context, size, {vk.BufferUsageFlag.TRANSFER_SRC}, flags, true, &staging)
+
+	// Load the data into the staging buffer.
+	vulkan_buffer_load_data(v_context, &staging, 0, size, {}, data)
+
+	// Perform the copy from staging to the device local buffer.
+	vulkan_buffer_copy_to(
+		v_context,
+		pool,
+		fence,
+		queue,
+		staging.handle,
+		0,
+		buffer.handle,
+		offset,
+		size,
+	)
+
+	// Clean up the staging buffer
+	vulkan_buffer_destroy(v_context, &staging)
 }
 

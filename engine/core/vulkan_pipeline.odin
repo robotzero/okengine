@@ -177,3 +177,11 @@ vulkan_graphics_pipeline_create :: proc(
 	return false
 }
 
+vulkan_pipeline_bind :: proc(
+	command_buffer: ^vulkan_command_buffer,
+	bind_point: vk.PipelineBindPoint,
+	pipeline: ^vulkan_pipeline,
+) {
+	vk.CmdBindPipeline(command_buffer.handle, bind_point, pipeline.handle)
+}
+
