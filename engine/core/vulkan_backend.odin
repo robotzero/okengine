@@ -328,7 +328,7 @@ vulkan_renderer_backend_initialize :: proc(
 	verts[0].position.y = -0.5
 	verts[1].position.x = 0.5
 	verts[1].position.y = 0.5
-	verts[2].position.x = 0
+	verts[2].position.x = 0.0
 	verts[2].position.y = 0.5
 	verts[3].position.x = 0.5
 	verts[3].position.y = -0.5
@@ -550,7 +550,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 	viewport.x = 0.0
 	viewport.y = cast(f32)v_context.framebuffer_height
 	viewport.width = cast(f32)v_context.framebuffer_width
-	viewport.height = cast(f32)-v_context.framebuffer_height
+	viewport.height = -cast(f32)v_context.framebuffer_height
 	viewport.minDepth = 0.0
 	viewport.maxDepth = 1.0
 
