@@ -10,6 +10,8 @@ renderer_backend_create :: proc(
 		out_renderer_backend.begin_frame = vulkan_renderer_backend_begin_frame
 		out_renderer_backend.end_frame = vulkan_renderer_backend_end_frame
 		out_renderer_backend.resized = vulkan_renderer_backend_on_resized
+		out_renderer_backend.update_global_state = vulkan_renderer_update_global_state
+		out_renderer_backend.update_object = vulkan_renderer_update_object
 
 		return true
 	}
@@ -23,5 +25,7 @@ renderer_backend_destroy :: proc(r_back: ^renderer_backend) {
 	r_back.begin_frame = nil
 	r_back.end_frame = nil
 	r_back.resized = nil
+	r_back.update_global_state = nil
+	r_back.update_object = nil
 }
 

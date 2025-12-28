@@ -118,15 +118,23 @@ vulkan_graphics_pipeline_create :: proc(
 		primitiveRestartEnable = false,
 	}
 
+	// Push constants
+	push_constant := vk.PushConstantRange {
+		sType  = .VERTEX,
+		offset = size_of(okmath.mat4) * 0,
+		size   = size_of(okmath.mat4) * 2,
+	}
+
 	// Pipeline layout
 	pipeline_layout_create_info := vk.PipelineLayoutCreateInfo {
-		sType          = .PIPELINE_LAYOUT_CREATE_INFO,
-		setLayoutCount = descriptor_set_layout_count,
-		pSetLayouts    = descriptor_set_layouts,
+		sType                  = .PIPELINE_LAYOUT_CREATE_INFO,
+		setLayoutCount         = descriptor_set_layout_count,
+		pSetLayouts            = descriptor_set_layouts,
+		pushConstantRangeCount = 1,
+		pPushConstantRanges    = &push_constant,
 	}
 
 	// Create pipeline layout
-	// (Replace VK_CHECK with your own error handling helper)
 	result := vk.CreatePipelineLayout(
 		v_context.device.logical_device,
 		&pipeline_layout_create_info,

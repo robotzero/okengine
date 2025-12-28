@@ -135,6 +135,21 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.CmdDrawIndexed = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdDrawIndexed"))
 	vk.QueueWaitIdle = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkQueueWaitIdle"))
 	vk.CmdBindPipeline = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindPipeline"))
+	vk.CreateDescriptorSetLayout =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateDescriptorSetLayout"))
+	vk.CreateDescriptorPool =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateDescriptorPool"))
+	vk.AllocateDescriptorSets =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkAllocateDescriptorSets"))
+	vk.DestroyDescriptorPool =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDescriptorPool"))
+	vk.DestroyDescriptorSetLayout =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDescriptorSetLayout"))
+	vk.CmdBindDescriptorSets =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindDescriptorSets"))
+	vk.UpdateDescriptorSets =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkUpdateDescriptorSets"))
+	vk.CmdPushConstants = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdPushConstants"))
 }
 
 load_proc_addresses :: proc {

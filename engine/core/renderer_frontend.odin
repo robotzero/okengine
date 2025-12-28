@@ -1,5 +1,7 @@
 package core
 
+import "../okmath"
+
 static_mesh_data :: struct {
 }
 
@@ -8,6 +10,10 @@ renderer_system_state :: struct {
 }
 
 state_ptr: ^renderer_system_state
+@(private = "file")
+z: f32 = 0.0
+@(private = "file")
+angle: f32 = 0.0
 
 renderer_system_initialize :: proc(
 	application_name: string,
@@ -53,6 +59,26 @@ renderer_end_frame :: proc(delta_time: f32) -> bool {
 renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 	// If the begin frame returned successfully, mid-frame operation may continue.
 	if renderer_begin_frame(packet.delta_time) {
+		projection: okmath.mat4 = okmath.mat4_perspective(
+			okmath.deg_to_rad(45.0),
+			1280.0 / 720.0,
+			0.1,
+			1000.0,
+		)
+		z = z + 0.01
+		view: okmath.mat4 = okmath.mat4_translation(okmath.vec3{0, 0, z})
+		view = okmath.mat4_inverse(view)
+		state_ptr.backend.update_global_state(
+			projection,
+			view,
+			okmath.vec3_zero(),
+			okmath.vec3_one(),
+			0,
+		)
+		angle = angle + 0.001
+		rotation = okmath.quat_from_axis_angle(okmath.vec3_forward(), angle, false)
+		model = okmath.quat_to_rotation_matrix(rotation, okmath.vec3_zero())
+		state_ptr.backend.update_object(model)
 		// End the frame. If this fails, it is likely unrecoverable.
 		result: bool = renderer_end_frame(packet.delta_time)
 

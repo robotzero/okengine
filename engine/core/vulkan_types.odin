@@ -130,8 +130,14 @@ vulkan_pipeline :: struct {
 }
 
 vulkan_object_shader :: struct {
-	pipeline: vulkan_pipeline,
-	stages:   [OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
+	pipeline:                     vulkan_pipeline,
+	stages:                       [OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
+	global_descriptor_pool:       vk.DescriptorPool,
+	global_descriptor_set_layout: vk.DescriptorSetLayout,
+	// One descriptor set per frame - max 3 for triple buffering
+	global_descriptor_sets:       [3]vk.DescriptorSet,
+	global_ubo:                   global_uniform_object,
+	global_uniform_buffer:        vulkan_buffer,
 }
 
 vulkan_buffer :: struct {

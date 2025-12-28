@@ -323,15 +323,16 @@ vulkan_renderer_backend_initialize :: proc(
 
 	vert_count :: 4
 	verts: [vert_count]okmath.vertex_3d
+	f :: 10.0
 
-	verts[0].position.x = 0.0
-	verts[0].position.y = -0.5
-	verts[1].position.x = 0.5
-	verts[1].position.y = 0.5
-	verts[2].position.x = 0.0
-	verts[2].position.y = 0.5
-	verts[3].position.x = 0.5
-	verts[3].position.y = -0.5
+	verts[0].position.x = -0.5 * f
+	verts[0].position.y = -0.5 * f
+	verts[1].position.x = 0.5 * f
+	verts[1].position.y = 0.5 * f
+	verts[2].position.x = -0.5 * f
+	verts[2].position.y = 0.5 * f
+	verts[3].position.x = 0.5 * f
+	verts[3].position.y = -0.5 * f
 
 	index_count :: 6
 	indices: [index_count]u32 = {0, 1, 2, 0, 3, 1}
@@ -573,32 +574,6 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 		&v_context.main_renderpass,
 		v_context.swapchain.framebuffers[v_context.image_index].handle,
 	)
-	// TODO: temporary
-
-	vulkan_object_shader_use(&v_context, &v_context.object_shader)
-
-	// Bind vertex buffer at offset
-
-	offsets: [1]vk.DeviceSize = {0}
-	vk.CmdBindVertexBuffers(
-		command_buffer.handle,
-		0,
-		1,
-		&v_context.object_vertex_buffer.handle,
-		&offsets[0],
-	)
-
-	// Bind index buffer at offset
-	vk.CmdBindIndexBuffer(
-		command_buffer.handle,
-		v_context.object_index_buffer.handle,
-		0,
-		vk.IndexType.UINT32,
-	)
-
-	// Issue the draw.
-	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
-
 	return true
 }
 
@@ -907,5 +882,53 @@ upload_data_range :: proc(
 
 	// Clean up the staging buffer
 	vulkan_buffer_destroy(v_context, &staging)
+}
+
+vulkan_renderer_update_global_state :: proc(
+	projection: okmath.mat4,
+	view: okmath.math4,
+	view_position: okmath.vec3,
+	ambient_colour: okmath.vec4,
+	mode: i32,
+) {
+	command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
+
+	vulkan_object_shader_use(&v_context, &v_context.object_shader)
+
+	v_context.object_shader.global_ubo.projection = projection
+	v_context.object_shader.global_ubo.view = view
+
+	vulkan_object_shader_update_global_state(&v_context, &v_context.object_shader)
+}
+
+vulkan_backend_update_object :: proc(model: okmath.mat4) {
+	command_buffer := v_context.graphics_command_buffers[v_context.image_index]
+	vulkan_object_shader_update_object(&v_context, &v_context.object_shader, model)
+
+	// TODO: temporary
+
+	vulkan_object_shader_use(&v_context, &v_context.object_shader)
+
+	// Bind vertex buffer at offset
+
+	offsets: [1]vk.DeviceSize = {0}
+	vk.CmdBindVertexBuffers(
+		command_buffer.handle,
+		0,
+		1,
+		&v_context.object_vertex_buffer.handle,
+		&offsets[0],
+	)
+
+	// Bind index buffer at offset
+	vk.CmdBindIndexBuffer(
+		command_buffer.handle,
+		v_context.object_index_buffer.handle,
+		0,
+		vk.IndexType.UINT32,
+	)
+
+	// Issue the draw.
+	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
 }
 
