@@ -6,7 +6,11 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend: renderer_backend,
+	backend:    renderer_backend,
+	projection: okmath.mat4,
+	view:       okmath.mat4,
+	near_clip:  f32,
+	far_clip:   f32,
 }
 
 state_ptr: ^renderer_system_state
@@ -28,6 +32,17 @@ renderer_system_initialize :: proc(
 		log_fatal("Renderer backend failed to initialize. Shutting down")
 		return false
 	}
+
+	state_ptr.near_clip = 0.1
+	state_ptr.far_clip = 1000.0
+	state_ptr.projection = okmath.mat4_perspective(
+		okmath.deg_to_rad(45.0),
+		1280 / 720.0,
+		state_ptr.near_clip,
+		state_ptr.far_clip,
+	)
+	state_ptr.view = okmath.mat4_translation(okmath.vec3{0, 0, -30.0})
+	state_ptr.view = okmath.mat4_inverse(state_ptr.view)
 
 	return true
 }
@@ -59,18 +74,9 @@ renderer_end_frame :: proc(delta_time: f32) -> bool {
 renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 	// If the begin frame returned successfully, mid-frame operation may continue.
 	if renderer_begin_frame(packet.delta_time) {
-		projection: okmath.mat4 = okmath.mat4_perspective(
-			okmath.deg_to_rad(45.0),
-			1280.0 / 720.0,
-			0.1,
-			1000.0,
-		)
-		z = z + 0.01
-		view: okmath.mat4 = okmath.mat4_translation(okmath.vec3{0, 0, z})
-		view = okmath.mat4_inverse(view)
 		state_ptr.backend.update_global_state(
-			projection,
-			view,
+			state_ptr.projection,
+			state_ptr.view,
 			okmath.vec3_zero(),
 			okmath.vec4_one(),
 			0,
@@ -93,9 +99,19 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 
 renderer_on_resized :: proc(width: u16, height: u16) {
 	if state_ptr != nil {
+		state_ptr.projection = okmath.mat4_perspective(
+			okmath.deg_to_rad(45.0),
+			f32(width / height),
+			state_ptr.near_clip,
+			state_ptr.far_clip,
+		)
 		state_ptr.backend.resized(&state_ptr.backend, width, height)
 	} else {
 		log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
 	}
+}
+
+renderer_set_view :: proc(view: okmath.mat4) {
+	state_ptr.view = view
 }
 
