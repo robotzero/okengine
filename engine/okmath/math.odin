@@ -926,8 +926,28 @@ quat_to_mat4 :: #force_inline proc(q: quat) -> mat4 {
 }
 
 // Calculates a rotation matrix based on the quaternion and the passed in center point.
-// quat_to_rotation_matrix :: #force_inline proc(q: quat, center: vec3) -> mat4 {
-// }
+quat_to_rotation_matrix :: #force_inline proc(q: quat, center: vec3) -> mat4 {
+	out_matrix := la.to_matrix4f32(q)
+
+	tx :=
+		center.x -
+		(center.x * out_matrix[0, 0] + center.y * out_matrix[0, 1] + center.z * out_matrix[0, 2])
+	ty :=
+		center.y -
+		(center.x * out_matrix[1, 0] + center.y * out_matrix[1, 1] + center.z * out_matrix[1, 2])
+	tz :=
+		center.z -
+		(center.x * out_matrix[2, 0] + center.y * out_matrix[2, 1] + center.z * out_matrix[2, 2])
+
+	out_matrix[0, 3] = tx
+	out_matrix[1, 3] = ty
+	out_matrix[2, 3] = tz
+	out_matrix[3, 0] = 0.0
+	out_matrix[3, 1] = 0.0
+	out_matrix[3, 2] = 0.0
+	out_matrix[3, 3] = 1.0
+	return out_matrix
+}
 
 quat_from_axis_angle :: #force_inline proc(axis: vec3, angle: f32, normalize: bool) -> quat {
 	q := la.quaternion_angle_axis(angle, axis)

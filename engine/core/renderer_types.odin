@@ -18,7 +18,7 @@ renderer_begin_frame_proc :: #type proc(backend: ^renderer_backend, delta_time: 
 renderer_end_frame_proc :: #type proc(backend: ^renderer_backend, delta_time: f32) -> bool
 update_global_state_proc :: #type proc(
 	projection: okmath.mat4,
-	view: okmath.math4,
+	view: okmath.mat4,
 	view_position: okmath.vec3,
 	ambient_colour: okmath.vec4,
 	mode: i32,

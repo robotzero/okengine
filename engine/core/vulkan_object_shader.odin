@@ -33,7 +33,7 @@ vulkan_object_shader_create :: proc(
 		descriptorCount    = 1,
 		descriptorType     = .UNIFORM_BUFFER,
 		pImmutableSamplers = nil,
-		stageFlags         = .VERTEX_BIT,
+		stageFlags         = {.VERTEX},
 	}
 
 	global_layout_info := vk.DescriptorSetLayoutCreateInfo {
@@ -76,6 +76,9 @@ vulkan_object_shader_create :: proc(
 	if res != vk.Result.SUCCESS {
 		return false
 	}
+
+	image_count := int(v_context.swapchain.image_count)
+	out_shader.global_descriptor_sets = make([]vk.DescriptorSet, image_count)
 
 	viewport: vk.Viewport
 	viewport.x = 0.0
@@ -126,8 +129,8 @@ vulkan_object_shader_create :: proc(
 		&v_context.main_renderpass,
 		attribute_count,
 		attribute_descriptions[:],
-		descriptor_set_layout_count,
-		layouts[:],
+		cast(u32)descriptor_set_layout_count,
+		&layouts[0],
 		OBJECT_SHADER_STAGE_COUNT,
 		stage_create_infos[:],
 		&viewport,
@@ -142,13 +145,8 @@ vulkan_object_shader_create :: proc(
 	if !vulkan_buffer_create(
 		v_context,
 		size_of(global_uniform_object),
-		{
-			.TRANSFER_DST,
-			.UNIFORM_BUFFER,
-			vk.MemoryPropertyFlag.DEVICE_LOCAL,
-			vk.MemoryPropertyFlag.HOST_VISIBLE,
-			vk.MemoryPropertyFlag.HOST_COHERENT,
-		},
+		{.TRANSFER_DST, .UNIFORM_BUFFER},
+		{.DEVICE_LOCAL, .HOST_VISIBLE, .HOST_COHERENT},
 		true,
 		&out_shader.global_uniform_buffer,
 	) {
@@ -156,16 +154,23 @@ vulkan_object_shader_create :: proc(
 		return false
 	}
 
+	// Allocate global descriptor sets.
+	global_layouts := make([]vk.DescriptorSetLayout, image_count)
+	defer delete(global_layouts)
+	for i in 0 ..< image_count {
+		global_layouts[i] = out_shader.global_descriptor_set_layout
+	}
+
 	alloc_info := vk.DescriptorSetAllocateInfo {
-		sType              = .ALLOCATE_INFO,
+		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
 		descriptorPool     = out_shader.global_descriptor_pool,
-		descriptorSetCount = 3,
-		pSetLayouts        = global_layouts,
+		descriptorSetCount = u32(image_count),
+		pSetLayouts        = &global_layouts[0],
 	}
 	vk.AllocateDescriptorSets(
 		v_context.device.logical_device,
 		&alloc_info,
-		out_shader.global_descriptor_sets,
+		&out_shader.global_descriptor_sets[0],
 	)
 	return true
 }
@@ -196,10 +201,13 @@ vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan
 		)
 		shader.stages[i].handle = 0
 	}
+
+	delete(shader.global_descriptor_sets)
+	shader.global_descriptor_sets = nil
 }
 
 vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
-	image_index := v_context.image_index
+	image_index := int(v_context.image_index)
 
 	vulkan_pipeline_bind(
 		&v_context.graphics_command_buffers[image_index],
@@ -233,7 +241,7 @@ vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_obj
 		&shader.global_uniform_buffer,
 		u64(offset),
 		u64(range),
-		0,
+		nil,
 		&shader.global_ubo,
 	)
 
@@ -262,15 +270,69 @@ vulkan_object_shader_update_object :: proc(
 	shader: ^vulkan_object_shader,
 	model: okmath.mat4,
 ) {
-	image_index := v_context.image_index
+	image_index := int(v_context.image_index)
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
+	model_local := model
 	vk.CmdPushConstants(
 		command_buffer,
 		shader.pipeline.pipeline_layout,
-		vk.ShaderStageFlag.VERTEX,
+		{.VERTEX},
 		0,
 		size_of(okmath.mat4),
-		&model,
+		&model_local,
 	)
 }
 
+vulkan_object_shader_update_global_state :: proc(
+	v_context: ^vulkan_context,
+	shader: ^vulkan_object_shader,
+) {
+	image_index := int(v_context.image_index)
+	command_buffer := v_context.graphics_command_buffers[image_index].handle
+	global_descriptor := shader.global_descriptor_sets[image_index]
+
+	// Bind the global descriptor set to be updated.
+	vk.CmdBindDescriptorSets(
+		command_buffer,
+		vk.PipelineBindPoint.GRAPHICS,
+		shader.pipeline.pipeline_layout,
+		0,
+		1,
+		&global_descriptor,
+		0,
+		nil,
+	)
+
+	// Configure the descriptors for the given index.
+	range: vk.DeviceSize = vk.DeviceSize(size_of(global_uniform_object))
+	offset: vk.DeviceSize = 0
+
+	// Copy data to buffer.
+	vulkan_buffer_load_data(
+		v_context,
+		&shader.global_uniform_buffer,
+		u64(offset),
+		u64(range),
+		nil,
+		&shader.global_ubo,
+	)
+
+	buffer_info := vk.DescriptorBufferInfo {
+		buffer = shader.global_uniform_buffer.handle,
+		offset = offset,
+		range  = range,
+	}
+
+	// Update descriptor sets.
+	descriptor_write := vk.WriteDescriptorSet {
+		sType           = .WRITE_DESCRIPTOR_SET,
+		dstSet          = shader.global_descriptor_sets[image_index],
+		dstBinding      = 0,
+		dstArrayElement = 0,
+		descriptorType  = .UNIFORM_BUFFER,
+		descriptorCount = 1,
+		pBufferInfo     = &buffer_info,
+	}
+
+	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
+}

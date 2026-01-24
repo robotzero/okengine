@@ -120,9 +120,9 @@ vulkan_graphics_pipeline_create :: proc(
 
 	// Push constants
 	push_constant := vk.PushConstantRange {
-		sType  = .VERTEX,
-		offset = size_of(okmath.mat4) * 0,
-		size   = size_of(okmath.mat4) * 2,
+		stageFlags = {.VERTEX},
+		offset     = size_of(okmath.mat4) * 0,
+		size       = size_of(okmath.mat4) * 2,
 	}
 
 	// Pipeline layout
@@ -193,3 +193,22 @@ vulkan_pipeline_bind :: proc(
 	vk.CmdBindPipeline(command_buffer.handle, bind_point, pipeline.handle)
 }
 
+vulkan_pipeline_destroy :: proc(v_context: ^vulkan_context, pipeline: ^vulkan_pipeline) {
+	if pipeline != nil {
+		// Destroy pipeline
+		if pipeline.handle != 0 {
+			vk.DestroyPipeline(v_context.device.logical_device, pipeline.handle, v_context.allocator)
+			pipeline.handle = 0
+		}
+
+		// Destroy layout
+		if pipeline.pipeline_layout != 0 {
+			vk.DestroyPipelineLayout(
+				v_context.device.logical_device,
+				pipeline.pipeline_layout,
+				v_context.allocator,
+			)
+			pipeline.pipeline_layout = 0
+		}
+	}
+}

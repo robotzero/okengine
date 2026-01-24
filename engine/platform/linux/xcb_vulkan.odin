@@ -59,6 +59,15 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.DestroySurfaceKHR =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroySurfaceKHR"))
 	vk.DestroyInstance = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyInstance"))
+	vk.CreateInstance = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateInstance"))
+	vk.EnumerateInstanceLayerProperties =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkEnumerateInstanceLayerProperties"))
+	vk.CreateDebugUtilsMessengerEXT =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateDebugUtilsMessengerEXT"))
+	vk.DestroyDebugUtilsMessengerEXT =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDebugUtilsMessengerEXT"))
+	vk.SubmitDebugUtilsMessageEXT =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkSubmitDebugUtilsMessageEXT"))
 	vk.DestroyDevice = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyDevice"))
 	vk.CreateSwapchainKHR =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateSwapchainKHR"))
@@ -135,6 +144,9 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.CmdDrawIndexed = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdDrawIndexed"))
 	vk.QueueWaitIdle = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkQueueWaitIdle"))
 	vk.CmdBindPipeline = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindPipeline"))
+	vk.DestroyPipeline = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyPipeline"))
+	vk.DestroyPipelineLayout =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyPipelineLayout"))
 	vk.CreateDescriptorSetLayout =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateDescriptorSetLayout"))
 	vk.CreateDescriptorPool =
@@ -156,4 +168,3 @@ load_proc_addresses :: proc {
 	load_proc_addresses_custom,
 	load_proc_adresses_instance,
 }
-

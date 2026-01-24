@@ -886,12 +886,12 @@ upload_data_range :: proc(
 
 vulkan_renderer_update_global_state :: proc(
 	projection: okmath.mat4,
-	view: okmath.math4,
+	view: okmath.mat4,
 	view_position: okmath.vec3,
 	ambient_colour: okmath.vec4,
 	mode: i32,
 ) {
-	command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
+	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
 
 	vulkan_object_shader_use(&v_context, &v_context.object_shader)
 

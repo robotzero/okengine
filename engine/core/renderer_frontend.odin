@@ -72,12 +72,12 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 			projection,
 			view,
 			okmath.vec3_zero(),
-			okmath.vec3_one(),
+			okmath.vec4_one(),
 			0,
 		)
 		angle = angle + 0.001
-		rotation = okmath.quat_from_axis_angle(okmath.vec3_forward(), angle, false)
-		model = okmath.quat_to_rotation_matrix(rotation, okmath.vec3_zero())
+		rotation := okmath.quat_from_axis_angle(okmath.vec3_forward(), angle, false)
+		model := okmath.quat_to_rotation_matrix(rotation, okmath.vec3_zero())
 		state_ptr.backend.update_object(model)
 		// End the frame. If this fails, it is likely unrecoverable.
 		result: bool = renderer_end_frame(packet.delta_time)
