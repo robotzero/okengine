@@ -165,7 +165,7 @@ vulkan_buffer_resize :: proc(
 	)
 	res = vk.DeviceWaitIdle(v_context.device.logical_device)
 	if res != vk.Result.SUCCESS {
-		log_error("Unable to wait for vulkan_buffer_copy_to")
+		log_error("AAA")
 		return false
 	}
 

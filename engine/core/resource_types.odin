@@ -7,6 +7,6 @@ texture :: struct {
 	channel_count:    u8,
 	has_transparency: bool,
 	generation:       u32,
-	internal_data:    rawptr,
+	internal_data:    ^vulkan_texture_data,
 }
 

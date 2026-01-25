@@ -970,8 +970,8 @@ vulkan_renderer_create_texture :: proc(
 	// TODO: Use an allocator for this.
 	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data)
 	// @TODO change rawptr to just ptr
-	out_texture.internal_data = rawptr(data)
-	image_size := u64(width) * u64(height) * u64(channel_count)
+	out_texture.internal_data = data
+	image_size := u64(width * height * channel_count)
 
 	// NOTE: Assumes 8 bits per channel.
 	image_format := vk.Format.R8G8B8A8_UNORM
