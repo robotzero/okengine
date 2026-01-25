@@ -138,12 +138,16 @@ vulkan_buffer_resize :: proc(
 		&new_memory,
 	)
 	if res != vk.Result.SUCCESS {
-		// log_error("Unable to resize vulkan buffer because the required memory allocation failed. Error: %d", int(res))
+		log_error(
+			"Unable to resize vulkan buffer because the required memory allocation failed. Error: %d",
+			int(res),
+		)
 		return false
 	}
 
 	res = vk.BindBufferMemory(v_context.device.logical_device, new_buffer, new_memory, 0)
 	if res != vk.Result.SUCCESS {
+		log_error("Unable to bind buffer memory")
 		return false
 	}
 
@@ -159,7 +163,11 @@ vulkan_buffer_resize :: proc(
 		0,
 		buffer.total_size,
 	)
-	_ = vk.DeviceWaitIdle(v_context.device.logical_device)
+	res = vk.DeviceWaitIdle(v_context.device.logical_device)
+	if res != vk.Result.SUCCESS {
+		log_error("Unable to wait for vulkan_buffer_copy_to")
+		return false
+	}
 
 	// Destroy old resources
 	if buffer.memory != 0 {
