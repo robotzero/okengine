@@ -107,7 +107,11 @@ vulkan_command_buffer_end_single_use :: proc(
 		pCommandBuffers    = &command_buffer.handle,
 	}
 
-	assert(vk.QueueSubmit(queue, 1, &submit_info, 0) == vk.Result.SUCCESS)
+	res_submit := vk.QueueSubmit(queue, 1, &submit_info, 0)
+	if res_submit != vk.Result.SUCCESS {
+		log_error("QueueSubmit failed: %s", vulkan_result_string(res_submit, true))
+		return
+	}
 
 	// Wait for it to finish
 	res := vk.QueueWaitIdle(queue)
