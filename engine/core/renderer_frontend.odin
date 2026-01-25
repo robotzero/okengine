@@ -101,7 +101,7 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 	if state_ptr != nil {
 		state_ptr.projection = okmath.mat4_perspective(
 			okmath.deg_to_rad(45.0),
-			f32(width / height),
+			f32(width) / f32(height),
 			state_ptr.near_clip,
 			state_ptr.far_clip,
 		)

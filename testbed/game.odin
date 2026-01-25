@@ -22,6 +22,16 @@ create_game :: proc(out_game: ^c.game) -> bool {
 
 game_initialize :: proc(game_inst: ^c.game) -> bool {
 	c.log_debug("game initialize called")
+	state := game_inst.state
+
+	state.camera_position = okmath.vec3{0, 0, 30.0}
+	state.camera_euler = okmath.vec3_zero()
+
+	state.view = okmath.mat4_translation(state.camera_position)
+	state.view = okmath.mat4_inverse(state.view)
+
+	state.camera_view_dirty = true
+
 	return true
 }
 
@@ -123,3 +133,4 @@ camera_pitch :: proc(state: ^c.game_state, amount: f32) {
 
 	state.camera_view_dirty = true
 }
+
