@@ -1,8 +1,8 @@
 package core
 
 clock :: struct {
-	start_time: i64,
-	elapsed: i64,
+	start_time: f64,
+	elapsed:    f64,
 }
 
 clock_update :: proc(c: ^clock) {
@@ -19,3 +19,4 @@ clock_start :: proc(c: ^clock) {
 clock_stop :: proc(c: ^clock) {
 	c.start_time = 0
 }
+

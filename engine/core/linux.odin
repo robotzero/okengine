@@ -268,9 +268,10 @@ platform_console_write :: proc(
 	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
 }
 
-platform_get_absolute_time :: proc() -> i64 {
+platform_get_absolute_time :: proc() -> f64 {
 	current_time := time.now()
-	return current_time._nsec
+	return f64(current_time._nsec) * 0.000000001
+	// return current_time._nsec
 }
 
 platform_sleep :: proc(ms: f64) {

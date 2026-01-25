@@ -13,7 +13,7 @@ application_state :: struct {
 	width:                             i32,
 	height:                            i32,
 	c:                                 clock,
-	last_time:                         i64,
+	last_time:                         f64,
 	systems_allocator:                 linear_allocator,
 	memory_system_memory_requirement:  u64,
 	memory_system_state:               ^memory_system_state,
@@ -266,7 +266,7 @@ application_run :: proc() -> bool {
 	clock_start(&app_state.c)
 	clock_update(&app_state.c)
 	app_state.last_time = app_state.c.elapsed
-	running_time: i64 = 0
+	running_time: f64 = 0
 	frame_count: u8 = 0
 	target_frame_seconds: f64 = 1.0 / 60
 
@@ -282,17 +282,17 @@ application_run :: proc() -> bool {
 		if !app_state.is_suspended {
 			// Update clock and get delta time
 			clock_update(&app_state.c)
-			current_time: i64 = app_state.c.elapsed
-			delta: i64 = current_time - app_state.last_time
-			frame_start_time: i64 = platform_get_absolute_time()
+			current_time: f64 = app_state.c.elapsed
+			delta: f64 = current_time - app_state.last_time
+			frame_start_time: f64 = platform_get_absolute_time()
 
-			if !app_state.game_inst.update(app_state.game_inst, 0.0) {
+			if !app_state.game_inst.update(app_state.game_inst, f32(delta)) {
 				log_fatal("Game update failed, shutting down.")
 				app_state.is_running = false
 				break
 			}
 
-			if !app_state.game_inst.render(app_state.game_inst, cast(f32)delta) {
+			if !app_state.game_inst.render(app_state.game_inst, f32(delta)) {
 				log_fatal("Game render failed, shutting down.")
 				app_state.is_running = false
 				break
@@ -300,14 +300,14 @@ application_run :: proc() -> bool {
 
 			// TODO: refactor packet creation
 			packet: render_packet
-			packet.delta_time = cast(f32)delta
+			packet.delta_time = f32(delta)
 			renderer_draw_frame(&packet)
 
 			// Figure out how long the frame took and, if below
-			frame_end_time: i64 = platform_get_absolute_time()
-			frame_elapsed_time: i64 = frame_end_time - frame_start_time
+			frame_end_time: f64 = platform_get_absolute_time()
+			frame_elapsed_time: f64 = frame_end_time - frame_start_time
 			running_time += frame_elapsed_time
-			remaining_seconds: f64 = target_frame_seconds - cast(f64)frame_elapsed_time
+			remaining_seconds: f64 = target_frame_seconds - frame_elapsed_time
 
 			if remaining_seconds > 0 {
 				remaining_ms: f64 = remaining_seconds * 1000
