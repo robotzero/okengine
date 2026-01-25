@@ -957,7 +957,7 @@ vulkan_renderer_create_texture :: proc(
 	width: i32,
 	height: i32,
 	channel_count: i32,
-	pixels: ^[]u8,
+	pixels: []u8,
 	has_transparency: bool,
 	out_texture: ^texture,
 ) {
@@ -989,8 +989,9 @@ vulkan_renderer_create_texture :: proc(
 		channel_count,
 		staging.handle,
 	)
+	log_debug("CreateTexture: pixel_len=%d", len(pixels))
 
-	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, raw_data(pixels^))
+	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, raw_data(pixels))
 
 	// NOTE: Lots of assumptions here, different texture types will require different options here.
 	vulkan_image_create(
@@ -1006,7 +1007,7 @@ vulkan_renderer_create_texture :: proc(
 			vk.ImageUsageFlag.SAMPLED,
 			vk.ImageUsageFlag.COLOR_ATTACHMENT,
 		},
-		{.DEVICE_LOCAL},
+		{vk.MemoryPropertyFlag.DEVICE_LOCAL},
 		true,
 		{.COLOR},
 		&data.image,
@@ -1097,3 +1098,4 @@ vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
 	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE)
 	kzero_memory(texture, size_of(texture))
 }
+

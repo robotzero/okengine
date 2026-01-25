@@ -24,7 +24,7 @@ vulkan_image_create :: proc(
 	image_create_info: vk.ImageCreateInfo = {
 		sType         = vk.StructureType.IMAGE_CREATE_INFO,
 		imageType     = vk.ImageType.D2,
-		mipLevels     = 4, // TODO: Support mip mapping
+		mipLevels     = 1, // TODO: Support mip mapping
 		arrayLayers   = 1, // TODO: Support number of layers in the image.
 		format        = format,
 		tiling        = tiling,
@@ -105,7 +105,7 @@ vulkan_image_view_create :: proc(
 	aspect_flags: vk.ImageAspectFlags,
 ) {
 	view_create_info: vk.ImageViewCreateInfo = {}
-	view_create_info.sType = vk.StructureType.IMAGE_CREATE_INFO
+	view_create_info.sType = vk.StructureType.IMAGE_VIEW_CREATE_INFO
 	view_create_info.image = image.handle
 	view_create_info.viewType = vk.ImageViewType.D2 // TODO: Make configurable.
 	view_create_info.format = format
@@ -157,10 +157,10 @@ vulkan_image_transition_layout :: proc(
 	}
 	barrier.oldLayout = old_layout
 	barrier.newLayout = new_layout
-	barrier.srcQueueFamilyIndex = u32(v_context.device.graphics_queue_index)
-	barrier.dstQueueFamilyIndex = u32(v_context.device.graphics_queue_index)
+	barrier.srcQueueFamilyIndex = cast(u32)v_context.device.graphics_queue_index
+	barrier.dstQueueFamilyIndex = cast(u32)v_context.device.graphics_queue_index
 	barrier.image = image.handle
-	barrier.subresourceRange.aspectMask = {.COLOR}
+	barrier.subresourceRange.aspectMask = {vk.ImageAspectFlag.COLOR}
 	barrier.subresourceRange.baseMipLevel = 0
 	barrier.subresourceRange.levelCount = 1
 	barrier.subresourceRange.baseArrayLayer = 0
@@ -170,14 +170,13 @@ vulkan_image_transition_layout :: proc(
 	dest_stage: vk.PipelineStageFlags
 
 	// Don't care about the old layout - transition to optimal layout.
-	log_debug(
-		"ImageTransition: img=%p old=%d new=%d",
-		image.handle,
-		int(old_layout),
-		int(new_layout),
-	)
+	log_debug("ImageTransition: img=%p old=%d new=%s", image.handle, old_layout, new_layout)
+	if vk.CmdPipelineBarrier == nil {
+		log_fatal("vk.CmdPipelineBarrier is nil")
+		return
+	}
 	if old_layout == .UNDEFINED && new_layout == .TRANSFER_DST_OPTIMAL {
-		barrier.srcAccessMask = {}
+		barrier.srcAccessMask = nil
 		barrier.dstAccessMask = {.TRANSFER_WRITE}
 		source_stage = {.TOP_OF_PIPE}
 		dest_stage = {.TRANSFER}
@@ -215,7 +214,7 @@ vulkan_image_copy_from_buffer :: proc(
 ) {
 	// Region to copy
 	region: vk.BufferImageCopy
-	kzero_memory(&region, size_of(vk.BufferImageCopy))
+	// kzero_memory(&region, size_of(vk.BufferImageCopy))
 	region.bufferOffset = 0
 	region.bufferRowLength = 0
 	region.bufferImageHeight = 0
@@ -236,6 +235,10 @@ vulkan_image_copy_from_buffer :: proc(
 		image.width,
 		image.height,
 	)
+	if vk.CmdCopyBufferToImage == nil {
+		log_fatal("vk.CmdCopyBufferToImage is nil")
+		return
+	}
 	vk.CmdCopyBufferToImage(
 		command_buffer.handle,
 		buffer,
@@ -245,3 +248,4 @@ vulkan_image_copy_from_buffer :: proc(
 		&region,
 	)
 }
+

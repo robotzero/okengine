@@ -110,12 +110,14 @@ vulkan_command_buffer_end_single_use :: proc(
 	assert(vk.QueueSubmit(queue, 1, &submit_info, 0) == vk.Result.SUCCESS)
 
 	// Wait for it to finish
-	// assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
 	res := vk.QueueWaitIdle(queue)
 	fmt.println("AAA")
 	fmt.println(res)
+	if res != vk.Result.SUCCESS {
+		log_error("QueueWaitIdle failed: %s", vulkan_result_string(res, true))
+		return
+	}
 
 	// Free the command buffer
 	vulkan_command_buffer_free(v_context, pool, command_buffer)
 }
-

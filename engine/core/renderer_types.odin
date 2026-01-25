@@ -30,7 +30,7 @@ create_texture_proc :: #type proc(
 	width: i32,
 	height: i32,
 	channel_count: i32,
-	pixels: ^[]u8,
+	pixels: []u8,
 	has_transparency: bool,
 	out_texture: ^texture,
 )

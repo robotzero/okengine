@@ -77,7 +77,7 @@ renderer_system_initialize :: proc(
 		cast(i32)tex_dimension,
 		cast(i32)tex_dimension,
 		cast(i32)channels,
-		&pixels_slice,
+		pixels_slice,
 		false,
 		&state_ptr.default_texture,
 	)
@@ -162,7 +162,7 @@ renderer_create_texture :: proc(
 	width: i32,
 	height: i32,
 	channel_count: i32,
-	pixels: ^[]u8,
+	pixels: []u8,
 	has_transparency: bool,
 	out_texture: ^texture,
 ) {
