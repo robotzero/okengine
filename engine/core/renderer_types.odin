@@ -24,6 +24,17 @@ update_global_state_proc :: #type proc(
 	mode: i32,
 )
 update_object_proc :: #type proc(model: okmath.mat4)
+create_texture_proc :: #type proc(
+	name: cstring,
+	auto_release: bool,
+	width: i32,
+	height: i32,
+	channel_count: i32,
+	pixels: ^[]u8,
+	has_transparency: bool,
+	out_texture: ^texture,
+)
+destroy_texture_proc :: #type proc(texture: ^texture)
 
 global_uniform_object :: struct {
 	projection:  okmath.mat4,
@@ -41,6 +52,8 @@ renderer_backend :: struct {
 	end_frame:           renderer_end_frame_proc,
 	update_global_state: update_global_state_proc,
 	update_object:       update_object_proc,
+	create_texture:      create_texture_proc,
+	destroy_texture:     destroy_texture_proc,
 }
 
 render_packet :: struct {

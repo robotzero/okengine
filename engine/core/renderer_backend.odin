@@ -12,6 +12,8 @@ renderer_backend_create :: proc(
 		out_renderer_backend.resized = vulkan_renderer_backend_on_resized
 		out_renderer_backend.update_global_state = vulkan_renderer_update_global_state
 		out_renderer_backend.update_object = vulkan_backend_update_object
+		out_renderer_backend.create_texture = vulkan_renderer_create_texture
+		out_renderer_backend.destroy_texture = vulkan_renderer_destroy_texture
 
 		return true
 	}
@@ -27,5 +29,7 @@ renderer_backend_destroy :: proc(r_back: ^renderer_backend) {
 	r_back.resized = nil
 	r_back.update_global_state = nil
 	r_back.update_object = nil
+	r_back.create_texture = nil
+	r_back.destroy_texture = nil
 }
 

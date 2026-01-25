@@ -13,6 +13,7 @@ renderer_system_state :: struct {
 	far_clip:   f32,
 }
 
+@(private = "file")
 state_ptr: ^renderer_system_state
 @(private = "file")
 z: f32 = 0.0
@@ -113,5 +114,31 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 
 renderer_set_view :: proc(view: okmath.mat4) {
 	state_ptr.view = view
+}
+
+renderer_create_texture :: proc(
+	name: cstring,
+	auto_release: bool,
+	width: i32,
+	height: i32,
+	channel_count: i32,
+	pixels: ^[]u8,
+	has_transparency: bool,
+	out_texture: ^texture,
+) {
+	state_ptr.backend.create_texture(
+		name,
+		auto_release,
+		width,
+		height,
+		channel_count,
+		pixels,
+		has_transparency,
+		out_texture,
+	)
+}
+
+renderer_destroy_texture :: proc(texture: ^texture) {
+	state_ptr.backend.destroy_texture(texture)
 }
 

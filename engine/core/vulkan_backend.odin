@@ -932,3 +932,137 @@ vulkan_backend_update_object :: proc(model: okmath.mat4) {
 	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
 }
 
+vulkan_renderer_create_texture :: proc(
+	name: cstring,
+	auto_release: bool,
+	width: i32,
+	height: i32,
+	channel_count: i32,
+	pixels: ^[]u8,
+	has_transparency: bool,
+	out_texture: ^texture,
+) {
+	out_texture.width = u32(width)
+	out_texture.height = u32(height)
+	out_texture.channel_count = u8(channel_count)
+	out_texture.generation = 0
+
+	// Internal data creation.
+	// TODO: Use an allocator for this.
+	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data)
+	// @TODO change rawptr to just ptr
+	out_texture.internal_data = rawptr(data)
+	image_size := u64(width) * u64(height) * u64(channel_count)
+
+	// NOTE: Assumes 8 bits per channel.
+	image_format := vk.Format.R8G8B8A8_UNORM
+
+	// Create a staging buffer and load data into it.
+	usage := vk.BufferUsageFlags{.TRANSFER_SRC}
+	memory_prop_flags := vk.MemoryPropertyFlags{.HOST_VISIBLE, .HOST_COHERENT}
+	staging: vulkan_buffer
+	vulkan_buffer_create(&v_context, image_size, usage, memory_prop_flags, true, &staging)
+
+	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, pixels)
+
+	// NOTE: Lots of assumptions here, different texture types will require different options here.
+	vulkan_image_create(
+		&v_context,
+		vk.ImageType.D2,
+		u32(width),
+		u32(height),
+		image_format,
+		vk.ImageTiling.OPTIMAL,
+		{
+			vk.ImageUsageFlag.TRANSFER_SRC,
+			vk.ImageUsageFlag.TRANSFER_DST,
+			vk.ImageUsageFlag.SAMPLED,
+			vk.ImageUsageFlag.COLOR_ATTACHMENT,
+		},
+		{.DEVICE_LOCAL},
+		true,
+		{.COLOR},
+		&data.image,
+	)
+
+	temp_buffer: vulkan_command_buffer
+	pool := v_context.device.graphics_command_pool
+	queue := v_context.device.graphics_queue
+	vulkan_command_buffer_allocate_and_begin_single_use(&v_context, pool, &temp_buffer)
+
+	// Transition the layout from whatever it is currently to optimal for receiving data.
+	vulkan_image_transition_layout(
+		&v_context,
+		&temp_buffer,
+		&data.image,
+		image_format,
+		.UNDEFINED,
+		.TRANSFER_DST_OPTIMAL,
+	)
+
+	// Copy the data from the buffer.
+	vulkan_image_copy_from_buffer(&v_context, &data.image, staging.handle, &temp_buffer)
+
+	// Transition from optimal for data receipt to shader-read-only optimal layout.
+	vulkan_image_transition_layout(
+		&v_context,
+		&temp_buffer,
+		&data.image,
+		image_format,
+		.TRANSFER_DST_OPTIMAL,
+		.SHADER_READ_ONLY_OPTIMAL,
+	)
+
+	vulkan_command_buffer_end_single_use(&v_context, pool, &temp_buffer, queue)
+
+	// Create a sampler for the texture.
+	sampler_info := vk.SamplerCreateInfo {
+		sType = .SAMPLER_CREATE_INFO,
+	}
+	// TODO: These filters should be configurable.
+	sampler_info.magFilter = vk.Filter.LINEAR
+	sampler_info.minFilter = vk.Filter.LINEAR
+	sampler_info.addressModeU = vk.SamplerAddressMode.REPEAT
+	sampler_info.addressModeV = vk.SamplerAddressMode.REPEAT
+	sampler_info.addressModeW = vk.SamplerAddressMode.REPEAT
+	sampler_info.anisotropyEnable = true
+	sampler_info.maxAnisotropy = 16.0
+	sampler_info.borderColor = vk.BorderColor.INT_OPAQUE_BLACK
+	sampler_info.unnormalizedCoordinates = false
+	sampler_info.compareEnable = false
+	sampler_info.compareOp = vk.CompareOp.ALWAYS
+	sampler_info.mipmapMode = vk.SamplerMipmapMode.LINEAR
+	sampler_info.mipLodBias = 0.0
+	sampler_info.minLod = 0.0
+	sampler_info.maxLod = 0.0
+
+	result := vk.CreateSampler(
+		v_context.device.logical_device,
+		&sampler_info,
+		v_context.allocator,
+		&data.sampler,
+	)
+	if !vulkan_result_is_success(vk.Result.SUCCESS) {
+		log_error("Error creating texture sampler: %s", vulkan_result_string(result, true))
+		return
+	}
+
+	out_texture.has_transparency = has_transparency
+	out_texture.generation += 1
+}
+
+vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
+	data := cast(^vulkan_texture_data)texture.internal_data
+	if data == nil {
+		return
+	}
+
+	vulkan_image_destroy(&v_context, &data.image)
+	kzero_memory(&data.image, size_of(vulkan_image))
+	vk.DestroySampler(v_context.device.logical_device, data.sampler, v_context.allocator)
+	data.sampler = 0
+
+	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE)
+	kzero_memory(texture, size_of(texture))
+}
+

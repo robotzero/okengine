@@ -72,6 +72,12 @@ vulkan_context :: struct {
 	geometry_index_offset:            u64,
 }
 
+vulkan_texture_data :: struct {
+	image:   vulkan_image,
+	sampler: vk.Sampler,
+}
+
+
 vulkan_image :: struct {
 	handle: vk.Image,
 	memory: vk.DeviceMemory,
@@ -155,3 +161,4 @@ must :: proc(result: vk.Result, loc := #caller_location) {
 		panic("AAAAAAAAAAAAAAAAAA")
 	}
 }
+
