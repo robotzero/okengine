@@ -327,12 +327,20 @@ vulkan_renderer_backend_initialize :: proc(
 
 	verts[0].position.x = -0.5 * f
 	verts[0].position.y = -0.5 * f
+	verts[0].texcoord.x = 0.0
+	verts[0].texcoord.y = 0.0
 	verts[1].position.x = 0.5 * f
 	verts[1].position.y = 0.5 * f
+	verts[1].texcoord.x = 1.0
+	verts[1].texcoord.y = 1.0
 	verts[2].position.x = -0.5 * f
 	verts[2].position.y = 0.5 * f
+	verts[2].texcoord.x = 0.0
+	verts[2].texcoord.y = 1.0
 	verts[3].position.x = 0.5 * f
 	verts[3].position.y = -0.5 * f
+	verts[3].texcoord.x = 1.0
+	verts[3].texcoord.y = 0.0
 
 	index_count :: 6
 	indices: [index_count]u32 = {0, 1, 2, 0, 3, 1}
@@ -357,6 +365,12 @@ vulkan_renderer_backend_initialize :: proc(
 		size_of(u32) * index_count,
 		raw_data(indices[:]),
 	)
+
+	object_id: u32 = 0
+	if !vulkan_object_shader_acquire_resources(&v_context, &v_context.object_shader, &object_id) {
+		log_error("Failed to acquire shader resources.")
+		return false
+	}
 
 	log_info("Vulkan renderer initialized successfully.")
 
@@ -478,6 +492,7 @@ vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u1
 }
 
 vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
+	v_context.frame_delta_time = delta_time
 	device: ^vulkan_device = &v_context.device
 
 	// Check if recreating swap chain and boot out.
@@ -898,12 +913,16 @@ vulkan_renderer_update_global_state :: proc(
 	v_context.object_shader.global_ubo.projection = projection
 	v_context.object_shader.global_ubo.view = view
 
-	vulkan_object_shader_update_global_state(&v_context, &v_context.object_shader)
+	vulkan_object_shader_update_global_state(
+		&v_context,
+		&v_context.object_shader,
+		v_context.frame_delta_time,
+	)
 }
 
-vulkan_backend_update_object :: proc(model: okmath.mat4) {
+vulkan_backend_update_object :: proc(data: geometry_render_data) {
 	command_buffer := v_context.graphics_command_buffers[v_context.image_index]
-	vulkan_object_shader_update_object(&v_context, &v_context.object_shader, model)
+	vulkan_object_shader_update_object(&v_context, &v_context.object_shader, data)
 
 	// TODO: temporary
 
@@ -945,7 +964,7 @@ vulkan_renderer_create_texture :: proc(
 	out_texture.width = u32(width)
 	out_texture.height = u32(height)
 	out_texture.channel_count = u8(channel_count)
-	out_texture.generation = 0
+	out_texture.generation = INVALID_ID
 
 	// Internal data creation.
 	// TODO: Use an allocator for this.
@@ -962,8 +981,16 @@ vulkan_renderer_create_texture :: proc(
 	memory_prop_flags := vk.MemoryPropertyFlags{.HOST_VISIBLE, .HOST_COHERENT}
 	staging: vulkan_buffer
 	vulkan_buffer_create(&v_context, image_size, usage, memory_prop_flags, true, &staging)
+	log_debug(
+		"CreateTexture: size=%u w=%d h=%d channels=%d staging=%p",
+		u32(image_size),
+		width,
+		height,
+		channel_count,
+		staging.handle,
+	)
 
-	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, pixels)
+	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, raw_data(pixels^))
 
 	// NOTE: Lots of assumptions here, different texture types will require different options here.
 	vulkan_image_create(
@@ -984,6 +1011,7 @@ vulkan_renderer_create_texture :: proc(
 		{.COLOR},
 		&data.image,
 	)
+	log_debug("CreateTexture: image=%p view=%p", data.image.handle, data.image.view)
 
 	temp_buffer: vulkan_command_buffer
 	pool := v_context.device.graphics_command_pool
@@ -1002,6 +1030,8 @@ vulkan_renderer_create_texture :: proc(
 
 	// Copy the data from the buffer.
 	vulkan_image_copy_from_buffer(&v_context, &data.image, staging.handle, &temp_buffer)
+
+	vulkan_buffer_destroy(&v_context, &staging)
 
 	// Transition from optimal for data receipt to shader-read-only optimal layout.
 	vulkan_image_transition_layout(
@@ -1049,9 +1079,11 @@ vulkan_renderer_create_texture :: proc(
 
 	out_texture.has_transparency = has_transparency
 	out_texture.generation += 1
+
 }
 
 vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
+	vk.DeviceWaitIdle(v_context.device.logical_device)
 	data := cast(^vulkan_texture_data)texture.internal_data
 	if data == nil {
 		return
@@ -1065,4 +1097,3 @@ vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
 	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE)
 	kzero_memory(texture, size_of(texture))
 }
-

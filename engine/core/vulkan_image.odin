@@ -170,6 +170,12 @@ vulkan_image_transition_layout :: proc(
 	dest_stage: vk.PipelineStageFlags
 
 	// Don't care about the old layout - transition to optimal layout.
+	log_debug(
+		"ImageTransition: img=%p old=%d new=%d",
+		image.handle,
+		int(old_layout),
+		int(new_layout),
+	)
 	if old_layout == .UNDEFINED && new_layout == .TRANSFER_DST_OPTIMAL {
 		barrier.srcAccessMask = {}
 		barrier.dstAccessMask = {.TRANSFER_WRITE}
@@ -223,6 +229,13 @@ vulkan_image_copy_from_buffer :: proc(
 	region.imageExtent.height = image.height
 	region.imageExtent.depth = 1
 
+	log_debug(
+		"CopyBufferToImage: buf=%p img=%p w=%d h=%d",
+		buffer,
+		image.handle,
+		image.width,
+		image.height,
+	)
 	vk.CmdCopyBufferToImage(
 		command_buffer.handle,
 		buffer,
@@ -232,4 +245,3 @@ vulkan_image_copy_from_buffer :: proc(
 		&region,
 	)
 }
-

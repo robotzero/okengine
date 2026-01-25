@@ -6,19 +6,18 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend:    renderer_backend,
-	projection: okmath.mat4,
-	view:       okmath.mat4,
-	near_clip:  f32,
-	far_clip:   f32,
+	backend:         renderer_backend,
+	projection:      okmath.mat4,
+	view:            okmath.mat4,
+	near_clip:       f32,
+	far_clip:        f32,
+	default_texture: texture,
 }
 
 @(private = "file")
 state_ptr: ^renderer_system_state
 @(private = "file")
 z: f32 = 0.0
-@(private = "file")
-angle: f32 = 0.0
 
 renderer_system_initialize :: proc(
 	application_name: string,
@@ -44,6 +43,44 @@ renderer_system_initialize :: proc(
 	)
 	state_ptr.view = okmath.mat4_translation(okmath.vec3{0, 0, -30.0})
 	state_ptr.view = okmath.mat4_inverse(state_ptr.view)
+	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
+	// This is done in code to eliminate asset dependencies.
+	log_debug("Creating default texture...")
+	tex_dimension :: 256
+	channels :: 4
+	pixel_count :: tex_dimension * tex_dimension
+	pixels: [pixel_count * channels]u8 = {}
+	kset_memory(&pixels, 255, int(size_of(pixels)))
+
+	// Each pixel.
+	for row: u32 = 0; row < tex_dimension; row += 1 {
+		for col: u32 = 0; col < tex_dimension; col += 1 {
+			index := row * tex_dimension + col
+			index_bpp := index * channels
+			if (row % 2) != 0 {
+				if (col % 2) != 0 {
+					pixels[index_bpp + 0] = 0
+					pixels[index_bpp + 1] = 0
+				}
+			} else {
+				if (col % 2) == 0 {
+					pixels[index_bpp + 0] = 0
+					pixels[index_bpp + 1] = 0
+				}
+			}
+		}
+	}
+	pixels_slice := pixels[:]
+	renderer_create_texture(
+		"default",
+		false,
+		cast(i32)tex_dimension,
+		cast(i32)tex_dimension,
+		cast(i32)channels,
+		&pixels_slice,
+		false,
+		&state_ptr.default_texture,
+	)
 
 	return true
 }
@@ -51,6 +88,7 @@ renderer_system_initialize :: proc(
 
 renderer_system_shutdown :: proc(state: ^renderer_system_state) {
 	if state_ptr != nil {
+		renderer_destroy_texture(&state_ptr.default_texture)
 		state_ptr.backend.shutdown(&state_ptr.backend)
 	}
 	state_ptr = nil
@@ -82,10 +120,12 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 			okmath.vec4_one(),
 			0,
 		)
-		angle = angle + 0.001
-		rotation := okmath.quat_from_axis_angle(okmath.vec3_forward(), angle, false)
-		model := okmath.quat_to_rotation_matrix(rotation, okmath.vec3_zero())
-		state_ptr.backend.update_object(model)
+		model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+		data: geometry_render_data = {}
+		data.object_id = 0
+		data.model = model
+		data.textures[0] = &state_ptr.default_texture
+		state_ptr.backend.update_object(data)
 		// End the frame. If this fails, it is likely unrecoverable.
 		result: bool = renderer_end_frame(packet.delta_time)
 

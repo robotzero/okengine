@@ -4,6 +4,8 @@ import "../okmath"
 import vk "vendor:vulkan"
 
 BUILDIN_SHADER_NAME_OBJECT :: "Builtin.ObjectShader"
+@(private = "file")
+object_shader_accumulator: f32 = 0.0
 
 vulkan_object_shader_create :: proc(
 	v_context: ^vulkan_context,
@@ -77,6 +79,66 @@ vulkan_object_shader_create :: proc(
 		return false
 	}
 
+	// Local/Object Descriptors
+	local_sampler_count: u32 = 1
+	descriptor_types: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vk.DescriptorType = {
+		.UNIFORM_BUFFER, // Binding 0 - uniform buffer
+		.COMBINED_IMAGE_SAMPLER, // Binding 1 - Diffuse sampler layout.
+	}
+	bindings: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding
+	kzero_memory(
+		&bindings[0],
+		size_of(vk.DescriptorSetLayoutBinding) * VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT,
+	)
+	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+		bindings[i].binding = i
+		bindings[i].descriptorCount = 1
+		bindings[i].descriptorType = descriptor_types[i]
+		bindings[i].stageFlags = {.FRAGMENT}
+	}
+
+	layout_info := vk.DescriptorSetLayoutCreateInfo {
+		sType        = .DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		bindingCount = VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT,
+		pBindings    = &bindings[0],
+	}
+	if vk.CreateDescriptorSetLayout(
+		   v_context.device.logical_device,
+		   &layout_info,
+		   nil,
+		   &out_shader.object_descriptor_set_layout,
+	   ) !=
+	   vk.Result.SUCCESS {
+		return false
+	}
+
+	// Local/Object descriptor pool: Used for object-specific items like diffuse colour
+	object_pool_sizes: [2]vk.DescriptorPoolSize
+	// The first section will be used for uniform buffers
+	object_pool_sizes[0].type = .UNIFORM_BUFFER
+	object_pool_sizes[0].descriptorCount = VULKAN_OBJECT_MAX_OBJECT_COUNT
+	// The second section will be used for image samplers.
+	object_pool_sizes[1].type = .COMBINED_IMAGE_SAMPLER
+	object_pool_sizes[1].descriptorCount = local_sampler_count * VULKAN_OBJECT_MAX_OBJECT_COUNT
+
+	object_pool_info := vk.DescriptorPoolCreateInfo {
+		sType         = .DESCRIPTOR_POOL_CREATE_INFO,
+		poolSizeCount = 2,
+		pPoolSizes    = &object_pool_sizes[0],
+		maxSets       = VULKAN_OBJECT_MAX_OBJECT_COUNT,
+	}
+
+	// Create object descriptor pool.
+	if vk.CreateDescriptorPool(
+		   v_context.device.logical_device,
+		   &object_pool_info,
+		   v_context.allocator,
+		   &out_shader.object_descriptor_pool,
+	   ) !=
+	   vk.Result.SUCCESS {
+		return false
+	}
+
 	image_count := int(v_context.swapchain.image_count)
 	out_shader.global_descriptor_sets = make([]vk.DescriptorSet, image_count)
 
@@ -97,13 +159,13 @@ vulkan_object_shader_create :: proc(
 
 	// Attributes
 	offset: u32 = 0
-	attribute_count :: 1
-	attribute_descriptions: [attribute_count]vk.VertexInputAttributeDescription
+	ATTRIBUTE_COUNT :: 2
+	attribute_descriptions: [ATTRIBUTE_COUNT]vk.VertexInputAttributeDescription
 
-	formats: [attribute_count]vk.Format = {vk.Format.R32G32B32A32_SFLOAT}
-	sizes: [attribute_count]u32 = {size_of(okmath.vec3)}
+	formats: [ATTRIBUTE_COUNT]vk.Format = {vk.Format.R32G32B32A32_SFLOAT, vk.Format.R32G32_SFLOAT}
+	sizes: [ATTRIBUTE_COUNT]u32 = {size_of(okmath.vec3), size_of(okmath.vec2)}
 
-	for i in 0 ..< attribute_count {
+	for i in 0 ..< ATTRIBUTE_COUNT {
 		attribute_descriptions[i].binding = 0
 		attribute_descriptions[i].location = cast(u32)i
 		attribute_descriptions[i].format = formats[i]
@@ -111,9 +173,10 @@ vulkan_object_shader_create :: proc(
 		offset = offset + sizes[i]
 	}
 
-	descriptor_set_layout_count: i32 : 1
+	descriptor_set_layout_count: i32 : 2
 	layouts: [descriptor_set_layout_count]vk.DescriptorSetLayout = {
 		out_shader.global_descriptor_set_layout,
+		out_shader.object_descriptor_set_layout,
 	}
 
 	// Stages
@@ -127,7 +190,7 @@ vulkan_object_shader_create :: proc(
 	if !vulkan_graphics_pipeline_create(
 		v_context,
 		&v_context.main_renderpass,
-		attribute_count,
+		ATTRIBUTE_COUNT,
 		attribute_descriptions[:],
 		cast(u32)descriptor_set_layout_count,
 		&layouts[0],
@@ -172,14 +235,33 @@ vulkan_object_shader_create :: proc(
 		&alloc_info,
 		&out_shader.global_descriptor_sets[0],
 	)
+
+	if !vulkan_buffer_create(
+		v_context,
+		size_of(object_uniform_object),
+		{.TRANSFER_DST, .UNIFORM_BUFFER},
+		{.DEVICE_LOCAL, .HOST_VISIBLE, .HOST_COHERENT},
+		true,
+		&out_shader.object_uniform_buffer,
+	) {
+		log_error("Material instance buffer creation failed for shader.")
+		return false
+	}
 	return true
 }
 
 vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
 	logical_device := v_context.device.logical_device
 
+	vk.DestroyDescriptorPool(logical_device, shader.object_descriptor_pool, v_context.allocator)
+	vk.DestroyDescriptorSetLayout(
+		logical_device,
+		shader.object_descriptor_set_layout,
+		v_context.allocator,
+	)
 	// Destroy uniform buffer
 	vulkan_buffer_destroy(v_context, &shader.global_uniform_buffer)
+	vulkan_buffer_destroy(v_context, &shader.object_uniform_buffer)
 
 	// Destroy pipeline
 	vulkan_pipeline_destroy(v_context, &shader.pipeline)
@@ -268,24 +350,132 @@ vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_obj
 vulkan_object_shader_update_object :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_object_shader,
-	model: okmath.mat4,
+	data: geometry_render_data,
 ) {
 	image_index := int(v_context.image_index)
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
-	model_local := model
+	local_model := data.model
 	vk.CmdPushConstants(
 		command_buffer,
 		shader.pipeline.pipeline_layout,
 		{.VERTEX},
 		0,
 		size_of(okmath.mat4),
-		&model_local,
+		&local_model,
+	)
+
+	// Obtain material data.
+	object_state := &shader.object_states[cast(int)data.object_id]
+	object_descriptor_set := object_state.descriptor_sets[image_index]
+
+	// TODO: if needs update
+	descriptor_writes: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vk.WriteDescriptorSet
+	kzero_memory(
+		&descriptor_writes[0],
+		size_of(vk.WriteDescriptorSet) * VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT,
+	)
+	descriptor_count: u32 = 0
+	descriptor_index: u32 = 0
+
+	// Descriptor 0 - Uniform buffer
+	range: u64 = u64(size_of(object_uniform_object))
+	offset: u64 = range * u64(data.object_id) // also the index into the array.
+	obo: object_uniform_object
+
+	// TODO: get diffuse colour from a material.
+	object_shader_accumulator += v_context.frame_delta_time
+	s := (okmath.ksin(object_shader_accumulator) + 1.0) / 2.0 // scale from -1, 1 to 0, 1
+	obo.diffuse_color = okmath.vec4_create(s, s, s, 1.0)
+
+	// Load the data into the buffer.
+	vulkan_buffer_load_data(v_context, &shader.object_uniform_buffer, offset, range, {}, &obo)
+	if object_state.descriptor_states[descriptor_index].generations[image_index] == INVALID_ID {
+		buffer_info := vk.DescriptorBufferInfo {
+			buffer = shader.object_uniform_buffer.handle,
+			offset = vk.DeviceSize(offset),
+			range  = vk.DeviceSize(range),
+		}
+
+		descriptor := vk.WriteDescriptorSet {
+			sType           = .WRITE_DESCRIPTOR_SET,
+			dstSet          = object_descriptor_set,
+			dstBinding      = descriptor_index,
+			descriptorType  = .UNIFORM_BUFFER,
+			descriptorCount = 1,
+			pBufferInfo     = &buffer_info,
+		}
+
+		descriptor_writes[descriptor_count] = descriptor
+		descriptor_count += 1
+
+		// Update the frame generation. In this case it is only needed once since this is a buffer.
+		object_state.descriptor_states[descriptor_index].generations[image_index] = 1
+	}
+	descriptor_index += 1
+
+	// TODO: samplers.
+	sampler_count: u32 = 1
+	image_infos: [1]vk.DescriptorImageInfo
+	for sampler_index: u32 = 0; sampler_index < sampler_count; sampler_index += 1 {
+		t := data.textures[sampler_index]
+		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
+
+		// Check if the descriptor needs updating first.
+		if t != nil &&
+		   (descriptor_generation^ != t.generation || descriptor_generation^ == INVALID_ID) {
+			internal_data := cast(^vulkan_texture_data)t.internal_data
+
+			// Assign view and sampler.
+			image_infos[sampler_index].imageLayout = .SHADER_READ_ONLY_OPTIMAL
+			image_infos[sampler_index].imageView = internal_data.image.view
+			image_infos[sampler_index].sampler = internal_data.sampler
+
+			descriptor := vk.WriteDescriptorSet {
+				sType           = .WRITE_DESCRIPTOR_SET,
+				dstSet          = object_descriptor_set,
+				dstBinding      = descriptor_index,
+				descriptorType  = .COMBINED_IMAGE_SAMPLER,
+				descriptorCount = 1,
+				pImageInfo      = &image_infos[sampler_index],
+			}
+
+			descriptor_writes[descriptor_count] = descriptor
+			descriptor_count += 1
+
+			// Sync frame generation if not using a default texture.
+			if t.generation != INVALID_ID {
+				descriptor_generation^ = t.generation
+			}
+			descriptor_index += 1
+		}
+	}
+	if descriptor_count > 0 {
+		vk.UpdateDescriptorSets(
+			v_context.device.logical_device,
+			descriptor_count,
+			&descriptor_writes[0],
+			0,
+			nil,
+		)
+	}
+
+	// Bind the descriptor set to be updated, or in case the shader changed.
+	vk.CmdBindDescriptorSets(
+		command_buffer,
+		vk.PipelineBindPoint.GRAPHICS,
+		shader.pipeline.pipeline_layout,
+		1,
+		1,
+		&object_descriptor_set,
+		0,
+		nil,
 	)
 }
 
 vulkan_object_shader_update_global_state :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_object_shader,
+	delta_time: f32,
 ) {
 	image_index := int(v_context.image_index)
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
@@ -336,3 +526,72 @@ vulkan_object_shader_update_global_state :: proc(
 
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
 }
+vulkan_object_shader_acquire_resources :: proc(
+	v_context: ^vulkan_context,
+	shader: ^vulkan_object_shader,
+	out_object_id: ^u32,
+) -> b8 {
+	// TODO: free list
+	out_object_id^ = shader.object_uniform_buffer_index
+	shader.object_uniform_buffer_index += 1
+
+	object_id := out_object_id^
+	object_state := &shader.object_states[cast(int)object_id]
+	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+		for j: u32 = 0; j < 3; j += 1 {
+			object_state.descriptor_states[i].generations[j] = INVALID_ID
+		}
+	}
+
+	// Allocate descriptor sets.
+	layouts: [3]vk.DescriptorSetLayout = {
+		shader.object_descriptor_set_layout,
+		shader.object_descriptor_set_layout,
+		shader.object_descriptor_set_layout,
+	}
+
+	alloc_info := vk.DescriptorSetAllocateInfo {
+		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
+		descriptorPool     = shader.object_descriptor_pool,
+		descriptorSetCount = 3, // one per frame
+		pSetLayouts        = &layouts[0],
+	}
+	result := vk.AllocateDescriptorSets(
+		v_context.device.logical_device,
+		&alloc_info,
+		&object_state.descriptor_sets[0],
+	)
+	if result != vk.Result.SUCCESS {
+		log_error("Error allocating descriptor sets in shader!")
+		return false
+	}
+
+	return true
+}
+
+vulkan_object_shader_release_resources :: proc(
+	v_context: ^vulkan_context,
+	shader: ^vulkan_object_shader,
+	object_id: u32,
+) {
+	object_state := &shader.object_states[cast(int)object_id]
+
+	descriptor_set_count: u32 = 3
+	// Release object descriptor sets.
+	result := vk.FreeDescriptorSets(
+		v_context.device.logical_device,
+		shader.object_descriptor_pool,
+		descriptor_set_count,
+		&object_state.descriptor_sets[0],
+	)
+	if result != vk.Result.SUCCESS {
+		log_error("Error freeing object shader descriptor sets!")
+	}
+
+	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+		for j: u32 = 0; j < 3; j += 1 {
+			object_state.descriptor_states[i].generations[j] = INVALID_ID
+		}
+	}
+}
+

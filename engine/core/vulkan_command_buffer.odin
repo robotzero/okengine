@@ -1,6 +1,7 @@
 package core
 
 import arr "../containers"
+import "core:fmt"
 import vk "vendor:vulkan"
 
 vulkan_command_buffer_allocate :: proc(
@@ -53,15 +54,15 @@ vulkan_command_buffer_begin :: proc(
 	}
 
 	if is_single_use {
-		begin_info.flags |= {.ONE_TIME_SUBMIT}
+		begin_info.flags = {.ONE_TIME_SUBMIT}
 	}
 
 	if is_renderpass_continue {
-		begin_info.flags |= {.RENDER_PASS_CONTINUE}
+		begin_info.flags += {.RENDER_PASS_CONTINUE}
 	}
 
 	if is_simultaneous_use {
-		begin_info.flags |= {.SIMULTANEOUS_USE}
+		begin_info.flags += {.SIMULTANEOUS_USE}
 	}
 
 	assert(vk.BeginCommandBuffer(command_buffer.handle, &begin_info) == vk.Result.SUCCESS)
@@ -109,7 +110,10 @@ vulkan_command_buffer_end_single_use :: proc(
 	assert(vk.QueueSubmit(queue, 1, &submit_info, 0) == vk.Result.SUCCESS)
 
 	// Wait for it to finish
-	assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
+	// assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
+	res := vk.QueueWaitIdle(queue)
+	fmt.println("AAA")
+	fmt.println(res)
 
 	// Free the command buffer
 	vulkan_command_buffer_free(v_context, pool, command_buffer)

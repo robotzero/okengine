@@ -252,7 +252,7 @@ vulkan_buffer_copy_to :: proc(
 	dest_offset: u64,
 	size: u64,
 ) {
-	_ = vk.QueueWaitIdle(queue)
+	assert(vk.QueueWaitIdle(queue) == vk.Result.SUCCESS)
 
 	temp_command_buffer: vulkan_command_buffer
 	vulkan_command_buffer_allocate_and_begin_single_use(v_context, pool, &temp_command_buffer)

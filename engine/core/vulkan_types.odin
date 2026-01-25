@@ -3,6 +3,9 @@ package core
 import vk "vendor:vulkan"
 
 OBJECT_SHADER_STAGE_COUNT :: 2
+VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT :: 2
+VULKAN_OBJECT_MAX_OBJECT_COUNT :: 1024
+INVALID_ID :: 4294967295
 
 vulkan_command_buffer_state :: enum {
 	COMMAND_BUFFER_STATE_READY,
@@ -31,12 +34,25 @@ when ODIN_DEBUG == true {
 	}
 }
 
+vulkan_descriptor_state :: struct {
+	generations: [3]u32,
+}
+
+vulkan_object_shader_object_state :: struct {
+	// per frame
+	descriptor_sets:   [3]vk.DescriptorSet,
+
+	// per descriptor
+	descriptor_states: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
+}
+
 vulkan_context :: struct {
 	instance:                         vk.Instance,
 	allocator:                        ^vk.AllocationCallbacks,
 	debug_messenger:                  vulkan_debug_messenger,
 	surface:                          vk.SurfaceKHR,
 	device:                           vulkan_device,
+	frame_delta_time:                 f32,
 
 	// The framebuffer's current width.
 	framebuffer_width:                u32,
@@ -144,6 +160,11 @@ vulkan_object_shader :: struct {
 	global_descriptor_sets:       []vk.DescriptorSet,
 	global_ubo:                   global_uniform_object,
 	global_uniform_buffer:        vulkan_buffer,
+	object_descriptor_pool:       vk.DescriptorPool,
+	object_descriptor_set_layout: vk.DescriptorSetLayout,
+	object_uniform_buffer:        vulkan_buffer,
+	object_uniform_buffer_index:  u32,
+	object_states:                [VULKAN_OBJECT_MAX_OBJECT_COUNT]vulkan_object_shader_object_state,
 }
 
 vulkan_buffer :: struct {

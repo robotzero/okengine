@@ -40,6 +40,7 @@ quat :: la.Quaternionf32
 
 vertex_3d :: struct {
 	position: vec3,
+	texcoord: vec2,
 }
 
 @(private = "file")

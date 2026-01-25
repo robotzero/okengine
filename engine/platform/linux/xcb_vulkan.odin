@@ -136,6 +136,8 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	vk.UnmapMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkUnmapMemory"))
 	vk.BindBufferMemory = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkBindBufferMemory"))
 	vk.CmdCopyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdCopyBuffer"))
+	vk.CmdCopyBufferToImage =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdCopyBufferToImage"))
 	vk.DestroyBuffer = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroyBuffer"))
 	vk.CmdBindVertexBuffers =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindVertexBuffers"))
@@ -161,6 +163,12 @@ load_proc_adresses_instance :: proc(instance: vk.Instance) {
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdBindDescriptorSets"))
 	vk.UpdateDescriptorSets =
 	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkUpdateDescriptorSets"))
+	vk.FreeDescriptorSets =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkFreeDescriptorSets"))
+	vk.CmdPipelineBarrier =
+	auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdPipelineBarrier"))
+	vk.CreateSampler = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCreateSampler"))
+	vk.DestroySampler = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkDestroySampler"))
 	vk.CmdPushConstants = auto_cast vk.GetInstanceProcAddr(instance, cstring("vkCmdPushConstants"))
 }
 

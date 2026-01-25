@@ -23,7 +23,7 @@ update_global_state_proc :: #type proc(
 	ambient_colour: okmath.vec4,
 	mode: i32,
 )
-update_object_proc :: #type proc(model: okmath.mat4)
+update_object_proc :: #type proc(data: geometry_render_data)
 create_texture_proc :: #type proc(
 	name: cstring,
 	auto_release: bool,
@@ -58,5 +58,18 @@ renderer_backend :: struct {
 
 render_packet :: struct {
 	delta_time: f32,
+}
+
+object_uniform_object :: struct {
+	diffuse_color: okmath.vec4,
+	v_reserved_0:  okmath.vec4,
+	v_reserved_1:  okmath.vec4,
+	v_reserved_2:  okmath.vec4,
+}
+
+geometry_render_data :: struct {
+	object_id: u32,
+	model:     okmath.mat4,
+	textures:  [16]^texture,
 }
 
