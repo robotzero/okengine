@@ -25,7 +25,7 @@ update_global_state_proc :: #type proc(
 )
 update_object_proc :: #type proc(data: geometry_render_data)
 create_texture_proc :: #type proc(
-	name: cstring,
+	name: string,
 	auto_release: bool,
 	width: i32,
 	height: i32,
@@ -54,6 +54,7 @@ renderer_backend :: struct {
 	update_object:       update_object_proc,
 	create_texture:      create_texture_proc,
 	destroy_texture:     destroy_texture_proc,
+	default_diffuse:     ^texture,
 }
 
 render_packet :: struct {

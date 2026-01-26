@@ -312,7 +312,11 @@ vulkan_renderer_backend_initialize :: proc(
 	}
 
 	// Create buildin shaders
-	if !vulkan_object_shader_create(&v_context, &v_context.object_shader) {
+	if !vulkan_object_shader_create(
+		&v_context,
+		backend.default_diffuse,
+		&v_context.object_shader,
+	) {
 		log_error("Error loading built-in basic_lighting shader")
 		return false
 	}
@@ -952,7 +956,7 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 }
 
 vulkan_renderer_create_texture :: proc(
-	name: cstring,
+	name: string,
 	auto_release: bool,
 	width: i32,
 	height: i32,

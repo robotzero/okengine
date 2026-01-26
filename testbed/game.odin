@@ -36,6 +36,11 @@ game_initialize :: proc(game_inst: ^c.game) -> bool {
 }
 
 game_update :: proc(game_inst: ^c.game, delta_time: f32) -> bool {
+
+	if c.input_is_key_up(idef.keys.KEY_T) && c.input_is_key_down(idef.keys.KEY_T) {
+		ev_context: c.event_context = {}
+		c.event_fire(cast(u16)c.system_event_code.EVENT_CODE_DEBUG0, game_inst, ev_context)
+	}
 	state := game_inst.state
 	if c.input_is_key_down(idef.keys.KEY_A) || c.input_is_key_down(idef.keys.KEY_LEFT) {
 		camera_yaw(state, 1.0 * delta_time)

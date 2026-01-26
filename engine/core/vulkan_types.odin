@@ -166,6 +166,7 @@ vulkan_object_shader :: struct {
 	object_uniform_buffer:        vulkan_buffer,
 	object_uniform_buffer_index:  u32,
 	object_states:                [VULKAN_OBJECT_MAX_OBJECT_COUNT]vulkan_object_shader_object_state,
+	default_diffuse:              ^texture,
 }
 
 vulkan_buffer :: struct {
@@ -183,3 +184,4 @@ must :: proc(result: vk.Result, loc := #caller_location) {
 		panic("AAAAAAAAAAAAAAAAAA")
 	}
 }
+

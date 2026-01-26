@@ -9,9 +9,11 @@ object_shader_accumulator: f32 = 0.0
 
 vulkan_object_shader_create :: proc(
 	v_context: ^vulkan_context,
+	default_diffuse: ^texture,
 	out_shader: ^vulkan_object_shader,
 ) -> bool {
 
+	out_shader.default_diffuse = default_diffuse
 	// Shader module init per stage.
 	stage_type_strs: [OBJECT_SHADER_STAGE_COUNT]string = {"vert", "frag"}
 	stage_types: [OBJECT_SHADER_STAGE_COUNT]vk.ShaderStageFlags = {{.VERTEX}, {.FRAGMENT}}
@@ -420,6 +422,10 @@ vulkan_object_shader_update_object :: proc(
 		t := data.textures[sampler_index]
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
 
+		if t.generation == INVALID_ID {
+			t = shader.default_diffuse
+			descriptor_generation^ = INVALID_ID
+		}
 		// Check if the descriptor needs updating first.
 		if t != nil &&
 		   (descriptor_generation^ != t.generation || descriptor_generation^ == INVALID_ID) {
@@ -598,3 +604,4 @@ vulkan_object_shader_release_resources :: proc(
 	delete(object_state.descriptor_sets)
 	object_state.descriptor_sets = nil
 }
+
