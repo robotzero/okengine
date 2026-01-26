@@ -1032,8 +1032,6 @@ vulkan_renderer_create_texture :: proc(
 	// Copy the data from the buffer.
 	vulkan_image_copy_from_buffer(&v_context, &data.image, staging.handle, &temp_buffer)
 
-	vulkan_buffer_destroy(&v_context, &staging)
-
 	// Transition from optimal for data receipt to shader-read-only optimal layout.
 	vulkan_image_transition_layout(
 		&v_context,
@@ -1046,6 +1044,7 @@ vulkan_renderer_create_texture :: proc(
 
 	vulkan_command_buffer_end_single_use(&v_context, pool, &temp_buffer, queue)
 
+	vulkan_buffer_destroy(&v_context, &staging)
 	// Create a sampler for the texture.
 	sampler_info := vk.SamplerCreateInfo {
 		sType = .SAMPLER_CREATE_INFO,

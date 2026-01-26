@@ -35,12 +35,13 @@ when ODIN_DEBUG == true {
 }
 
 vulkan_descriptor_state :: struct {
-	generations: [3]u32,
+	// Per swapchain image.
+	generations: []u32,
 }
 
 vulkan_object_shader_object_state :: struct {
-	// per frame
-	descriptor_sets:   [3]vk.DescriptorSet,
+	// Per swapchain image
+	descriptor_sets:   []vk.DescriptorSet,
 
 	// per descriptor
 	descriptor_states: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
@@ -182,4 +183,3 @@ must :: proc(result: vk.Result, loc := #caller_location) {
 		panic("AAAAAAAAAAAAAAAAAA")
 	}
 }
-

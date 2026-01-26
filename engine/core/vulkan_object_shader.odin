@@ -537,23 +537,26 @@ vulkan_object_shader_acquire_resources :: proc(
 
 	object_id := out_object_id^
 	object_state := &shader.object_states[cast(int)object_id]
+	image_count := int(v_context.swapchain.image_count)
+	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count)
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
-		for j: u32 = 0; j < 3; j += 1 {
+		object_state.descriptor_states[i].generations = make([]u32, image_count)
+		for j: int = 0; j < image_count; j += 1 {
 			object_state.descriptor_states[i].generations[j] = INVALID_ID
 		}
 	}
 
 	// Allocate descriptor sets.
-	layouts: [3]vk.DescriptorSetLayout = {
-		shader.object_descriptor_set_layout,
-		shader.object_descriptor_set_layout,
-		shader.object_descriptor_set_layout,
+	layouts := make([]vk.DescriptorSetLayout, image_count)
+	defer delete(layouts)
+	for i: int = 0; i < image_count; i += 1 {
+		layouts[i] = shader.object_descriptor_set_layout
 	}
 
 	alloc_info := vk.DescriptorSetAllocateInfo {
 		sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
 		descriptorPool     = shader.object_descriptor_pool,
-		descriptorSetCount = 3, // one per frame
+		descriptorSetCount = u32(image_count), // one per swapchain image
 		pSetLayouts        = &layouts[0],
 	}
 	result := vk.AllocateDescriptorSets(
@@ -576,12 +579,12 @@ vulkan_object_shader_release_resources :: proc(
 ) {
 	object_state := &shader.object_states[cast(int)object_id]
 
-	descriptor_set_count: u32 = 3
+	image_count := u32(v_context.swapchain.image_count)
 	// Release object descriptor sets.
 	result := vk.FreeDescriptorSets(
 		v_context.device.logical_device,
 		shader.object_descriptor_pool,
-		descriptor_set_count,
+		image_count,
 		&object_state.descriptor_sets[0],
 	)
 	if result != vk.Result.SUCCESS {
@@ -589,9 +592,9 @@ vulkan_object_shader_release_resources :: proc(
 	}
 
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
-		for j: u32 = 0; j < 3; j += 1 {
-			object_state.descriptor_states[i].generations[j] = INVALID_ID
-		}
+		delete(object_state.descriptor_states[i].generations)
+		object_state.descriptor_states[i].generations = nil
 	}
+	delete(object_state.descriptor_sets)
+	object_state.descriptor_sets = nil
 }
-
