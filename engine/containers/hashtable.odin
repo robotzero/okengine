@@ -4,11 +4,12 @@ import "core:fmt"
 import "core:hash"
 
 // @TODO privacy to file
-hashtable :: struct {
+hashtable :: struct($T: typeid) {
 	element_size:    u64,
 	element_count:   u32,
 	is_pointer_type: bool,
-	memory:          map[string]typeid,
+	memory:          map[string]T,
+	memory_ptr:      map[string]^T,
 }
 
 //@TODO configurable hash alghorithm
@@ -24,7 +25,7 @@ hashtabe_create :: proc(
 	element_count: u32,
 	is_pointer_type: bool,
 	out_hashtable: ^hashtable,
-	memory: map[string]$T,
+	$T: typeid,
 ) {
 	if out_hashtable == nil {
 		fmt.println("ERROR hashtable create failed. No hashtable provided")
@@ -35,7 +36,12 @@ hashtabe_create :: proc(
 
 	out_hashtable.element_count = element_count
 	out_hashtable.element_size = element_size
-	out_hashtable.memory = memory
+	if is_pointer_type {
+		out_hashtable.memory_ptr = make(map[string]^T)
+	} else {
+		out_hashtable.memory = make(map[string]T)
+	}
+
 	out_hashtable.is_pointer_type = is_pointer_type
 
 	// TODO kzeromemory
@@ -48,11 +54,15 @@ hashtable_destroy :: proc(table: ^hashtable) {
 		table.is_pointer_type = false
 		// @TODO check if this deletes stuff or just zeros it and leave the contents hanging
 		clear(&table.memory)
+		for key in table.memory {
+			// free(table.memory[key])
+		}
+		delete(table.memory)
 	}
 }
 
 //@TODO use conditional parapoly for $T, so that only specific types can be set in hashtable
-hashtable_set :: proc(table: ^hashtable, name: string, $T: typeid) -> bool {
+hashtable_set :: proc(table: ^hashtable, name: string, value: $T) -> bool {
 	if table == nil || name == "" || value == nil {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return false
@@ -64,12 +74,11 @@ hashtable_set :: proc(table: ^hashtable, name: string, $T: typeid) -> bool {
 	}
 
 	hash := hash_name(name, table.element_count)
-	table.memory[name] = T
+	table.memory[name] = value
 	return true
 }
 
-hashtable_get :: proc(table: ^hashtable, name: string) -> (^$T, bool) {
-
+hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid) -> (value: ^T, success: bool) {
 	if table == nil || name == "" || value == nil {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return nil, false
@@ -82,5 +91,20 @@ hashtable_get :: proc(table: ^hashtable, name: string) -> (^$T, bool) {
 
 	hash_name(name, table.element_count)
 	return table.memory[name], true
+}
+
+hashtable_fill :: proc(table: ^hashtable, $T: typeid) -> bool {
+	if table == nil || value == nil {
+		fmt.println("hashtable fill aaa")
+		return false
+	}
+
+	if table.is_pointer_type {
+		fmt.println("aaabc")
+		return false
+	}
+
+	table.memory["default"] = new(T)
+	return true
 }
 
