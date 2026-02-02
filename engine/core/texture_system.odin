@@ -10,7 +10,7 @@ texture_system_state :: struct {
 	config:                   texture_system_config,
 	default_texture:          texture,
 	registered_textures:      [dynamic]texture,
-	registered_texture_table: c.hashtable,
+	registered_texture_table: c.hashtable(texture_reference),
 }
 
 texture_reference :: struct {

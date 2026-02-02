@@ -78,7 +78,7 @@ hashtable_set :: proc(table: ^hashtable, name: string, value: $T) -> bool {
 	return true
 }
 
-hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid) -> (value: ^T, success: bool) {
+hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid, value: ^T) -> bool {
 	if table == nil || name == "" || value == nil {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return nil, false
@@ -90,7 +90,17 @@ hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid) -> (value: ^T
 	}
 
 	hash_name(name, table.element_count)
-	return table.memory[name], true
+	elem, ok := table.memory[name]
+	if ok {
+		value^ = elem
+	} else {
+		e := new(T)
+		e.handle = INVALID_ID
+		e.auto_release = false
+		e.reference_count = 0
+		value^ = e
+	}
+	return true
 }
 
 hashtable_fill :: proc(table: ^hashtable, $T: typeid) -> bool {
