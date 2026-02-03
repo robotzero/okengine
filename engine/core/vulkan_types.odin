@@ -37,6 +37,7 @@ when ODIN_DEBUG == true {
 vulkan_descriptor_state :: struct {
 	// Per swapchain image.
 	generations: []u32,
+	ids:         [3]u32,
 }
 
 vulkan_object_shader_object_state :: struct {
@@ -83,7 +84,7 @@ vulkan_context :: struct {
 	image_index:                      u32,
 	current_frame:                    u32,
 	recreating_swapchain:             bool,
-	object_shader:                    vulkan_object_shader,
+	object_shader:                    vulkan_material_shader,
 	find_memory_index_proc:           find_memory_index,
 	geometry_vertex_offset:           u64,
 	geometry_index_offset:            u64,
@@ -152,7 +153,7 @@ vulkan_pipeline :: struct {
 	pipeline_layout: vk.PipelineLayout,
 }
 
-vulkan_object_shader :: struct {
+vulkan_material_shader :: struct {
 	pipeline:                     vulkan_pipeline,
 	stages:                       [OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
 	global_descriptor_pool:       vk.DescriptorPool,
@@ -166,7 +167,6 @@ vulkan_object_shader :: struct {
 	object_uniform_buffer:        vulkan_buffer,
 	object_uniform_buffer_index:  u32,
 	object_states:                [VULKAN_OBJECT_MAX_OBJECT_COUNT]vulkan_object_shader_object_state,
-	default_diffuse:              ^texture,
 }
 
 vulkan_buffer :: struct {

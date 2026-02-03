@@ -312,7 +312,7 @@ vulkan_renderer_backend_initialize :: proc(
 	}
 
 	// Create buildin shaders
-	if !vulkan_object_shader_create(
+	if !vulkan_material_shader_create(
 		&v_context,
 		backend.default_diffuse,
 		&v_context.object_shader,
@@ -371,7 +371,11 @@ vulkan_renderer_backend_initialize :: proc(
 	)
 
 	object_id: u32 = 0
-	if !vulkan_object_shader_acquire_resources(&v_context, &v_context.object_shader, &object_id) {
+	if !vulkan_material_shader_acquire_resources(
+		&v_context,
+		&v_context.object_shader,
+		&object_id,
+	) {
 		log_error("Failed to acquire shader resources.")
 		return false
 	}
@@ -386,7 +390,7 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	// Destroy is the opposide order of creation.
 	vulkan_buffer_destroy(&v_context, &v_context.object_vertex_buffer)
 	vulkan_buffer_destroy(&v_context, &v_context.object_index_buffer)
-	vulkan_object_shader_destroy(&v_context, &v_context.object_shader)
+	vulkan_material_shader_destroy(&v_context, &v_context.object_shader)
 
 	// Sync objects
 	for i in 0 ..< v_context.swapchain.max_frames_in_flight {
@@ -912,12 +916,12 @@ vulkan_renderer_update_global_state :: proc(
 ) {
 	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
 
-	vulkan_object_shader_use(&v_context, &v_context.object_shader)
+	vulkan_material_shader_use(&v_context, &v_context.object_shader)
 
 	v_context.object_shader.global_ubo.projection = projection
 	v_context.object_shader.global_ubo.view = view
 
-	vulkan_object_shader_update_global_state(
+	vulkan_material_shader_update_global_state(
 		&v_context,
 		&v_context.object_shader,
 		v_context.frame_delta_time,
@@ -926,11 +930,11 @@ vulkan_renderer_update_global_state :: proc(
 
 vulkan_backend_update_object :: proc(data: geometry_render_data) {
 	command_buffer := v_context.graphics_command_buffers[v_context.image_index]
-	vulkan_object_shader_update_object(&v_context, &v_context.object_shader, data)
+	vulkan_material_shader_update_object(&v_context, &v_context.object_shader, data)
 
 	// TODO: temporary
 
-	vulkan_object_shader_use(&v_context, &v_context.object_shader)
+	vulkan_material_shader_use(&v_context, &v_context.object_shader)
 
 	// Bind vertex buffer at offset
 
@@ -957,7 +961,6 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 
 vulkan_renderer_create_texture :: proc(
 	name: string,
-	auto_release: bool,
 	width: i32,
 	height: i32,
 	channel_count: i32,

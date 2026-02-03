@@ -4,12 +4,12 @@ import "core:fmt"
 import "core:hash"
 
 // @TODO privacy to file
-hashtable :: struct($T: typeid) {
+hashtable :: struct($T: typeid, $size: u32) {
 	element_size:    u64,
 	element_count:   u32,
 	is_pointer_type: bool,
-	memory:          map[string]T,
-	memory_ptr:      map[string]^T,
+	memory:          [size]T,
+	memory_ptr:      [size]^T,
 }
 
 //@TODO configurable hash alghorithm
@@ -26,6 +26,8 @@ hashtabe_create :: proc(
 	is_pointer_type: bool,
 	out_hashtable: ^hashtable,
 	$T: typeid,
+	memory: [65536]T,
+	memory_ptr: [65536]^T,
 ) {
 	if out_hashtable == nil {
 		fmt.println("ERROR hashtable create failed. No hashtable provided")
@@ -37,9 +39,9 @@ hashtabe_create :: proc(
 	out_hashtable.element_count = element_count
 	out_hashtable.element_size = element_size
 	if is_pointer_type {
-		out_hashtable.memory_ptr = make(map[string]^T)
+		out_hashtable.memory_ptr = memory
 	} else {
-		out_hashtable.memory = make(map[string]T)
+		out_hashtable.memory = memory_ptr
 	}
 
 	out_hashtable.is_pointer_type = is_pointer_type
@@ -74,7 +76,7 @@ hashtable_set :: proc(table: ^hashtable, name: string, value: $T) -> bool {
 	}
 
 	hash := hash_name(name, table.element_count)
-	table.memory[name] = value
+	table.memory[hash] = value
 	return true
 }
 
@@ -90,20 +92,14 @@ hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid, value: ^T) ->
 	}
 
 	hash_name(name, table.element_count)
-	elem, ok := table.memory[name]
+	elem, ok := table.memory[hash]
 	if ok {
 		value^ = elem
-	} else {
-		e := new(T)
-		e.handle = INVALID_ID
-		e.auto_release = false
-		e.reference_count = 0
-		value^ = e
 	}
 	return true
 }
 
-hashtable_fill :: proc(table: ^hashtable, $T: typeid) -> bool {
+hashtable_fill :: proc(table: ^hashtable, $T: typeid, value: T) -> bool {
 	if table == nil || value == nil {
 		fmt.println("hashtable fill aaa")
 		return false
@@ -114,7 +110,9 @@ hashtable_fill :: proc(table: ^hashtable, $T: typeid) -> bool {
 		return false
 	}
 
-	table.memory["default"] = new(T)
+	for i := 0; i < table.element_count; i += 1 {
+		table.memory[i];i = value
+	}
 	return true
 }
 

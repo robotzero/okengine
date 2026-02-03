@@ -23,6 +23,7 @@ application_state :: struct {
 	input_system_state:                ^input_system_state,
 	event_system_state:                ^event_system_state,
 	renderer_system_state:             ^renderer_system_state,
+	texture_system_state:              ^texture_system_state,
 }
 
 application_config :: struct {
@@ -135,6 +136,23 @@ application_create :: proc(
 		log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}
+	// Texture system
+	texture_sys_config: texture_system_config
+	texture_sys_config.max_texture_count = MAX_TEXTURE_COUNT
+
+	tstate, terror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		texture_system_state,
+		sys_alloc,
+	)
+
+	app_state.texture_system_state = tstate
+
+	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config) {
+		log_fatal("Failed to initialize texture system. Application cannot continue.")
+		return false
+	}
+
 
 	if ok := app_state.game_inst.initialize(app_state.game_inst); !ok {
 		return false

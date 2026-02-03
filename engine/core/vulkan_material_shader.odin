@@ -3,14 +3,13 @@ package core
 import "../okmath"
 import vk "vendor:vulkan"
 
-BUILDIN_SHADER_NAME_OBJECT :: "Builtin.ObjectShader"
+BUILDIN_SHADER_NAME_MATERIAL :: "Builtin.MaterialShader"
 @(private = "file")
 object_shader_accumulator: f32 = 0.0
 
-vulkan_object_shader_create :: proc(
+vulkan_material_shader_create :: proc(
 	v_context: ^vulkan_context,
-	default_diffuse: ^texture,
-	out_shader: ^vulkan_object_shader,
+	out_shader: ^vulkan_material_shader,
 ) -> bool {
 
 	out_shader.default_diffuse = default_diffuse
@@ -21,7 +20,7 @@ vulkan_object_shader_create :: proc(
 	for i in 0 ..< OBJECT_SHADER_STAGE_COUNT {
 		if !create_shader_module(
 			v_context,
-			BUILDIN_SHADER_NAME_OBJECT,
+			BUILDIN_SHADER_NAME_MATERIAL,
 			stage_type_strs[i],
 			stage_types[i],
 			cast(u32)i,
@@ -252,7 +251,10 @@ vulkan_object_shader_create :: proc(
 	return true
 }
 
-vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
+vulkan_material_shader_destroy :: proc(
+	v_context: ^vulkan_context,
+	shader: ^vulkan_material_shader,
+) {
 	logical_device := v_context.device.logical_device
 
 	vk.DestroyDescriptorPool(logical_device, shader.object_descriptor_pool, v_context.allocator)
@@ -290,7 +292,7 @@ vulkan_object_shader_destroy :: proc(v_context: ^vulkan_context, shader: ^vulkan
 	shader.global_descriptor_sets = nil
 }
 
-vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_object_shader) {
+vulkan_material_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_material_shader) {
 	image_index := int(v_context.image_index)
 
 	vulkan_pipeline_bind(
@@ -349,7 +351,7 @@ vulkan_object_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_obj
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
 }
 
-vulkan_object_shader_update_object :: proc(
+vulkan_material_shader_update_object :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_object_shader,
 	data: geometry_render_data,
@@ -421,14 +423,18 @@ vulkan_object_shader_update_object :: proc(
 	for sampler_index: u32 = 0; sampler_index < sampler_count; sampler_index += 1 {
 		t := data.textures[sampler_index]
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
+		descriptor_id := &object_state.descriptor_states[descriptor_index].ids[image_index]
 
 		if t.generation == INVALID_ID {
-			t = shader.default_diffuse
+			t = texture_system_get_default_texture()
 			descriptor_generation^ = INVALID_ID
+
 		}
 		// Check if the descriptor needs updating first.
 		if t != nil &&
-		   (descriptor_generation^ != t.generation || descriptor_generation^ == INVALID_ID) {
+		   (descriptor_id^ != t.id ||
+				   descriptor_generation^ != t.generation ||
+				   descriptor_generation^ == INVALID_ID) {
 			internal_data := cast(^vulkan_texture_data)t.internal_data
 
 			// Assign view and sampler.
@@ -451,6 +457,7 @@ vulkan_object_shader_update_object :: proc(
 			// Sync frame generation if not using a default texture.
 			if t.generation != INVALID_ID {
 				descriptor_generation^ = t.generation
+				descriptor_id^ = t.id
 			}
 			descriptor_index += 1
 		}
@@ -478,9 +485,9 @@ vulkan_object_shader_update_object :: proc(
 	)
 }
 
-vulkan_object_shader_update_global_state :: proc(
+vulkan_material_shader_update_global_state :: proc(
 	v_context: ^vulkan_context,
-	shader: ^vulkan_object_shader,
+	shader: ^vulkan_material_shader,
 	delta_time: f32,
 ) {
 	image_index := int(v_context.image_index)
@@ -532,9 +539,9 @@ vulkan_object_shader_update_global_state :: proc(
 
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
 }
-vulkan_object_shader_acquire_resources :: proc(
+vulkan_material_shader_acquire_resources :: proc(
 	v_context: ^vulkan_context,
-	shader: ^vulkan_object_shader,
+	shader: ^vulkan_material_shader,
 	out_object_id: ^u32,
 ) -> b8 {
 	// TODO: free list
@@ -549,6 +556,7 @@ vulkan_object_shader_acquire_resources :: proc(
 		object_state.descriptor_states[i].generations = make([]u32, image_count)
 		for j: int = 0; j < image_count; j += 1 {
 			object_state.descriptor_states[i].generations[j] = INVALID_ID
+			object_state.descriptor_states[i].ids[j] = INVALID_ID
 		}
 	}
 
@@ -578,7 +586,7 @@ vulkan_object_shader_acquire_resources :: proc(
 	return true
 }
 
-vulkan_object_shader_release_resources :: proc(
+vulkan_material_shader_release_resources :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_object_shader,
 	object_id: u32,
@@ -598,10 +606,14 @@ vulkan_object_shader_release_resources :: proc(
 	}
 
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
-		delete(object_state.descriptor_states[i].generations)
-		object_state.descriptor_states[i].generations = nil
+		for j: u32 = 0; j < 3; j += 1 {
+			object_state.descriptor_state[i].generations[j] = INVALID_ID
+			object_state.descriptor_state[i].ids[j] = INVALID_ID
+		}
+		// delete(object_state.descriptor_states[i].generations)
+		// object_state.descriptor_states[i].generations = nil
 	}
-	delete(object_state.descriptor_sets)
-	object_state.descriptor_sets = nil
+	// delete(object_state.descriptor_sets)
+	// object_state.descriptor_sets = nil
 }
 

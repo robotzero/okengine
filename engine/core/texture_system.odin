@@ -1,6 +1,9 @@
 package core
 
 import c "../containers"
+import "core:fmt"
+import "core:strings"
+import si "vendor:stb/image"
 
 texture_system_config :: struct {
 	max_texture_count: u32,
@@ -9,8 +12,8 @@ texture_system_config :: struct {
 texture_system_state :: struct {
 	config:                   texture_system_config,
 	default_texture:          texture,
-	registered_textures:      [dynamic]texture,
-	registered_texture_table: c.hashtable(texture_reference),
+	registered_textures:      ^texture,
+	registered_texture_table: c.hashtable(texture_reference, MAX_TEXTURE_COUNT),
 }
 
 texture_reference :: struct {
@@ -19,7 +22,7 @@ texture_reference :: struct {
 	auto_release:    bool,
 }
 
-DEFAULT_TEXTURE_NAME :: "default"
+MAX_TEXTURE_COUNT :: 65536
 
 @(private = "file")
 state_ptr: ^texture_system_state
