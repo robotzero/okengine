@@ -153,7 +153,6 @@ application_create :: proc(
 		return false
 	}
 
-
 	if ok := app_state.game_inst.initialize(app_state.game_inst); !ok {
 		return false
 	}

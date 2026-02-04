@@ -353,7 +353,7 @@ vulkan_material_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_m
 
 vulkan_material_shader_update_object :: proc(
 	v_context: ^vulkan_context,
-	shader: ^vulkan_object_shader,
+	shader: ^vulkan_material_shader,
 	data: geometry_render_data,
 ) {
 	image_index := int(v_context.image_index)
@@ -588,7 +588,7 @@ vulkan_material_shader_acquire_resources :: proc(
 
 vulkan_material_shader_release_resources :: proc(
 	v_context: ^vulkan_context,
-	shader: ^vulkan_object_shader,
+	shader: ^vulkan_material_shader,
 	object_id: u32,
 ) {
 	object_state := &shader.object_states[cast(int)object_id]
