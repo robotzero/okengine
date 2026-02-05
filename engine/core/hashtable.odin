@@ -1,15 +1,15 @@
-package containers
+package core
 
 import "core:fmt"
 import "core:hash"
 
 // @TODO privacy to file
-hashtable :: struct($T: typeid, $size: u32) {
+hashtable :: struct {
 	element_size:    u64,
 	element_count:   u32,
 	is_pointer_type: bool,
-	memory:          [size]T,
-	memory_ptr:      [size]^T,
+	memory:          []texture_reference,
+	memory_ptr:      []^texture_reference,
 }
 
 //@TODO configurable hash alghorithm
@@ -20,14 +20,13 @@ hash_name :: proc(name: string, element_count: u32) -> u64 {
 	return hash
 }
 
-hashtabe_create :: proc(
+hashtable_create :: proc(
 	element_size: u64,
 	element_count: u32,
 	is_pointer_type: bool,
 	out_hashtable: ^hashtable,
-	$T: typeid,
-	memory: [65536]T,
-	memory_ptr: [65536]^T,
+	memory: []texture_reference,
+	memory_ptr: []^texture_reference,
 ) {
 	if out_hashtable == nil {
 		fmt.println("ERROR hashtable create failed. No hashtable provided")
@@ -39,9 +38,9 @@ hashtabe_create :: proc(
 	out_hashtable.element_count = element_count
 	out_hashtable.element_size = element_size
 	if is_pointer_type {
-		out_hashtable.memory_ptr = memory
+		out_hashtable.memory_ptr = memory_ptr
 	} else {
-		out_hashtable.memory = memory_ptr
+		out_hashtable.memory = memory
 	}
 
 	out_hashtable.is_pointer_type = is_pointer_type
@@ -49,13 +48,13 @@ hashtabe_create :: proc(
 	// TODO kzeromemory
 }
 
-hashtable_destroy :: proc(table: ^hashtable) {
+hashtable_destroy :: proc(table: ^hashtable, allocator := context.allocator) {
 	if table != nil {
 		table.element_count = 0
 		table.element_size = 0
 		table.is_pointer_type = false
 		// @TODO check if this deletes stuff or just zeros it and leave the contents hanging
-		clear(&table.memory)
+		delete_slice(table.memory)
 		for key in table.memory {
 			// free(table.memory[key])
 		}
@@ -64,8 +63,8 @@ hashtable_destroy :: proc(table: ^hashtable) {
 }
 
 //@TODO use conditional parapoly for $T, so that only specific types can be set in hashtable
-hashtable_set :: proc(table: ^hashtable, name: string, value: $T) -> bool {
-	if table == nil || name == "" || value == nil {
+hashtable_set :: proc(table: ^hashtable, name: string, value: texture_reference) -> bool {
+	if table == nil || name == "" {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return false
 	}
@@ -83,24 +82,25 @@ hashtable_set :: proc(table: ^hashtable, name: string, value: $T) -> bool {
 hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid, value: ^T) -> bool {
 	if table == nil || name == "" || value == nil {
 		fmt.println("ERROR hashtable set requires table name and value")
-		return nil, false
+		return false
 	}
 
 	if table.is_pointer_type {
 		fmt.println("ERROR aaa")
-		return nil, false
+		return false
 	}
 
-	hash_name(name, table.element_count)
-	elem, ok := table.memory[hash]
-	if ok {
-		value^ = elem
-	}
+	hash := hash_name(name, table.element_count)
+	elem := table.memory[hash]
+	value^ = elem
+	// if ok {
+	// 	value^ = elem
+	// }
 	return true
 }
 
 hashtable_fill :: proc(table: ^hashtable, $T: typeid, value: T) -> bool {
-	if table == nil || value == nil {
+	if table == nil {
 		fmt.println("hashtable fill aaa")
 		return false
 	}
@@ -110,8 +110,8 @@ hashtable_fill :: proc(table: ^hashtable, $T: typeid, value: T) -> bool {
 		return false
 	}
 
-	for i := 0; i < table.element_count; i += 1 {
-		table.memory[i];i = value
+	for i: u32 = 0; i < table.element_count; i += 1 {
+		table.memory[i] = value
 	}
 	return true
 }

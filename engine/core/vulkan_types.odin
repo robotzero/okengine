@@ -84,7 +84,7 @@ vulkan_context :: struct {
 	image_index:                      u32,
 	current_frame:                    u32,
 	recreating_swapchain:             bool,
-	object_shader:                    vulkan_material_shader,
+	material_shader:                  vulkan_material_shader,
 	find_memory_index_proc:           find_memory_index,
 	geometry_vertex_offset:           u64,
 	geometry_index_offset:            u64,

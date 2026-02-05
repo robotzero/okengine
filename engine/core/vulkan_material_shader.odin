@@ -11,8 +11,6 @@ vulkan_material_shader_create :: proc(
 	v_context: ^vulkan_context,
 	out_shader: ^vulkan_material_shader,
 ) -> bool {
-
-	out_shader.default_diffuse = default_diffuse
 	// Shader module init per stage.
 	stage_type_strs: [OBJECT_SHADER_STAGE_COUNT]string = {"vert", "frag"}
 	stage_types: [OBJECT_SHADER_STAGE_COUNT]vk.ShaderStageFlags = {{.VERTEX}, {.FRAGMENT}}
@@ -607,8 +605,8 @@ vulkan_material_shader_release_resources :: proc(
 
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
 		for j: u32 = 0; j < 3; j += 1 {
-			object_state.descriptor_state[i].generations[j] = INVALID_ID
-			object_state.descriptor_state[i].ids[j] = INVALID_ID
+			object_state.descriptor_states[i].generations[j] = INVALID_ID
+			object_state.descriptor_states[i].ids[j] = INVALID_ID
 		}
 		// delete(object_state.descriptor_states[i].generations)
 		// object_state.descriptor_states[i].generations = nil

@@ -139,7 +139,7 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 		data: geometry_render_data = {}
 		data.object_id = 0
 		data.model = model
-		if !state_ptr.test_diffuse == nil {
+		if state_ptr.test_diffuse == nil {
 			state_ptr.test_diffuse = texture_system_get_default_texture()
 		}
 		data.textures[0] = state_ptr.test_diffuse

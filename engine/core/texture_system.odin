@@ -1,6 +1,5 @@
 package core
 
-import c "../containers"
 import "core:fmt"
 import "core:mem"
 import "core:strings"
@@ -14,7 +13,7 @@ texture_system_state :: struct {
 	config:                   texture_system_config,
 	default_texture:          texture,
 	registered_textures:      [dynamic]texture,
-	registered_texture_table: ^c.hashtable(texture_reference, MAX_TEXTURE_COUNT),
+	registered_texture_table: ^hashtable,
 }
 
 texture_reference :: struct {
@@ -23,14 +22,15 @@ texture_reference :: struct {
 	auto_release:    bool,
 }
 
+DEFAULT_TEXTURE_NAME :: "default"
 MAX_TEXTURE_COUNT :: 65536
 
 @(private = "file")
 state_ptr: ^texture_system_state
 
-create_default_textures :: proc(state: ^texture_system_state) -> b8
-destroy_default_textures :: proc(state: ^texture_system_state)
-load_texture :: proc(texture_name: string, t: ^texture) -> b8
+// create_default_textures :: proc(state: ^texture_system_state) -> b8
+// destroy_default_textures :: proc(state: ^texture_system_state)
+// load_texture :: proc(texture_name: string, t: ^texture) -> b8
 
 texture_system_initialize :: proc(
 	state: ^texture_system_state,
@@ -54,19 +54,19 @@ texture_system_initialize :: proc(
 
 	state_ptr = state
 	state_ptr.config = config
-	state_ptr.registered_textures = make([dynamic]texture, sys_allocator)
+	state_ptr.registered_textures = make_dynamic_array([dynamic]texture, sys_allocator^)
 
-	hashtable_var := c.hashtable(texture_reference, MAX_TEXTURE_COUNT)
-	hashtable_memory := [MAX_TEXTURE_COUNT]texture_reference{}
+	hashtable_var := hashtable{}
+	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, sys_allocator^)
 
 	// Create a hashtable for texture lookups.
-	c.hashtable_create(
+	hashtable_create(
 		size_of(texture_reference),
 		config.max_texture_count,
 		false,
 		&hashtable_var,
-		texture_reference,
 		hashtable_memory,
+		nil,
 	)
 
 	// Fill the hashtable with invalid references to use as a default.
@@ -75,7 +75,7 @@ texture_system_initialize :: proc(
 	invalid_ref.handle = INVALID_ID // Primary reason for needing default values.
 	invalid_ref.reference_count = 0
 	state_ptr.registered_texture_table = &hashtable_var
-	c.hashtable_fill(&state_ptr.registered_texture_table, texture_reference, &invalid_ref)
+	hashtable_fill(state_ptr.registered_texture_table, texture_reference, invalid_ref)
 
 	// Invalidate all textures in the array.
 	for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
@@ -105,7 +105,7 @@ texture_system_shutdown :: proc() {
 	}
 }
 
-texture_system_acquire :: proc(name: string, auto_release: b8) -> ^texture {
+texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
 	// Return default texture, but warn about it since this should be returned via get_default_texture();
 	if strings.equal_fold(name, DEFAULT_TEXTURE_NAME) {
 		log_warning(
@@ -115,7 +115,8 @@ texture_system_acquire :: proc(name: string, auto_release: b8) -> ^texture {
 	}
 
 	ref: texture_reference
-	if state_ptr != nil && c.hashtable_get(&state_ptr.registered_texture_table, name, &ref) {
+	if state_ptr != nil &&
+	   hashtable_get(state_ptr.registered_texture_table, name, texture_reference, &ref) {
 		// This can only be changed the first time a texture is loaded.
 		if ref.reference_count == 0 {
 			ref.auto_release = auto_release
@@ -163,7 +164,7 @@ texture_system_acquire :: proc(name: string, auto_release: b8) -> ^texture {
 		}
 
 		// Update the entry.
-		hashtable_set(&state_ptr.registered_texture_table, name, &ref)
+		hashtable_set(state_ptr.registered_texture_table, name, ref)
 		return &state_ptr.registered_textures[ref.handle]
 	}
 
@@ -181,7 +182,8 @@ texture_system_release :: proc(name: string) {
 		return
 	}
 	ref: texture_reference
-	if state_ptr != nil && c.hashtable_get(&state_ptr.registered_texture_table, name, &ref) {
+	if state_ptr != nil &&
+	   hashtable_get(state_ptr.registered_texture_table, name, texture_reference, &ref) {
 		if ref.reference_count == 0 {
 			log_warning("Tried to release non-existent texture: '%s'", name)
 			return
@@ -215,7 +217,7 @@ texture_system_release :: proc(name: string) {
 		}
 
 		// Update the entry.
-		c.hashtable_set(&state_ptr.registered_texture_table, name, &ref)
+		hashtable_set(state_ptr.registered_texture_table, name, ref)
 	} else {
 		log_error("texture_system2_release failed to release texture '%s'.", name)
 	}
@@ -236,11 +238,11 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
 	// This is done in code to eliminate asset dependencies.
 	log_debug("Creating default texture...")
-	tex_dimension: u32 = 256
-	channels: u32 = 4
-	pixel_count: u32 = tex_dimension * tex_dimension
+	tex_dimension :: 256
+	channels :: 4
+	pixel_count :: tex_dimension * tex_dimension
 	pixels: [pixel_count * channels]u8
-	kset_memory(&pixels[0], 255, int(size_of(pixels)))
+	// kset_memory(&pixels[0], 255, int(size_of(pixels)))
 
 	// Each pixel.
 	for row: u32 = 0; row < tex_dimension; row += 1 {
@@ -263,11 +265,10 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	pixels_slice := pixels[:]
 	renderer_create_texture(
 		DEFAULT_TEXTURE_NAME,
-		false,
 		cast(i32)tex_dimension,
 		cast(i32)tex_dimension,
 		4,
-		&pixels_slice,
+		pixels_slice,
 		false,
 		&state.default_texture,
 	)
@@ -289,20 +290,15 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 	si.set_flip_vertically_on_load(1)
 	full_file_path := fmt.aprintf("assets/textures/%s.%s", texture_name, "png")
 	defer delete(full_file_path)
-
+	si_path := strings.clone_to_cstring(full_file_path)
+	defer delete(si_path)
 	// Use a temporary texture to load into.
 	temp_texture: texture
 
 	width_i32: i32
 	height_i32: i32
 	channels_i32: i32
-	data := si.load(
-		raw_data(full_file_path),
-		&width_i32,
-		&height_i32,
-		&channels_i32,
-		required_channel_count,
-	)
+	data := si.load(si_path, &width_i32, &height_i32, &channels_i32, required_channel_count)
 
 	temp_texture.width = u32(width_i32)
 	temp_texture.height = u32(height_i32)
@@ -317,7 +313,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		data_slice := ([^]u8)(data)[:int(total_size)]
 
 		// Check for transparency
-		has_transparency: b32 = false
+		has_transparency := false
 		for i: u64 = 0; i < total_size; i += u64(required_channel_count) {
 			a := data_slice[i + 3]
 			if a < 255 {
@@ -337,12 +333,11 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		// Acquire internal texture resources and upload to GPU.
 		pixels_slice := data_slice
 		renderer_create_texture(
-			cstring(texture_name),
-			true,
+			texture_name,
 			i32(temp_texture.width),
 			i32(temp_texture.height),
 			i32(temp_texture.channel_count),
-			&pixels_slice,
+			pixels_slice,
 			has_transparency,
 			&temp_texture,
 		)

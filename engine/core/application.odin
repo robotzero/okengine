@@ -148,7 +148,7 @@ application_create :: proc(
 
 	app_state.texture_system_state = tstate
 
-	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config) {
+	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc) {
 		log_fatal("Failed to initialize texture system. Application cannot continue.")
 		return false
 	}
