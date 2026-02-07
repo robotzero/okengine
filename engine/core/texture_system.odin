@@ -12,7 +12,7 @@ texture_system_config :: struct {
 texture_system_state :: struct {
 	config:                   texture_system_config,
 	default_texture:          texture,
-	registered_textures:      [dynamic]texture,
+	registered_textures:      []texture,
 	registered_texture_table: ^hashtable,
 }
 
@@ -27,10 +27,6 @@ MAX_TEXTURE_COUNT :: 65536
 
 @(private = "file")
 state_ptr: ^texture_system_state
-
-// create_default_textures :: proc(state: ^texture_system_state) -> b8
-// destroy_default_textures :: proc(state: ^texture_system_state)
-// load_texture :: proc(texture_name: string, t: ^texture) -> b8
 
 texture_system_initialize :: proc(
 	state: ^texture_system_state,
@@ -54,9 +50,11 @@ texture_system_initialize :: proc(
 
 	state_ptr = state
 	state_ptr.config = config
-	state_ptr.registered_textures = make_dynamic_array([dynamic]texture, sys_allocator^)
+	//@MEMORY use containers so that we can tag the memory
+	state_ptr.registered_textures = make([]texture, MAX_TEXTURE_COUNT, sys_allocator^)
 
-	hashtable_var := hashtable{}
+	//@MEMORY use containers to that we can tag memory
+	hashtable_var := new(hashtable, sys_allocator^)
 	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, sys_allocator^)
 
 	// Create a hashtable for texture lookups.
@@ -64,7 +62,7 @@ texture_system_initialize :: proc(
 		size_of(texture_reference),
 		config.max_texture_count,
 		false,
-		&hashtable_var,
+		hashtable_var,
 		hashtable_memory,
 		nil,
 	)
@@ -74,7 +72,7 @@ texture_system_initialize :: proc(
 	invalid_ref.auto_release = false
 	invalid_ref.handle = INVALID_ID // Primary reason for needing default values.
 	invalid_ref.reference_count = 0
-	state_ptr.registered_texture_table = &hashtable_var
+	state_ptr.registered_texture_table = hashtable_var
 	hashtable_fill(state_ptr.registered_texture_table, texture_reference, invalid_ref)
 
 	// Invalidate all textures in the array.

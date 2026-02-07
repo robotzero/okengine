@@ -551,7 +551,9 @@ vulkan_material_shader_acquire_resources :: proc(
 	image_count := int(v_context.swapchain.image_count)
 	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count)
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+		//@MEMORY
 		object_state.descriptor_states[i].generations = make([]u32, image_count)
+		object_state.descriptor_states[i].ids = make([]u32, image_count)
 		for j: int = 0; j < image_count; j += 1 {
 			object_state.descriptor_states[i].generations[j] = INVALID_ID
 			object_state.descriptor_states[i].ids[j] = INVALID_ID

@@ -37,7 +37,7 @@ when ODIN_DEBUG == true {
 vulkan_descriptor_state :: struct {
 	// Per swapchain image.
 	generations: []u32,
-	ids:         [3]u32,
+	ids:         []u32,
 }
 
 vulkan_object_shader_object_state :: struct {
