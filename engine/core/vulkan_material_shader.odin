@@ -239,7 +239,7 @@ vulkan_material_shader_create :: proc(
 		v_context,
 		size_of(object_uniform_object),
 		{.TRANSFER_DST, .UNIFORM_BUFFER},
-		{.DEVICE_LOCAL, .HOST_VISIBLE, .HOST_COHERENT},
+		{.HOST_VISIBLE, .HOST_COHERENT},
 		true,
 		&out_shader.object_uniform_buffer,
 	) {
