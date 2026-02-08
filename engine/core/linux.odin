@@ -293,8 +293,8 @@ platform_allocate :: proc(
 	if err != nil {
 		log.fatal(err)
 	}
-	log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
-	log.log(log.Level.Info, "size of %d", size_of(obj))
+	// log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
+	// log.log(log.Level.Info, "size of %d", size_of(obj))
 	return obj, err
 }
 
