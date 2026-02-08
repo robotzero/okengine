@@ -541,6 +541,7 @@ vulkan_material_shader_acquire_resources :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_material_shader,
 	out_object_id: ^u32,
+	allocator := context.allocator,
 ) -> b8 {
 	// TODO: free list
 	out_object_id^ = shader.object_uniform_buffer_index
@@ -549,11 +550,11 @@ vulkan_material_shader_acquire_resources :: proc(
 	object_id := out_object_id^
 	object_state := &shader.object_states[cast(int)object_id]
 	image_count := int(v_context.swapchain.image_count)
-	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count)
+	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count, allocator)
 	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
-		//@MEMORY
-		object_state.descriptor_states[i].generations = make([]u32, image_count)
-		object_state.descriptor_states[i].ids = make([]u32, image_count)
+		//@MEMORY use containers with tagged memory
+		object_state.descriptor_states[i].generations = make([]u32, image_count, allocator)
+		object_state.descriptor_states[i].ids = make([]u32, image_count, allocator)
 		for j: int = 0; j < image_count; j += 1 {
 			object_state.descriptor_states[i].generations[j] = INVALID_ID
 			object_state.descriptor_states[i].ids[j] = INVALID_ID

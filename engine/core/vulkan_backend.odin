@@ -42,6 +42,7 @@ vulkan_debug_callback :: proc "stdcall" (
 vulkan_renderer_backend_initialize :: proc(
 	backend: ^renderer_backend,
 	application_name: string,
+	allocator := context.allocator,
 ) -> bool {
 	vulkan_proc_addr := platform_initialize_vulkan()
 	vk.load_proc_addresses_global(vulkan_proc_addr)
@@ -371,6 +372,7 @@ vulkan_renderer_backend_initialize :: proc(
 		&v_context,
 		&v_context.material_shader,
 		&object_id,
+		allocator,
 	) {
 		log_error("Failed to acquire shader resources.")
 		return false

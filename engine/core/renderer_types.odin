@@ -11,6 +11,7 @@ renderer_backend_type :: enum {
 renderer_initialize_proc :: #type proc(
 	backend: ^renderer_backend,
 	application_name: string,
+	allocator := context.allocator,
 ) -> bool
 renderer_shutdown_proc :: #type proc(backend: ^renderer_backend)
 renderer_resized_proc :: #type proc(backend: ^renderer_backend, width: u16, height: u16)

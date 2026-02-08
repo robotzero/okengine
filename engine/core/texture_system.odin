@@ -31,7 +31,7 @@ state_ptr: ^texture_system_state
 texture_system_initialize :: proc(
 	state: ^texture_system_state,
 	config: texture_system_config,
-	sys_allocator: ^mem.Allocator,
+	allocator := context.allocator,
 ) -> b8 {
 	if config.max_texture_count == 0 {
 		log_fatal("texture_system_initialize - config.max_texture_count must be > 0.")
@@ -51,11 +51,11 @@ texture_system_initialize :: proc(
 	state_ptr = state
 	state_ptr.config = config
 	//@MEMORY use containers so that we can tag the memory
-	state_ptr.registered_textures = make([]texture, MAX_TEXTURE_COUNT, sys_allocator^)
+	state_ptr.registered_textures = make([]texture, MAX_TEXTURE_COUNT, allocator)
 
 	//@MEMORY use containers to that we can tag memory
-	hashtable_var := new(hashtable, sys_allocator^)
-	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, sys_allocator^)
+	hashtable_var := new(hashtable, allocator)
+	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, allocator)
 
 	// Create a hashtable for texture lookups.
 	hashtable_create(
@@ -98,6 +98,7 @@ texture_system_shutdown :: proc() {
 		}
 
 		destroy_default_textures(state_ptr)
+		// free(state_ptr.registered_texture_table)
 
 		state_ptr = nil
 	}

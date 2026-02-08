@@ -28,6 +28,7 @@ STB_IMAGE_IMPLEMENTATION :: 1
 renderer_system_initialize :: proc(
 	application_name: string,
 	state: ^renderer_system_state,
+	allocator := context.allocator,
 ) -> bool {
 	state_ptr = state
 	event_register(cast(u16)system_event_code.EVENT_CODE_DEBUG0, state_ptr, event_on_debug_event)
@@ -36,7 +37,7 @@ renderer_system_initialize :: proc(
 	renderer_backend_create(.RENDERER_BACKEND_TYPE_VULKAN, &state_ptr.backend)
 	state_ptr.backend.frame_number = 0
 
-	if !state_ptr.backend.initialize(&state_ptr.backend, application_name) {
+	if !state_ptr.backend.initialize(&state_ptr.backend, application_name, allocator) {
 		log_fatal("Renderer backend failed to initialize. Shutting down")
 		return false
 	}
@@ -51,47 +52,6 @@ renderer_system_initialize :: proc(
 	)
 	state_ptr.view = okmath.mat4_translation(okmath.vec3{0, 0, -30.0})
 	state_ptr.view = okmath.mat4_inverse(state_ptr.view)
-	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
-	// This is done in code to eliminate asset dependencies.
-	// log_debug("Creating default texture...")
-	// tex_dimension :: 256
-	// channels :: 4
-	// pixel_count :: tex_dimension * tex_dimension
-	// pixels: [pixel_count * channels]u8 = {}
-	// kset_memory(&pixels, 255, int(size_of(pixels)))
-
-	// // Each pixel.
-	// for row: u32 = 0; row < tex_dimension; row += 1 {
-	// 	for col: u32 = 0; col < tex_dimension; col += 1 {
-	// 		index := row * tex_dimension + col
-	// 		index_bpp := index * channels
-	// 		if (row % 2) != 0 {
-	// 			if (col % 2) != 0 {
-	// 				pixels[index_bpp + 0] = 0
-	// 				pixels[index_bpp + 1] = 0
-	// 			}
-	// 		} else {
-	// 			if (col % 2) == 0 {
-	// 				pixels[index_bpp + 0] = 0
-	// 				pixels[index_bpp + 1] = 0
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// pixels_slice := pixels[:]
-	// renderer_create_texture(
-	// 	"default",
-	// 	false,
-	// 	cast(i32)tex_dimension,
-	// 	cast(i32)tex_dimension,
-	// 	cast(i32)channels,
-	// 	pixels_slice,
-	// 	false,
-	// 	&state_ptr.default_texture,
-	// )
-
-	// state_ptr.default_texture.generation = INVALID_ID
-	// create_texture(&state_ptr.test_diffuse)
 
 	return true
 }
@@ -197,100 +157,6 @@ renderer_create_texture :: proc(
 renderer_destroy_texture :: proc(texture: ^texture) {
 	state_ptr.backend.destroy_texture(texture)
 }
-
-// create_texture :: proc(t: ^texture) {
-// 	kzero_memory(t, size_of(texture))
-// 	t.generation = INVALID_ID
-// }
-
-// load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
-// 	// TODO: Should be able to be located anywhere.
-// 	required_channel_count: i32 = 4
-// 	si.set_flip_vertically_on_load(1)
-// 	full_file_path := fmt.aprintf("assets/textures/%s.%s", texture_name, "png")
-// 	defer delete(full_file_path)
-// 	si_path := strings.clone_to_cstring(full_file_path)
-// 	defer delete(si_path)
-
-// 	// Use a temporary texture to load into.
-// 	temp_texture: texture
-
-// 	width_i32: i32
-// 	height_i32: i32
-// 	channels_i32: i32
-// 	data := si.load(si_path, &width_i32, &height_i32, &channels_i32, required_channel_count)
-
-// 	temp_texture.width = u32(width_i32)
-// 	temp_texture.height = u32(height_i32)
-// 	temp_texture.channel_count = u8(required_channel_count)
-
-// 	if data != nil {
-// 		current_generation := t.generation
-// 		t.generation = INVALID_ID
-
-// 		total_size: u64 =
-// 			u64(temp_texture.width) * u64(temp_texture.height) * u64(required_channel_count)
-// 		data_slice := ([^]u8)(data)[:int(total_size)]
-
-// 		// Check for transparency
-// 		has_transparency := false
-// 		for i: u64 = 0; i < total_size; i += u64(required_channel_count) {
-// 			a := data_slice[i + 3]
-// 			if a < 255 {
-// 				has_transparency = true
-// 				break
-// 			}
-// 		}
-
-// 		if si.failure_reason() != nil {
-// 			log_warning(
-// 				"load_texture() failed to load file '%s': %s",
-// 				full_file_path,
-// 				si.failure_reason(),
-// 			)
-// 		}
-
-// 		// Acquire internal texture resources and upload to GPU.
-// 		pixels_slice := data_slice
-// 		renderer_create_texture(
-// 			texture_name,
-// 			true,
-// 			i32(temp_texture.width),
-// 			i32(temp_texture.height),
-// 			i32(temp_texture.channel_count),
-// 			pixels_slice,
-// 			has_transparency,
-// 			&temp_texture,
-// 		)
-
-// 		// Take a copy of the old texture.
-// 		old := t^
-
-// 		// Assign the temp texture to the pointer.
-// 		t^ = temp_texture
-
-// 		// Destroy the old texture.
-// 		renderer_destroy_texture(&old)
-// 		if current_generation == INVALID_ID {
-// 			t.generation = 0
-// 		} else {
-// 			t.generation = current_generation + 1
-// 		}
-
-// 		// Clean up data.
-// 		si.image_free(data)
-// 		return true
-// 	} else {
-// 		if si.failure_reason() != nil {
-// 			log_warning(
-// 				"load_texture() failed to load file '%s': %s",
-// 				full_file_path,
-// 				si.failure_reason(),
-// 			)
-// 		}
-// 		return false
-// 	}
-// }
 
 event_on_debug_event :: proc(
 	code: u16,

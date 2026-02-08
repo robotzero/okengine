@@ -132,7 +132,7 @@ application_create :: proc(
 		sys_alloc,
 	)
 	app_state.renderer_system_state = r_state
-	if ok := renderer_system_initialize(game_inst.app_config.name, r_state); !ok {
+	if ok := renderer_system_initialize(game_inst.app_config.name, r_state, sys_alloc^); !ok {
 		log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}
@@ -148,7 +148,7 @@ application_create :: proc(
 
 	app_state.texture_system_state = tstate
 
-	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc) {
+	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc^) {
 		log_fatal("Failed to initialize texture system. Application cannot continue.")
 		return false
 	}
@@ -260,6 +260,7 @@ application_run :: proc() -> bool {
 	defer memory_system_shutdown(app_state.memory_system_state)
 	defer platform_system_shutdown(app_state.platform_system_state)
 	defer renderer_system_shutdown(app_state.renderer_system_state)
+	defer texture_system_shutdown()
 	defer input_system_shutdown(app_state.input_system_state)
 	defer event_system_shutdown(app_state.event_system_state)
 	defer event_unregister(

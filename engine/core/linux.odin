@@ -288,13 +288,13 @@ platform_allocate :: proc(
 	^T,
 	mem.Allocator_Error,
 ) {
-	//platform_console_write(log.Level.Debug, "OBJECT NEW %s", location)
+	// platform_console_write(log.Level.Debug, "OBJECT NEW %s", location)
 	obj, err := new(T, allocator)
 	if err != nil {
 		log.fatal(err)
 	}
-	// log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
-	// log.log(log.Level.Info, "size of %d", size_of(obj))
+	log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
+	log.log(log.Level.Info, "size of %d", size_of(obj))
 	return obj, err
 }
 
