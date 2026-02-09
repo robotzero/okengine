@@ -24,6 +24,7 @@ application_state :: struct {
 	event_system_state:                ^event_system_state,
 	renderer_system_state:             ^renderer_system_state,
 	texture_system_state:              ^texture_system_state,
+	material_system_state:             ^material_system_state,
 }
 
 application_config :: struct {
