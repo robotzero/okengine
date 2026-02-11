@@ -9,12 +9,12 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend:      renderer_backend,
-	projection:   okmath.mat4,
-	view:         okmath.mat4,
-	near_clip:    f32,
-	far_clip:     f32,
-	test_diffuse: ^texture,
+	backend:       renderer_backend,
+	projection:    okmath.mat4,
+	view:          okmath.mat4,
+	near_clip:     f32,
+	far_clip:      f32,
+	test_material: ^material,
 }
 
 @(private = "file")
@@ -97,12 +97,23 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 		)
 		model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
 		data: geometry_render_data = {}
-		data.object_id = 0
 		data.model = model
-		if state_ptr.test_diffuse == nil {
-			state_ptr.test_diffuse = texture_system_get_default_texture()
+		if state_ptr.test_material == nil {
+			state_ptr.test_material = material_system_acquire("test_material")
+			if state_ptr.test_material == nil {
+				log_warn("Automatic material load failed, failing back to manual default material")
+				config: material_config = {}
+				config.name = string_ncopy("test_material", MATERIAL_NAME_MAX_LENGTH)
+				config.auto_release = false
+				config.diffuse_color = okmath.vec4_one()
+				config.diffuse_map_name = string_ncopy(
+					DEFAULT_TEXTURE_NAME,
+					TEXTURE_NAME_MAX_LENGTH,
+				)
+				state_ptr.test_material = material_system_acquire_from_config(config)
+			}
 		}
-		data.textures[0] = state_ptr.test_diffuse
+		data.material = state_ptr.test_material
 		state_ptr.backend.update_object(data)
 		// End the frame. If this fails, it is likely unrecoverable.
 		result: bool = renderer_end_frame(packet.delta_time)
@@ -134,28 +145,20 @@ renderer_set_view :: proc(view: okmath.mat4) {
 	state_ptr.view = view
 }
 
-renderer_create_texture :: proc(
-	name: string,
-	width: i32,
-	height: i32,
-	channel_count: i32,
-	pixels: []u8,
-	has_transparency: bool,
-	out_texture: ^texture,
-) {
-	state_ptr.backend.create_texture(
-		name,
-		width,
-		height,
-		channel_count,
-		pixels,
-		has_transparency,
-		out_texture,
-	)
+renderer_create_texture :: proc(pixels: []u8, out_texture: ^texture) {
+	state_ptr.backend.create_texture(pixels, out_texture)
 }
 
 renderer_destroy_texture :: proc(texture: ^texture) {
 	state_ptr.backend.destroy_texture(texture)
+}
+
+renderer_create_material :: proc(material: ^material) {
+	state_ptr.backend.create_material(material)
+}
+
+renderer_destroy_material :: proc(material: ^material) {
+	state_ptr.backend.destory_material(material)
 }
 
 event_on_debug_event :: proc(
@@ -173,8 +176,12 @@ event_on_debug_event :: proc(
 	choice %= 3
 
 	// Acquire the new texture
-	state_ptr.test_diffuse = texture_system_acquire(names[choice], true)
+	state_ptr.test_material.diffuse_map.texture = texture_system_acquire(names[choice], true)
 
+	if state_ptr.test_material.diffuse_map.texture == nil {
+		log_info("event_on_debug_event no texture! using default")
+		state_ptr.test_material.diffuse_map.texture = texture_system_get_default_texture()
+	}
 	// Release the old texture
 	texture_system_release(old_name)
 	return true
