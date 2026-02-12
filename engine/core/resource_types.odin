@@ -1,5 +1,26 @@
 package core
 
+import "../okmath"
+
+MATERIAL_NAME_MAX_LENGTH :: 256
+texture_use :: struct {
+	TEXTURE_USE_UNKNOWN:     0x00,
+	TEXTURE_USE_MAP_DIFFUSE: 0x01,
+}
+
+texture_map :: struct {
+	texture: ^texture,
+	use:     texture_use,
+}
+
+material :: struct {
+	id:             u32,
+	generation:     u32,
+	internal_id:    u32,
+	name:           string,
+	diffuse_colour: okmath.vec4,
+	diffuse_map:    texture_map,
+}
 texture :: struct {
 	id:               u32,
 	width:            u32,
@@ -8,5 +29,6 @@ texture :: struct {
 	has_transparency: bool,
 	generation:       u32,
 	internal_data:    ^vulkan_texture_data,
+	name:             string,
 }
 

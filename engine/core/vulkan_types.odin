@@ -2,9 +2,11 @@ package core
 
 import vk "vendor:vulkan"
 
-OBJECT_SHADER_STAGE_COUNT :: 2
-VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT :: 2
-VULKAN_OBJECT_MAX_OBJECT_COUNT :: 1024
+MATERIAL_SHADER_STAGE_COUNT :: 2
+VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT :: 2
+VULKAN_MATERIAL_MAX_OBJECT_COUNT :: 1024
+VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 1
+VULKAN_MAX_MATERIAL_COUNT :: 1024
 INVALID_ID :: 4294967295
 
 vulkan_command_buffer_state :: enum {
@@ -40,12 +42,12 @@ vulkan_descriptor_state :: struct {
 	ids:         []u32,
 }
 
-vulkan_object_shader_object_state :: struct {
+vulkan_material_shader_object_state :: struct {
 	// Per swapchain image
 	descriptor_sets:   []vk.DescriptorSet,
 
 	// per descriptor
-	descriptor_states: [VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
+	descriptor_states: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
 }
 
 vulkan_context :: struct {
@@ -155,7 +157,7 @@ vulkan_pipeline :: struct {
 
 vulkan_material_shader :: struct {
 	pipeline:                     vulkan_pipeline,
-	stages:                       [OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
+	stages:                       [MATERIAL_SHADER_STAGE_COUNT]vulkan_shader_stage,
 	global_descriptor_pool:       vk.DescriptorPool,
 	global_descriptor_set_layout: vk.DescriptorSetLayout,
 	// One descriptor set per swapchain image
@@ -166,7 +168,8 @@ vulkan_material_shader :: struct {
 	object_descriptor_set_layout: vk.DescriptorSetLayout,
 	object_uniform_buffer:        vulkan_buffer,
 	object_uniform_buffer_index:  u32,
-	object_states:                [VULKAN_OBJECT_MAX_OBJECT_COUNT]vulkan_object_shader_object_state,
+	texture_use:                  [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]sampler_uses,
+	instance_states:              [VULKAN_MATERIAL_MAX_OBJECT_COUNT]vulkan_material_shader_instance_state,
 }
 
 vulkan_buffer :: struct {

@@ -423,7 +423,14 @@ vulkan_material_shader_update_object :: proc(
 	sampler_count: u32 = 1
 	image_infos: [1]vk.DescriptorImageInfo
 	for sampler_index: u32 = 0; sampler_index < sampler_count; sampler_index += 1 {
-		t := data.textures[sampler_index]
+		use := shader.sampler_uses[sampler_index]
+		t: ^texture
+		switch (use) {
+		case TEXTURE_MAP_DIFFUSE:
+			t = data.material.diffuse_map.texture
+			default: log_fatal("Unable to bind sampler to unknown use.")
+			return
+		}
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
 		descriptor_id := &object_state.descriptor_states[descriptor_index].ids[image_index]
 
@@ -544,18 +551,17 @@ vulkan_material_shader_update_global_state :: proc(
 vulkan_material_shader_acquire_resources :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_material_shader,
-	out_object_id: ^u32,
+	material: ^material,
 	allocator := context.allocator,
 ) -> b8 {
 	// TODO: free list
-	out_object_id^ = shader.object_uniform_buffer_index
+	material.internal_id = shader.object_uniform_buffer_index
 	shader.object_uniform_buffer_index += 1
 
-	object_id := out_object_id^
-	object_state := &shader.object_states[cast(int)object_id]
 	image_count := int(v_context.swapchain.image_count)
+	object_state := &shader.instance_states[material.internal_id]
 	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count, allocator)
-	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+	for i: u32 = 0; i < VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT; i += 1 {
 		//@MEMORY use containers with tagged memory
 		object_state.descriptor_states[i].generations = make([]u32, image_count, allocator)
 		object_state.descriptor_states[i].ids = make([]u32, image_count, allocator)
@@ -594,9 +600,9 @@ vulkan_material_shader_acquire_resources :: proc(
 vulkan_material_shader_release_resources :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_material_shader,
-	object_id: u32,
+	material: ^material,
 ) {
-	object_state := &shader.object_states[cast(int)object_id]
+	instance_state := &shader.instance_states[materia.internal_id]
 
 	image_count := u32(v_context.swapchain.image_count)
 	// Release object descriptor sets.
@@ -604,20 +610,21 @@ vulkan_material_shader_release_resources :: proc(
 		v_context.device.logical_device,
 		shader.object_descriptor_pool,
 		image_count,
-		&object_state.descriptor_sets[0],
+		&instance_state.descriptor_sets[0],
 	)
 	if result != vk.Result.SUCCESS {
 		log_error("Error freeing object shader descriptor sets!")
 	}
 
-	for i: u32 = 0; i < VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT; i += 1 {
+	for i: u32 = 0; i < VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT; i += 1 {
 		for j: u32 = 0; j < 3; j += 1 {
-			object_state.descriptor_states[i].generations[j] = INVALID_ID
-			object_state.descriptor_states[i].ids[j] = INVALID_ID
+			instance_state.descriptor_states[i].generations[j] = INVALID_ID
+			instance_state.descriptor_states[i].ids[j] = INVALID_ID
 		}
 		// delete(object_state.descriptor_states[i].generations)
 		// object_state.descriptor_states[i].generations = nil
 	}
+	materia.internal_id = INVALID_ID
 	// delete(object_state.descriptor_sets)
 	// object_state.descriptor_sets = nil
 }

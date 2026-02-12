@@ -367,17 +367,6 @@ vulkan_renderer_backend_initialize :: proc(
 		raw_data(indices[:]),
 	)
 
-	object_id: u32 = 0
-	if !vulkan_material_shader_acquire_resources(
-		&v_context,
-		&v_context.material_shader,
-		&object_id,
-		allocator,
-	) {
-		log_error("Failed to acquire shader resources.")
-		return false
-	}
-
 	log_info("Vulkan renderer initialized successfully.")
 
 	return true
@@ -957,26 +946,19 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
 }
 
-vulkan_renderer_create_texture :: proc(
-	name: string,
-	width: i32,
-	height: i32,
-	channel_count: i32,
-	pixels: []u8,
-	has_transparency: bool,
-	out_texture: ^texture,
-) {
-	out_texture.width = u32(width)
-	out_texture.height = u32(height)
-	out_texture.channel_count = u8(channel_count)
-	out_texture.generation = INVALID_ID
+vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
+	texture.width = u32(width)
+	texture.height = u32(height)
+	texture.channel_count = u8(channel_count)
+	texture.generation = INVALID_ID
 
 	// Internal data creation.
 	// TODO: Use an allocator for this.
 	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data)
 	// @TODO change rawptr to just ptr
-	out_texture.internal_data = data
+	texture.internal_data = data
 	image_size := u64(width * height * channel_count)
+	vk.DeviceSize := texture.width * texture.height * texture.channel_count
 
 	// NOTE: Assumes 8 bits per channel.
 	image_format := vk.Format.R8G8B8A8_UNORM
@@ -1002,8 +984,8 @@ vulkan_renderer_create_texture :: proc(
 	vulkan_image_create(
 		&v_context,
 		vk.ImageType.D2,
-		u32(width),
-		u32(height),
+		u32(texture.width),
+		u32(texture.height),
 		image_format,
 		vk.ImageTiling.OPTIMAL,
 		{
@@ -1082,8 +1064,7 @@ vulkan_renderer_create_texture :: proc(
 		return
 	}
 
-	out_texture.has_transparency = has_transparency
-	out_texture.generation += 1
+	texture.generation += 1
 
 }
 
@@ -1101,5 +1082,38 @@ vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
 
 	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE)
 	kzero_memory(texture, size_of(texture))
+}
+
+vulkan_renderer_create_material :: proc(material: ^material) -> bool {
+	if material != nil {
+		if !vulkan_material_shader_acquire_resources(
+			&v_context,
+			&v_context.material_shader,
+			material,
+		) {
+			log_error("Failed to aqcuire shader resources")
+			return false
+		}
+		log_debug("Material created")
+		return true
+	}
+	log_error("vulkan renderer create material called with nullptr. Creation failed.")
+	return false
+}
+
+vulkan_renderer_destroy_material :: proc(material: ^material) -> bool {
+	if material != nil {
+		if material.internal_id != INVALID_ID {
+			vulkan_material_shader_release_resources(
+				&v_context,
+				&v_context.material_shader,
+				material,
+			)
+		} else {
+			log_warn("material destroy invalid")
+		}
+	} else {
+		log_warn("material null ptr")
+	}
 }
 
