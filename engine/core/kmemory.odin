@@ -103,7 +103,13 @@ kallocate :: proc(
 	return obj
 }
 
-kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
+kfree :: proc(
+	object: ^$T,
+	size: u64,
+	tag: memory_tag,
+	allocator := context.allocator,
+	location := #caller_location,
+) {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
@@ -113,7 +119,7 @@ kfree :: proc(object: ^$T, size: u64, tag: memory_tag) {
 		memory_state_ptr.stats.tagged_allocations[tag] -= size
 	}
 
-	platform_free(object)
+	platform_free(object, location, allocator)
 }
 
 kzero_memory :: proc(block: rawptr, size: int) -> rawptr {
@@ -185,4 +191,3 @@ get_memory_usage_str :: proc() -> string {
 	}
 	return str
 }
-

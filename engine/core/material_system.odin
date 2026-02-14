@@ -349,7 +349,8 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 
 material_system_acquire :: proc(name: string) -> ^material {
 	config: material_config = {}
-	filepath := fmt.aprintf("bin/assets/materials/%s.%s", name, "kmt")
+	filepath := fmt.aprintf("assets/materials/%s.%s", name, "okmt")
+	defer delete(filepath)
 	if !material_config_load_from_file(filepath, &config) {
 		log_error("Failed to load material file")
 		return nil

@@ -956,7 +956,8 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 	// Internal data creation.
 	// TODO: Use an allocator for this.
-	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data)
+	texture_alloc := runtime.default_context().allocator
+	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data, texture_alloc)
 	// @TODO change rawptr to just ptr
 	texture.internal_data = data
 	temp_size := u32(texture.width) * u32(texture.height) * u32(texture.channel_count)
@@ -1061,7 +1062,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 		v_context.allocator,
 		&data.sampler,
 	)
-	if !vulkan_result_is_success(vk.Result.SUCCESS) {
+	if !vulkan_result_is_success(result) {
 		log_error("Error creating texture sampler: %s", vulkan_result_string(result, true))
 		return
 	}
@@ -1072,7 +1073,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 
 vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
-	data := cast(^vulkan_texture_data)texture.internal_data
+	data := texture.internal_data
 	if data == nil {
 		return
 	}
@@ -1082,8 +1083,10 @@ vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
 	vk.DestroySampler(v_context.device.logical_device, data.sampler, v_context.allocator)
 	data.sampler = 0
 
-	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE)
-	kzero_memory(texture, size_of(texture))
+	texture_alloc := runtime.default_context().allocator
+	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE, texture_alloc)
+	// Clear the full texture struct, not just pointer-sized bytes.
+	kzero_memory(texture, size_of(texture^))
 }
 
 vulkan_renderer_create_material :: proc(material: ^material) -> bool {
@@ -1118,4 +1121,3 @@ vulkan_renderer_destroy_material :: proc(material: ^material) {
 		log_warning("material null ptr")
 	}
 }
-

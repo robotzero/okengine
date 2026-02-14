@@ -1,6 +1,7 @@
 package core
 
 import "../okmath"
+import "base:runtime"
 import vk "vendor:vulkan"
 
 BUILDIN_SHADER_NAME_MATERIAL :: "Builtin.MaterialShader"
@@ -138,6 +139,9 @@ vulkan_material_shader_create :: proc(
 	   vk.Result.SUCCESS {
 		return false
 	}
+
+	// Sampler binding 0 is the material diffuse map.
+	out_shader.sampler_uses[0] = texture_use.TEXTURE_USE_MAP_DIFFUSE
 
 	image_count := int(v_context.swapchain.image_count)
 	out_shader.global_descriptor_sets = make([]vk.DescriptorSet, image_count)
@@ -558,13 +562,15 @@ vulkan_material_shader_acquire_resources :: proc(
 	material.internal_id = shader.object_uniform_buffer_index
 	shader.object_uniform_buffer_index += 1
 
+	//@TODO sort out memory
+	material_alloc := runtime.default_context().allocator
 	image_count := int(v_context.swapchain.image_count)
 	object_state := &shader.instance_states[material.internal_id]
-	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count, allocator)
+	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count, material_alloc)
 	for i: u32 = 0; i < VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT; i += 1 {
 		//@MEMORY use containers with tagged memory
-		object_state.descriptor_states[i].generations = make([]u32, image_count, allocator)
-		object_state.descriptor_states[i].ids = make([]u32, image_count, allocator)
+		object_state.descriptor_states[i].generations = make([]u32, image_count, material_alloc)
+		object_state.descriptor_states[i].ids = make([]u32, image_count, material_alloc)
 		for j: int = 0; j < image_count; j += 1 {
 			object_state.descriptor_states[i].generations[j] = INVALID_ID
 			object_state.descriptor_states[i].ids[j] = INVALID_ID

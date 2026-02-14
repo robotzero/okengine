@@ -298,8 +298,13 @@ platform_allocate :: proc(
 	return obj, err
 }
 
-platform_free :: proc(object: ^$T) {
-	err := mem.free(object)
+platform_free :: proc(
+	object: ^$T,
+	location := #caller_location,
+	allocator := context.allocator,
+) {
+	log.log(log.Level.Info, "object %v, location %s, ob %s", object, location, typeid_of(T))
+	err := mem.free(object, allocator)
 	ensure(err == nil)
 }
 
@@ -598,4 +603,3 @@ platform_get_required_extension_names :: proc(extension_names: ^[dynamic]cstring
 	arr.darray_push(extension_names, "VK_KHR_xcb_surface")
 	// arr.darray_push(extension_names, "VK_KHR_xlib_surface")
 }
-

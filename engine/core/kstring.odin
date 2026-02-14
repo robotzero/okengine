@@ -1,6 +1,7 @@
 package core
 
 import "../okmath"
+import "base:runtime"
 import "core:strconv"
 import "core:strings"
 
@@ -30,13 +31,16 @@ string_ncopy :: proc(source: string, length: i64) -> string {
 	if n > len(source) {
 		n = len(source)
 	}
-	cloned, _ := strings.clone(source[:n])
+
+	allocator := runtime.default_context().allocator
+	cloned, _ := strings.clone(source[:n], allocator)
 	return cloned
 }
 
 string_trim :: proc(source: string) -> string {
 	trimmed := strings.trim_space(source)
-	cloned, _ := strings.clone(trimmed)
+	allocator := runtime.default_context().allocator
+	cloned, _ := strings.clone(trimmed, allocator)
 	return cloned
 }
 
@@ -61,12 +65,14 @@ string_mid :: proc(source: string, start: i32, length: i32) -> string {
 		if end_i > len(source) {
 			end_i = len(source)
 		}
-		cloned, _ := strings.clone(source[start_i:end_i])
+		allocator := runtime.default_context().allocator
+		cloned, _ := strings.clone(source[start_i:end_i], allocator)
 		return cloned
 	}
 
+	allocator := runtime.default_context().allocator
 	// Negative length means to the end.
-	cloned, _ := strings.clone(source[start_i:])
+	cloned, _ := strings.clone(source[start_i:], allocator)
 	return cloned
 }
 
