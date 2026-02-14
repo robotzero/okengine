@@ -13,7 +13,7 @@ texture_system_state :: struct {
 	config:                   texture_system_config,
 	default_texture:          texture,
 	registered_textures:      []texture,
-	registered_texture_table: ^hashtable,
+	registered_texture_table: ^hashtable(texture_reference),
 }
 
 texture_reference :: struct {
@@ -54,7 +54,7 @@ texture_system_initialize :: proc(
 	state_ptr.registered_textures = make([]texture, MAX_TEXTURE_COUNT, allocator)
 
 	//@MEMORY use containers to that we can tag memory
-	hashtable_var := new(hashtable, allocator)
+	hashtable_var := new(hashtable(texture_reference), allocator)
 	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, allocator)
 
 	// Create a hashtable for texture lookups.
@@ -73,7 +73,7 @@ texture_system_initialize :: proc(
 	invalid_ref.handle = INVALID_ID // Primary reason for needing default values.
 	invalid_ref.reference_count = 0
 	state_ptr.registered_texture_table = hashtable_var
-	hashtable_fill(state_ptr.registered_texture_table, texture_reference, invalid_ref)
+	hashtable_fill(state_ptr.registered_texture_table, invalid_ref)
 
 	// Invalidate all textures in the array.
 	for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
@@ -114,8 +114,7 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
 	}
 
 	ref: texture_reference
-	if state_ptr != nil &&
-	   hashtable_get(state_ptr.registered_texture_table, name, texture_reference, &ref) {
+	if state_ptr != nil && hashtable_get(state_ptr.registered_texture_table, name, &ref) {
 		// This can only be changed the first time a texture is loaded.
 		if ref.reference_count == 0 {
 			ref.auto_release = auto_release
@@ -181,8 +180,7 @@ texture_system_release :: proc(name: string) {
 		return
 	}
 	ref: texture_reference
-	if state_ptr != nil &&
-	   hashtable_get(state_ptr.registered_texture_table, name, texture_reference, &ref) {
+	if state_ptr != nil && hashtable_get(state_ptr.registered_texture_table, name, &ref) {
 		if ref.reference_count == 0 {
 			log_warning("Tried to release non-existent texture: '%s'", name)
 			return

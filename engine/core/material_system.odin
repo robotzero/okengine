@@ -22,7 +22,7 @@ material_system_state :: struct {
 	config:                    material_system_config,
 	default_material:          material,
 	registered_materials:      []material,
-	registered_material_table: ^hashtable,
+	registered_material_table: ^hashtable(material_reference),
 }
 
 material_reference :: struct {
@@ -54,7 +54,7 @@ material_system_initialize :: proc(
 	state_ptr.registered_materials = make([]material, config.max_material_count, allocator)
 
 	//@MEMORY use containers to that we can tag memory
-	hashtable_var := new(hashtable, allocator)
+	hashtable_var := new(hashtable(material_reference), allocator)
 	hashtable_memory := make([]material_reference, config.max_material_count, allocator)
 
 	// Create a hashtable for texture lookups.
@@ -73,7 +73,7 @@ material_system_initialize :: proc(
 	invalid_ref.handle = INVALID_ID // Primary reason for needing default values.
 	invalid_ref.reference_count = 0
 	state_ptr.registered_material_table = hashtable_var
-	hashtable_fill(state_ptr.registered_material_table, material_reference, invalid_ref)
+	hashtable_fill(state_ptr.registered_material_table, invalid_ref)
 
 	// Invalidate all textures in the array.
 	for i: u32 = 0; i < state_ptr.config.max_material_count; i += 1 {
@@ -111,8 +111,7 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^materia
 	}
 
 	ref: material_reference
-	if state_ptr != nil &&
-	   hashtable_get(state_ptr.registered_material_table, config.name, material_reference, &ref) {
+	if state_ptr != nil && hashtable_get(state_ptr.registered_material_table, config.name, &ref) {
 		// This can only be changed the first time a material is loaded.
 		if ref.reference_count == 0 {
 			ref.auto_release = config.auto_release
@@ -184,8 +183,7 @@ material_system_release :: proc(name: string) {
 		return
 	}
 	ref: material_reference
-	if state_ptr != nil &&
-	   hashtable_get(state_ptr.registered_material_table, name, material_reference, &ref) {
+	if state_ptr != nil && hashtable_get(state_ptr.registered_material_table, name, &ref) {
 		if ref.reference_count == 0 {
 			log_warning("Tried to release non-existent texture: '%s'", name)
 			return

@@ -4,12 +4,12 @@ import "core:fmt"
 import "core:hash"
 
 // @TODO privacy to file
-hashtable :: struct {
+hashtable :: struct($T: typeid) {
 	element_size:    u64,
 	element_count:   u32,
 	is_pointer_type: bool,
-	memory:          []texture_reference,
-	memory_ptr:      []^texture_reference,
+	memory:          []T,
+	memory_ptr:      []^T,
 }
 
 //@TODO configurable hash alghorithm
@@ -24,9 +24,9 @@ hashtable_create :: proc(
 	element_size: u64,
 	element_count: u32,
 	is_pointer_type: bool,
-	out_hashtable: ^hashtable,
-	memory: []texture_reference,
-	memory_ptr: []^texture_reference,
+	out_hashtable: ^hashtable($T),
+	memory: []T,
+	memory_ptr: []^T,
 ) {
 	if out_hashtable == nil {
 		fmt.println("ERROR hashtable create failed. No hashtable provided")
@@ -48,7 +48,7 @@ hashtable_create :: proc(
 	// TODO kzeromemory
 }
 
-hashtable_destroy :: proc(table: ^hashtable, allocator := context.allocator) {
+hashtable_destroy :: proc(table: ^hashtable($T), allocator := context.allocator) {
 	if table != nil {
 		table.element_count = 0
 		table.element_size = 0
@@ -63,7 +63,7 @@ hashtable_destroy :: proc(table: ^hashtable, allocator := context.allocator) {
 }
 
 //@TODO use conditional parapoly for $T, so that only specific types can be set in hashtable
-hashtable_set :: proc(table: ^hashtable, name: string, value: texture_reference) -> bool {
+hashtable_set :: proc(table: ^hashtable($T), name: string, value: T) -> bool {
 	if table == nil || name == "" {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return false
@@ -79,7 +79,7 @@ hashtable_set :: proc(table: ^hashtable, name: string, value: texture_reference)
 	return true
 }
 
-hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid, value: ^T) -> bool {
+hashtable_get :: proc(table: ^hashtable($T), name: string, value: ^T) -> bool {
 	if table == nil || name == "" || value == nil {
 		fmt.println("ERROR hashtable set requires table name and value")
 		return false
@@ -99,7 +99,7 @@ hashtable_get :: proc(table: ^hashtable, name: string, $T: typeid, value: ^T) ->
 	return true
 }
 
-hashtable_fill :: proc(table: ^hashtable, $T: typeid, value: T) -> bool {
+hashtable_fill :: proc(table: ^hashtable($T), value: T) -> bool {
 	if table == nil {
 		fmt.println("hashtable fill aaa")
 		return false
