@@ -114,11 +114,11 @@ vulkan_material_shader_create :: proc(
 	object_pool_sizes: [2]vk.DescriptorPoolSize
 	// The first section will be used for uniform buffers
 	object_pool_sizes[0].type = .UNIFORM_BUFFER
-	object_pool_sizes[0].descriptorCount = VULKAN_MATERIAL_MAX_OBJECT_COUNT
+	object_pool_sizes[0].descriptorCount = VULKAN_MAX_MATERIAL_COUNT
 	// The second section will be used for image samplers.
 	object_pool_sizes[1].type = .COMBINED_IMAGE_SAMPLER
 	object_pool_sizes[1].descriptorCount =
-		VULKAN_MATERIAL_SHADER_SAMPLER_COUNT * VULKAN_OBJECT_MAX_OBJECT_COUNT
+		VULKAN_MATERIAL_SHADER_SAMPLER_COUNT * VULKAN_MAX_MATERIAL_COUNT
 
 	object_pool_info := vk.DescriptorPoolCreateInfo {
 		sType         = .DESCRIPTOR_POOL_CREATE_INFO,
@@ -207,7 +207,7 @@ vulkan_material_shader_create :: proc(
 
 	if !vulkan_buffer_create(
 		v_context,
-		size_of(material_uniform_object) * VULKAN_MAX_MATERIAL_COUNT,
+		size_of(global_uniform_object),
 		{.TRANSFER_DST, .UNIFORM_BUFFER},
 		{.DEVICE_LOCAL, .HOST_VISIBLE, .HOST_COHERENT},
 		true,
@@ -238,7 +238,7 @@ vulkan_material_shader_create :: proc(
 
 	if !vulkan_buffer_create(
 		v_context,
-		size_of(object_uniform_object),
+		size_of(material_uniform_object) * VULKAN_MAX_MATERIAL_COUNT,
 		{.TRANSFER_DST, .UNIFORM_BUFFER},
 		{.HOST_VISIBLE, .HOST_COHERENT},
 		true,
@@ -393,9 +393,8 @@ vulkan_material_shader_update_object :: proc(
 
 	// Load the data into the buffer.
 	vulkan_buffer_load_data(v_context, &shader.object_uniform_buffer, offset, range, {}, &obo)
-	global_obo_generation :=
-		object_state.descriptor_states[descriptor_index].generations[image_index]
-	if global_ubo_generation^ == INVALID_ID || global_obo_generation^ != data.material.generation {
+	global_ubo_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
+	if global_ubo_generation^ == INVALID_ID || global_ubo_generation^ != data.material.generation {
 		buffer_info := vk.DescriptorBufferInfo {
 			buffer = shader.object_uniform_buffer.handle,
 			offset = vk.DeviceSize(offset),
@@ -425,10 +424,11 @@ vulkan_material_shader_update_object :: proc(
 	for sampler_index: u32 = 0; sampler_index < sampler_count; sampler_index += 1 {
 		use := shader.sampler_uses[sampler_index]
 		t: ^texture
-		switch (use) {
-		case TEXTURE_MAP_DIFFUSE:
+		#partial switch (use) {
+		case texture_use.TEXTURE_USE_MAP_DIFFUSE:
 			t = data.material.diffuse_map.texture
-			default: log_fatal("Unable to bind sampler to unknown use.")
+		case:
+			log_fatal("Unable to bind sampler to unknown use.")
 			return
 		}
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
@@ -602,7 +602,7 @@ vulkan_material_shader_release_resources :: proc(
 	shader: ^vulkan_material_shader,
 	material: ^material,
 ) {
-	instance_state := &shader.instance_states[materia.internal_id]
+	instance_state := &shader.instance_states[material.internal_id]
 
 	image_count := u32(v_context.swapchain.image_count)
 	// Release object descriptor sets.
@@ -624,7 +624,7 @@ vulkan_material_shader_release_resources :: proc(
 		// delete(object_state.descriptor_states[i].generations)
 		// object_state.descriptor_states[i].generations = nil
 	}
-	materia.internal_id = INVALID_ID
+	material.internal_id = INVALID_ID
 	// delete(object_state.descriptor_sets)
 	// object_state.descriptor_sets = nil
 }

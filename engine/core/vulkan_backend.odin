@@ -872,7 +872,14 @@ upload_data_range :: proc(
 	}
 
 	staging: vulkan_buffer
-	vulkan_buffer_create(v_context, size, {vk.BufferUsageFlag.TRANSFER_SRC}, flags, true, &staging)
+	vulkan_buffer_create(
+		v_context,
+		vk.DeviceSize(size),
+		{vk.BufferUsageFlag.TRANSFER_SRC},
+		flags,
+		true,
+		&staging,
+	)
 
 	// Load the data into the staging buffer.
 	vulkan_buffer_load_data(v_context, &staging, 0, size, {}, data)
@@ -947,18 +954,13 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 }
 
 vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
-	texture.width = u32(width)
-	texture.height = u32(height)
-	texture.channel_count = u8(channel_count)
-	texture.generation = INVALID_ID
-
 	// Internal data creation.
 	// TODO: Use an allocator for this.
 	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data)
 	// @TODO change rawptr to just ptr
 	texture.internal_data = data
-	image_size := u64(width * height * channel_count)
-	vk.DeviceSize := texture.width * texture.height * texture.channel_count
+	temp_size := texture.width * texture.height * texture.channel_count
+	image_size: vk.DeviceSize = vk.DeviceSize(u64(temp_size))
 
 	// NOTE: Assumes 8 bits per channel.
 	image_format := vk.Format.R8G8B8A8_UNORM
@@ -970,15 +972,15 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 	vulkan_buffer_create(&v_context, image_size, usage, memory_prop_flags, true, &staging)
 	log_debug(
 		"CreateTexture: size=%u w=%d h=%d channels=%d staging=%p",
-		u32(image_size),
-		width,
-		height,
-		channel_count,
+		u64(image_size),
+		texture.width,
+		texture.height,
+		texture.channel_count,
 		staging.handle,
 	)
 	log_debug("CreateTexture: pixel_len=%d", len(pixels))
 
-	vulkan_buffer_load_data(&v_context, &staging, 0, image_size, {}, raw_data(pixels))
+	vulkan_buffer_load_data(&v_context, &staging, 0, u64(image_size), {}, raw_data(pixels))
 
 	// NOTE: Lots of assumptions here, different texture types will require different options here.
 	vulkan_image_create(
@@ -1101,7 +1103,7 @@ vulkan_renderer_create_material :: proc(material: ^material) -> bool {
 	return false
 }
 
-vulkan_renderer_destroy_material :: proc(material: ^material) -> bool {
+vulkan_renderer_destroy_material :: proc(material: ^material) {
 	if material != nil {
 		if material.internal_id != INVALID_ID {
 			vulkan_material_shader_release_resources(
@@ -1110,10 +1112,10 @@ vulkan_renderer_destroy_material :: proc(material: ^material) -> bool {
 				material,
 			)
 		} else {
-			log_warn("material destroy invalid")
+			log_warning("material destroy invalid")
 		}
 	} else {
-		log_warn("material null ptr")
+		log_warning("material null ptr")
 	}
 }
 

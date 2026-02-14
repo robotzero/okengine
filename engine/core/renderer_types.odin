@@ -27,7 +27,7 @@ update_global_state_proc :: #type proc(
 update_object_proc :: #type proc(data: geometry_render_data)
 create_texture_proc :: #type proc(pixels: []u8, out_texture: ^texture)
 destroy_texture_proc :: #type proc(texture: ^texture)
-create_material_proc :: #type proc(material: ^material)
+create_material_proc :: #type proc(material: ^material) -> bool
 destroy_material_proc :: #type proc(material: ^material)
 
 global_uniform_object :: struct {
@@ -48,6 +48,8 @@ renderer_backend :: struct {
 	update_object:       update_object_proc,
 	create_texture:      create_texture_proc,
 	destroy_texture:     destroy_texture_proc,
+	create_material:     create_material_proc,
+	destroy_material:    destroy_material_proc,
 }
 
 render_packet :: struct {

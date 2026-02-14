@@ -2,10 +2,12 @@ package core
 
 import "../okmath"
 
+TEXTURE_NAME_MAX_LENGTH :: 512
 MATERIAL_NAME_MAX_LENGTH :: 256
-texture_use :: struct {
-	TEXTURE_USE_UNKNOWN:     0x00,
-	TEXTURE_USE_MAP_DIFFUSE: 0x01,
+
+texture_use :: enum {
+	TEXTURE_USE_UNKNOWN     = 0x00,
+	TEXTURE_USE_MAP_DIFFUSE = 0x01,
 }
 
 texture_map :: struct {

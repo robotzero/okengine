@@ -154,6 +154,27 @@ application_create :: proc(
 		return false
 	}
 
+	// Material System
+	material_sys_config: material_system_config
+	material_sys_config.max_material_count = 4096
+
+	mstate, merror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		material_system_state,
+		sys_alloc,
+	)
+
+	app_state.material_system_state = mstate
+
+	if !material_system_initialize(
+		app_state.material_system_state,
+		material_sys_config,
+		sys_alloc^,
+	) {
+		log_fatal("Failed to initialize material system. Application cannot continue.")
+		return false
+	}
+
 	if ok := app_state.game_inst.initialize(app_state.game_inst); !ok {
 		return false
 	}

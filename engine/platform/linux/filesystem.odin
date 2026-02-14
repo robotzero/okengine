@@ -56,7 +56,7 @@ file_system_read_all_bytes :: proc(handle: os.Handle, allocator := context.alloc
 
 read_line_into :: proc(r: io.Reader, buf: []u8) -> (n: int, ok: bool, err: io.Error) {
 	if len(buf) == 0 {
-		return 0, false, io.Error.Invalid_Argument
+		return 0, false, io.Error.Buffer_Full
 	}
 
 	for i := 0; i < len(buf); i += 1 {

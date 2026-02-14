@@ -12,7 +12,7 @@ create_shader_module :: proc(
 	type_str: string,
 	shader_stage_flag: vk.ShaderStageFlags,
 	stage_index: u32,
-	shader_stages: ^[OBJECT_SHADER_STAGE_COUNT]vulkan_shader_stage,
+	shader_stages: ^[MATERIAL_SHADER_STAGE_COUNT]vulkan_shader_stage,
 ) -> bool {
 
 	file_name := fmt.aprintf("bin/assets/shaders/%s.%s.spv", name, type_str)

@@ -42,7 +42,7 @@ vulkan_descriptor_state :: struct {
 	ids:         []u32,
 }
 
-vulkan_material_shader_object_state :: struct {
+vulkan_material_shader_instance_state :: struct {
 	// Per swapchain image
 	descriptor_sets:   []vk.DescriptorSet,
 
@@ -168,7 +168,7 @@ vulkan_material_shader :: struct {
 	object_descriptor_set_layout: vk.DescriptorSetLayout,
 	object_uniform_buffer:        vulkan_buffer,
 	object_uniform_buffer_index:  u32,
-	texture_use:                  [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]sampler_uses,
+	sampler_uses:                 [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]texture_use,
 	instance_states:              [VULKAN_MATERIAL_MAX_OBJECT_COUNT]vulkan_material_shader_instance_state,
 }
 

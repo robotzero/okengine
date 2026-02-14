@@ -187,36 +187,32 @@ texture_system_release :: proc(name: string) {
 			log_warning("Tried to release non-existent texture: '%s'", name)
 			return
 		}
+		// Take a copy of the name since it will be wiped out by destroy
+		name_copy := string_ncopy(name, TEXTURE_NAME_MAX_LENGTH)
 		ref.reference_count -= 1
 		if ref.reference_count == 0 && ref.auto_release {
 			t := &state_ptr.registered_textures[ref.handle]
 
-			// Release texture.
-			renderer_destroy_texture(t)
-
-			// Reset the array entry, ensure invalid ids are set.
-			kzero_memory(t, size_of(texture))
-			t.id = INVALID_ID
-			t.generation = INVALID_ID
+			destroy_texture(t)
 
 			// Reset the reference.
 			ref.handle = INVALID_ID
 			ref.auto_release = false
 			log_debug(
 				"Released texture '%s'., Texture unloaded because reference count=0 and auto_release=true.",
-				name,
+				name_copy,
 			)
 		} else {
 			log_debug(
 				"Released texture '%s', now has a reference count of '%i' (auto_release=%s).",
-				name,
+				name_copy,
 				ref.reference_count,
 				ref.auto_release,
 			)
 		}
 
 		// Update the entry.
-		hashtable_set(state_ptr.registered_texture_table, name, ref)
+		hashtable_set(state_ptr.registered_texture_table, name_copy, ref)
 	} else {
 		log_error("texture_system2_release failed to release texture '%s'.", name)
 	}
@@ -262,15 +258,13 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 		}
 	}
 	pixels_slice := pixels[:]
-	renderer_create_texture(
-		DEFAULT_TEXTURE_NAME,
-		cast(i32)tex_dimension,
-		cast(i32)tex_dimension,
-		4,
-		pixels_slice,
-		false,
-		&state.default_texture,
-	)
+	state.default_texture.name = string_ncopy(DEFAULT_TEXTURE_NAME, TEXTURE_NAME_MAX_LENGTH)
+	state.default_texture.width = tex_dimension
+	state.default_texture.height = tex_dimension
+	state.default_texture.channel_count = 4
+	state.default_texture.generation = INVALID_ID
+	state.default_texture.has_transparency = false
+	renderer_create_texture(pixels_slice, &state.default_texture)
 	// Manually set the texture generation to invalid since this is a default texture.
 	state.default_texture.generation = INVALID_ID
 
@@ -279,7 +273,7 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 
 destroy_default_textures :: proc(state: ^texture_system_state) {
 	if state != nil {
-		renderer_destroy_texture(&state.default_texture)
+		destroy_texture(&state.default_texture)
 	}
 }
 
@@ -327,19 +321,15 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 				full_file_path,
 				si.failure_reason(),
 			)
+			return false
 		}
+		temp_texture.name = string_ncopy(texture_name, TEXTURE_NAME_MAX_LENGTH)
+		temp_texture.generation = INVALID_ID
+		temp_texture.has_transparency = has_transparency
 
 		// Acquire internal texture resources and upload to GPU.
 		pixels_slice := data_slice
-		renderer_create_texture(
-			texture_name,
-			i32(temp_texture.width),
-			i32(temp_texture.height),
-			i32(temp_texture.channel_count),
-			pixels_slice,
-			has_transparency,
-			&temp_texture,
-		)
+		renderer_create_texture(pixels_slice, &temp_texture)
 
 		// Take a copy of the old texture.
 		old := t^
@@ -369,5 +359,11 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		}
 		return false
 	}
+}
+
+destroy_texture :: proc(t: ^texture) {
+	renderer_destroy_texture(t)
+	t.id = INVALID_ID
+	t.generation = INVALID_ID
 }
 

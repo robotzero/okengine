@@ -101,11 +101,13 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 		if state_ptr.test_material == nil {
 			state_ptr.test_material = material_system_acquire("test_material")
 			if state_ptr.test_material == nil {
-				log_warn("Automatic material load failed, failing back to manual default material")
+				log_warning(
+					"Automatic material load failed, failing back to manual default material",
+				)
 				config: material_config = {}
 				config.name = string_ncopy("test_material", MATERIAL_NAME_MAX_LENGTH)
 				config.auto_release = false
-				config.diffuse_color = okmath.vec4_one()
+				config.diffuse_colour = okmath.vec4_one()
 				config.diffuse_map_name = string_ncopy(
 					DEFAULT_TEXTURE_NAME,
 					TEXTURE_NAME_MAX_LENGTH,
@@ -153,12 +155,12 @@ renderer_destroy_texture :: proc(texture: ^texture) {
 	state_ptr.backend.destroy_texture(texture)
 }
 
-renderer_create_material :: proc(material: ^material) {
-	state_ptr.backend.create_material(material)
+renderer_create_material :: proc(material: ^material) -> bool {
+	return state_ptr.backend.create_material(material)
 }
 
 renderer_destroy_material :: proc(material: ^material) {
-	state_ptr.backend.destory_material(material)
+	state_ptr.backend.destroy_material(material)
 }
 
 event_on_debug_event :: proc(

@@ -5,7 +5,7 @@ import vk "vendor:vulkan"
 
 vulkan_buffer_create :: proc(
 	v_context: ^vulkan_context,
-	size: u64,
+	size: vk.DeviceSize,
 	usage: vk.BufferUsageFlags, // or vk.BufferUsageFlags depending on your bindings
 	memory_property_flags: vk.MemoryPropertyFlags,
 	bind_on_create: b8,
@@ -13,13 +13,13 @@ vulkan_buffer_create :: proc(
 ) -> b8 {
 	kzero_memory(out_buffer, size_of(vulkan_buffer))
 
-	out_buffer.total_size = size
+	out_buffer.total_size = u64(size)
 	out_buffer.usage = usage
 	out_buffer.memory_property_flags = memory_property_flags
 
 	buffer_info := vk.BufferCreateInfo {
 		sType       = .BUFFER_CREATE_INFO,
-		size        = vk.DeviceSize(size),
+		size        = size,
 		usage       = usage,
 		sharingMode = .EXCLUSIVE,
 	}
