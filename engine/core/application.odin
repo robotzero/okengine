@@ -208,7 +208,7 @@ application_on_key :: proc(
 	data: event_context,
 ) -> bool {
 	if code == cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED {
-		event_context_data := data.data.([2]u16)
+		event_context_data := data.data.([8]u16)
 		key_code: u16 = event_context_data[0]
 		if key_code == cast(u16)idef.keys.KEY_ESCAPE {
 			event_context_data_new: event_context = {}
@@ -227,7 +227,7 @@ application_on_key :: proc(
 			log_debug("'%c' key pressed in a window.", key_code)
 		}
 	} else if code == cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED {
-		if event_context_data, ok := data.data.([2]u16); ok {
+		if event_context_data, ok := data.data.([8]u16); ok {
 			key_code: u16 = event_context_data[0]
 			if key_code == cast(u16)idef.keys.KEY_B {
 				log_debug("Explicit B key released")
@@ -248,7 +248,7 @@ application_on_resized :: proc(
 	data: event_context,
 ) -> bool {
 	if code == cast(u16)system_event_code.EVENT_CODE_RESIZED {
-		event_context_data := data.data.([2]u16)
+		event_context_data := data.data.([8]u16)
 		width: u16 = event_context_data[0]
 		height: u16 = event_context_data[1]
 

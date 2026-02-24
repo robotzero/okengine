@@ -228,7 +228,7 @@ platform_pump_messages :: proc() -> bool {
 				// Fire the event. The application layer should pick this up, but not handle it
 				// as it shouldn be visible to other parts of the application.
 				c: event_context = {
-					data = [2]u16{configure_event.width, configure_event.height},
+					data = [8]u16{0 = configure_event.width, 1 = configure_event.height},
 				}
 				event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
 			}
@@ -298,11 +298,7 @@ platform_allocate :: proc(
 	return obj, err
 }
 
-platform_free :: proc(
-	object: ^$T,
-	location := #caller_location,
-	allocator := context.allocator,
-) {
+platform_free :: proc(object: ^$T, location := #caller_location, allocator := context.allocator) {
 	log.log(log.Level.Info, "object %v, location %s, ob %s", object, location, typeid_of(T))
 	err := mem.free(object, allocator)
 	ensure(err == nil)
@@ -603,3 +599,4 @@ platform_get_required_extension_names :: proc(extension_names: ^[dynamic]cstring
 	arr.darray_push(extension_names, "VK_KHR_xcb_surface")
 	// arr.darray_push(extension_names, "VK_KHR_xlib_surface")
 }
+
