@@ -66,7 +66,7 @@ input_process_key :: proc(key: idef.keys, pressed: bool) {
 		state_ptr.keyboard_current.keys[key] = pressed
 
 		input_context: event_context = {
-			data = [2]u16{cast(u16)key, {}},
+			data = [8]u16{0 = cast(u16)key},
 		}
 		event_fire(
 			pressed ? cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED,
@@ -84,7 +84,7 @@ input_process_button :: proc(button: idef.buttons, pressed: bool) {
 
 		// Fire the event.
 		input_context: event_context = {
-			data = [2]u16{cast(u16)button, {}},
+			data = [8]u16{0 = cast(u16)button},
 		}
 		event_fire(
 			pressed ? cast(u16)system_event_code.EVENT_CODE_BUTTON_PRESSED : cast(u16)system_event_code.EVENT_CODE_BUTTON_RELEASED,
@@ -103,7 +103,7 @@ input_process_mouse_move :: proc(x, y: i16) {
 		state_ptr.mouse_current.y = y
 
 		input_context: event_context = {
-			data = [2]u16{cast(u16)x, cast(u16)y},
+			data = [8]u16{0 = cast(u16)x, 1 = cast(u16)y, 2 ..= 7 = {}},
 		}
 		event_fire(cast(u16)system_event_code.EVENT_CODE_MOUSE_MOVED, nil, input_context)
 	}
@@ -114,7 +114,7 @@ input_process_mouse_wheel :: proc(z_delta: i8) {
 
 	// Fire the event.
 	input_context: event_context = {
-		data = [2]u8{cast(u8)z_delta, {}},
+		data = [16]u8{0 = cast(u8)z_delta},
 	}
 }
 
