@@ -1,4 +1,4 @@
-package core
+package renderer
 
 renderer_backend_create :: proc(
 	type: renderer_backend_type,
@@ -36,3 +36,4 @@ renderer_backend_destroy :: proc(r_back: ^renderer_backend) {
 	r_back.create_material = nil
 	r_back.destroy_material = nil
 }
+

@@ -1,6 +1,7 @@
-package core
+package renderer
 
-import "../okmath"
+import l "../../logger"
+import "../../okmath"
 import "base:runtime"
 import vk "vendor:vulkan"
 
@@ -205,7 +206,7 @@ vulkan_material_shader_create :: proc(
 		false,
 		&out_shader.pipeline,
 	) {
-		log_error("Failed to load graphics pipeline for object shader.")
+		l.log_error("Failed to load graphics pipeline for object shader.")
 		return false
 	}
 
@@ -217,7 +218,7 @@ vulkan_material_shader_create :: proc(
 		true,
 		&out_shader.global_uniform_buffer,
 	) {
-		log_error("Vulkan buffer creation failed for object shader.")
+		l.log_error("Vulkan buffer creation failed for object shader.")
 		return false
 	}
 
@@ -248,7 +249,7 @@ vulkan_material_shader_create :: proc(
 		true,
 		&out_shader.object_uniform_buffer,
 	) {
-		log_error("Material instance buffer creation failed for shader.")
+		l.log_error("Material instance buffer creation failed for shader.")
 		return false
 	}
 	return true
@@ -432,7 +433,7 @@ vulkan_material_shader_update_object :: proc(
 		case texture_use.TEXTURE_USE_MAP_DIFFUSE:
 			t = data.material.diffuse_map.texture
 		case:
-			log_fatal("Unable to bind sampler to unknown use.")
+			l.log_fatal("Unable to bind sampler to unknown use.")
 			return
 		}
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
@@ -596,7 +597,7 @@ vulkan_material_shader_acquire_resources :: proc(
 		&object_state.descriptor_sets[0],
 	)
 	if result != vk.Result.SUCCESS {
-		log_error("Error allocating descriptor sets in shader!")
+		l.log_error("Error allocating descriptor sets in shader!")
 		return false
 	}
 
@@ -619,7 +620,7 @@ vulkan_material_shader_release_resources :: proc(
 		&instance_state.descriptor_sets[0],
 	)
 	if result != vk.Result.SUCCESS {
-		log_error("Error freeing object shader descriptor sets!")
+		l.log_error("Error freeing object shader descriptor sets!")
 	}
 
 	for i: u32 = 0; i < VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT; i += 1 {

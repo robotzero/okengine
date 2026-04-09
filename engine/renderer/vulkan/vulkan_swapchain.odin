@@ -1,6 +1,7 @@
-package core
+package renderer
 
-import arr "../containers"
+import arr "../../containers"
+import l "../../logger"
 import "core:fmt"
 import vk "vendor:vulkan"
 
@@ -58,7 +59,7 @@ vulkan_swapchain_acquire_next_image_index :: proc(
 		)
 		return false
 	} else if (result != vk.Result.SUCCESS && result != vk.Result.SUBOPTIMAL_KHR) {
-		log_fatal("Failed to acquire swapchain image!")
+		l.log_fatal("Failed to acquire swapchain image!")
 		return false
 	}
 
@@ -97,7 +98,7 @@ vulkan_swapchain_present :: proc(
 			swapchain,
 		)
 	} else if (result != vk.Result.SUCCESS) {
-		log_fatal("Failed to present swap chain image!")
+		l.log_fatal("Failed to present swap chain image!")
 	}
 
 	// Increment (and loop) the index.
@@ -263,7 +264,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 	// Depth resources
 	if !vulkan_device_detect_depth_format(&v_context.device) {
 		v_context.device.depth_format = vk.Format.UNDEFINED
-		log_fatal("Failed to find a supported format!")
+		l.log_fatal("Failed to find a supported format!")
 	}
 
 	// Create depth image and its view.
@@ -281,7 +282,7 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 		&swapchain.depth_attachment,
 	)
 
-	log_info("Swapchain created successfully.")
+	l.log_info("Swapchain created successfully.")
 }
 
 @(private)

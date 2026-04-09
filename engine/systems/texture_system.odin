@@ -1,5 +1,8 @@
-package core
+package systems
 
+import c "../containers"
+import l "../logger"
+import r "../resources"
 import "core:fmt"
 import "core:mem"
 import "core:strings"
@@ -11,9 +14,9 @@ texture_system_config :: struct {
 
 texture_system_state :: struct {
 	config:                   texture_system_config,
-	default_texture:          texture,
-	registered_textures:      []texture,
-	registered_texture_table: ^hashtable(texture_reference),
+	default_texture:          r.texture,
+	registered_textures:      []r.texture,
+	registered_texture_table: ^c.hashtable(texture_reference),
 }
 
 texture_reference :: struct {
@@ -34,7 +37,7 @@ texture_system_initialize :: proc(
 	allocator := context.allocator,
 ) -> b8 {
 	if config.max_texture_count == 0 {
-		log_fatal("texture_system_initialize - config.max_texture_count must be > 0.")
+		l.log_fatal("texture_system_initialize - config.max_texture_count must be > 0.")
 		return false
 	}
 
@@ -104,10 +107,10 @@ texture_system_shutdown :: proc() {
 	}
 }
 
-texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
+texture_system_acquire :: proc(name: string, auto_release: bool) -> ^r.texture {
 	// Return default texture, but warn about it since this should be returned via get_default_texture();
 	if strings.equal_fold(name, DEFAULT_TEXTURE_NAME) {
-		log_warning(
+		l.log_warning(
 			"texture_system_acquire called for default texture. Use texture_system2_get_default_texture for texture 'default'.",
 		)
 		return &state_ptr.default_texture
@@ -134,7 +137,7 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
 
 			// Make sure an empty slot was actually found.
 			if t == nil || ref.handle == INVALID_ID {
-				log_fatal(
+				l.log_fatal(
 					"texture_system2_acquire - Texture system cannot hold anymore textures. Adjust configuration to allow more.",
 				)
 				return nil
@@ -142,19 +145,19 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
 
 			// Create new texture.
 			if !load_texture(name, t) {
-				log_error("Failed to load texture '%s'.", name)
+				l.log_error("Failed to load texture '%s'.", name)
 				return nil
 			}
 
 			// Also use the handle as the texture id.
 			t.id = ref.handle
-			log_debug(
+			l.log_debug(
 				"Texture '%s' does not yet exist. Created, and ref_count is now %i.",
 				name,
 				ref.reference_count,
 			)
 		} else {
-			log_debug(
+			l.log_debug(
 				"Texture '%s' already exists, ref_count increased to %i.",
 				name,
 				ref.reference_count,
@@ -167,7 +170,7 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^texture {
 	}
 
 	// NOTE: This would only happen in the event something went wrong with the state.
-	log_error(
+	l.log_error(
 		"texture_system2_acquire failed to acquire texture '%s'. Null pointer will be returned.",
 		name,
 	)
@@ -182,7 +185,7 @@ texture_system_release :: proc(name: string) {
 	ref: texture_reference
 	if state_ptr != nil && hashtable_get(state_ptr.registered_texture_table, name, &ref) {
 		if ref.reference_count == 0 {
-			log_warning("Tried to release non-existent texture: '%s'", name)
+			l.log_warning("Tried to release non-existent texture: '%s'", name)
 			return
 		}
 		// Take a copy of the name since it will be wiped out by destroy
@@ -196,12 +199,12 @@ texture_system_release :: proc(name: string) {
 			// Reset the reference.
 			ref.handle = INVALID_ID
 			ref.auto_release = false
-			log_debug(
+			l.log_debug(
 				"Released texture '%s'., Texture unloaded because reference count=0 and auto_release=true.",
 				name_copy,
 			)
 		} else {
-			log_debug(
+			l.log_debug(
 				"Released texture '%s', now has a reference count of '%i' (auto_release=%s).",
 				name_copy,
 				ref.reference_count,
@@ -212,16 +215,16 @@ texture_system_release :: proc(name: string) {
 		// Update the entry.
 		hashtable_set(state_ptr.registered_texture_table, name_copy, ref)
 	} else {
-		log_error("texture_system2_release failed to release texture '%s'.", name)
+		l.log_error("texture_system2_release failed to release texture '%s'.", name)
 	}
 }
 
-texture_system_get_default_texture :: proc() -> ^texture {
+texture_system_get_default_texture :: proc() -> ^r.texture {
 	if state_ptr != nil {
 		return &state_ptr.default_texture
 	}
 
-	log_error(
+	l.log_error(
 		"texture_system2_get_default_texture called before texture system initialization! Null pointer returned.",
 	)
 	return nil
@@ -230,7 +233,7 @@ texture_system_get_default_texture :: proc() -> ^texture {
 create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
 	// This is done in code to eliminate asset dependencies.
-	log_debug("Creating default texture...")
+	l.log_debug("Creating default texture...")
 	tex_dimension :: 256
 	channels :: 4
 	pixel_count :: tex_dimension * tex_dimension
@@ -314,7 +317,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		}
 
 		if si.failure_reason() != nil {
-			log_warning(
+			l.log_warning(
 				"load_texture2() failed to load file '%s': %s",
 				full_file_path,
 				si.failure_reason(),
@@ -349,7 +352,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		return true
 	} else {
 		if si.failure_reason() != nil {
-			log_warning(
+			l.log_warning(
 				"load_texture2() failed to load file '%s': %s",
 				full_file_path,
 				si.failure_reason(),
@@ -359,7 +362,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 	}
 }
 
-destroy_texture :: proc(t: ^texture) {
+destroy_texture :: proc(t: ^r.texture) {
 	renderer_destroy_texture(t)
 	t.id = INVALID_ID
 	t.generation = INVALID_ID

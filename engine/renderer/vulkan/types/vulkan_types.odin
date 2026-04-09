@@ -1,4 +1,4 @@
-package core
+package renderer
 
 import vk "vendor:vulkan"
 
@@ -96,7 +96,6 @@ vulkan_texture_data :: struct {
 	image:   vulkan_image,
 	sampler: vk.Sampler,
 }
-
 
 vulkan_image :: struct {
 	handle: vk.Image,

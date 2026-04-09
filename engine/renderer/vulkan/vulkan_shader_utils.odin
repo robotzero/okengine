@@ -1,6 +1,6 @@
-package core
+package renderer
 
-import pl "../platform/linux"
+import f "../../platform/linux/filesystem"
 import "core:fmt"
 import "core:os"
 import "core:slice"
@@ -20,13 +20,13 @@ create_shader_module :: proc(
 	// kzero_memory(shader_stages[stage_index].create_info, size_of(vk.ShaderModuleCreateInfo))
 	shader_stages[stage_index].create_info.sType = vk.StructureType.SHADER_MODULE_CREATE_INFO
 
-	handle, success := pl.filesystem_open(file_name, os.O_RDONLY)
-	defer pl.filesystem_close(handle)
+	handle, success := f.filesystem_open(file_name, os.O_RDONLY)
+	defer f.filesystem_close(handle)
 	if !success {
 		return success
 	}
 
-	data := pl.file_system_read_all_bytes(handle)
+	data := f.file_system_read_all_bytes(handle)
 	defer {
 		if data != nil {
 			delete(data)

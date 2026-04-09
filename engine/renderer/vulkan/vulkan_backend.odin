@@ -1,12 +1,14 @@
 #+feature dynamic-literals
-package core
+package renderer
 
-import "../okmath"
+import l "../../logger"
+import "../../okmath"
+import rv "../../renderer"
 import "base:runtime"
 import "core:c"
 import "core:strings"
 
-import arr "../containers"
+import arr "../../containers"
 import vk "vendor:vulkan"
 
 find_memory_index :: #type proc(type_filter: u32, property_flags: vk.MemoryPropertyFlags) -> i32
@@ -28,19 +30,19 @@ vulkan_debug_callback :: proc "stdcall" (
 	context = runtime.default_context()
 	switch messageSeverity {
 	case vk.DebugUtilsMessageSeverityFlagEXT.ERROR:
-		log_error(string(pCallbackData.pMessage))
+		l.log_error(string(pCallbackData.pMessage))
 	case vk.DebugUtilsMessageSeverityFlagEXT.WARNING:
-		log_warning(string(pCallbackData.pMessage))
+		l.log_warning(string(pCallbackData.pMessage))
 	case vk.DebugUtilsMessageSeverityFlagEXT.INFO:
-		log_info(string(pCallbackData.pMessage))
+		l.log_info(string(pCallbackData.pMessage))
 	case vk.DebugUtilsMessageSeverityFlagEXT.VERBOSE:
-		log_debug(string(pCallbackData.pMessage))
+		l.log_debug(string(pCallbackData.pMessage))
 	}
 	return false
 }
 
 vulkan_renderer_backend_initialize :: proc(
-	backend: ^renderer_backend,
+	backend: ^rv.renderer_backend,
 	application_name: string,
 	allocator := context.allocator,
 ) -> bool {
@@ -83,14 +85,14 @@ vulkan_renderer_backend_initialize :: proc(
 			return nil, 0, nil, Error.Okay
 		}
 		arr.darray_push(required_extensions, vk.EXT_DEBUG_UTILS_EXTENSION_NAME)
-		log_debug("Required extensions:")
+		l.log_debug("Required extensions:")
 		for v, _ in required_extensions {
-			log_debug(cast(string)v)
+			l.log_debug(cast(string)v)
 		}
 
 		// If validation should be done, get a list of the required validation layer names
 		// and make sure they exist. Validation layers should only be enabled on non-release builds.
-		log_info("Validation layers enabled. Enumerating...")
+		l.log_info("Validation layers enabled. Enumerating...")
 
 		// The list of validation layers required.
 		required_validation_layer_names: [dynamic]cstring = arr.darray_create_default(cstring)
@@ -103,14 +105,14 @@ vulkan_renderer_backend_initialize :: proc(
 		available_layer_count: u32 = 0
 		if ok := vk.EnumerateInstanceLayerProperties(&available_layer_count, nil);
 		   ok != vk.Result.SUCCESS {
-			log_error("Failed to enumerate instance layer properties")
+			l.log_error("Failed to enumerate instance layer properties")
 		}
 		available_layers := arr.darray_create(cast(u64)available_layer_count, vk.LayerProperties)
 		if ok := vk.EnumerateInstanceLayerProperties(
 			&available_layer_count,
 			raw_data(available_layers),
 		); ok != vk.Result.SUCCESS {
-			log_error("Failed to enumerate instance layer properties")
+			l.log_error("Failed to enumerate instance layer properties")
 		}
 
 		// Verify all required layers are available
@@ -119,11 +121,11 @@ vulkan_renderer_backend_initialize :: proc(
 				if layer_name == cstring(&layer.layerName[0]) do continue outer
 			}
 
-			log_fatal("Required validation layer is missing: %s", layer_name)
+			l.log_fatal("Required validation layer is missing: %s", layer_name)
 			return nil, 0, nil, Error.Missing_Validation_Layer
 		}
 
-		log_info("All required validation layers are present.")
+		l.log_info("All required validation layers are present.")
 
 		return required_validation_layer_names,
 			required_validation_layer_count,
@@ -158,13 +160,13 @@ vulkan_renderer_backend_initialize :: proc(
 
 	result: vk.Result = vk.CreateInstance(&create_info, v_context.allocator, &v_context.instance)
 	if result != vk.Result.SUCCESS {
-		log_error("vkCreateInstance failed with result: %u", result)
+		l.log_error("vkCreateInstance failed with result: %u", result)
 		return false
 	}
 
 	when ODIN_DEBUG == true {
 		create_debugger :: proc() -> Error {
-			log_debug("Creating Vulkan debugger...")
+			l.log_debug("Creating Vulkan debugger...")
 			debug_create_info: vk.DebugUtilsMessengerCreateInfoEXT = {
 					sType           = vk.StructureType.DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 					messageSeverity = {
@@ -207,8 +209,8 @@ vulkan_renderer_backend_initialize :: proc(
 			//vk.SubmitDebugUtilsMessageEXT = auto_cast vk.GetInstanceProcAddr(v_context.instance, cstring("vkSubmitDebugUtilsMessageEXT"))
 			//vk.SubmitDebugUtilsMessageEXT(v_context.instance, {vk.DebugUtilsMessageSeverityFlagEXT.WARNING}, {vk.DebugUtilsMessageTypeFlagEXT.GENERAL}, &msg_callback_data);
 
-			// log_debug("%s", msg_callback_data.pMessage)
-			log_debug("Vulkan debugger created.")
+			// l.log_debug("%s", msg_callback_data.pMessage)
+			l.log_debug("Vulkan debugger created.")
 
 			return Error.Okay
 		}
@@ -218,15 +220,15 @@ vulkan_renderer_backend_initialize :: proc(
 		}
 	}
 
-	log_debug("Creating Vulkan surface...")
+	l.log_debug("Creating Vulkan surface...")
 	if platform_create_vulkan_surface(&v_context) == false {
-		log_error("Failed to create platform surface")
+		l.log_error("Failed to create platform surface")
 		return false
 	}
-	log_debug("Vulkan surface created.")
+	l.log_debug("Vulkan surface created.")
 
 	if vulkan_device_create(&v_context) == false {
-		log_error("Failed to create device!")
+		l.log_error("Failed to create device!")
 		return false
 	}
 
@@ -314,7 +316,7 @@ vulkan_renderer_backend_initialize :: proc(
 
 	// Create buildin shaders
 	if !vulkan_material_shader_create(&v_context, &v_context.material_shader) {
-		log_error("Error loading built-in basic_lighting shader")
+		l.log_error("Error loading built-in basic_lighting shader")
 		return false
 	}
 
@@ -367,12 +369,12 @@ vulkan_renderer_backend_initialize :: proc(
 		raw_data(indices[:]),
 	)
 
-	log_info("Vulkan renderer initialized successfully.")
+	l.log_info("Vulkan renderer initialized successfully.")
 
 	return true
 }
 
-vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
+vulkan_renderer_backend_shutdown :: proc(backend: ^rv.renderer_backend) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
 	// Destroy is the opposide order of creation.
 	vulkan_buffer_destroy(&v_context, &v_context.object_vertex_buffer)
@@ -438,10 +440,10 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 	// Swapchain
 	vulkan_swapchain_destroy(&v_context, &v_context.swapchain)
 
-	log_debug("Destroying Vulkan device...")
+	l.log_debug("Destroying Vulkan device...")
 	vulkan_device_destroy(&v_context)
 
-	log_debug("Destroying Vulkan surface...")
+	l.log_debug("Destroying Vulkan surface...")
 	if v_context.surface != 0 {
 		vk.DestroySurfaceKHR(v_context.instance, v_context.surface, v_context.allocator)
 		v_context.surface = 0
@@ -460,25 +462,29 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^renderer_backend) {
 					v_context.debug_messenger.debug_messenger,
 					v_context.allocator,
 				)
-				log_debug("Destroying Vulkan debugger...")
+				l.log_debug("Destroying Vulkan debugger...")
 			}
 		}
 	}
 
 	if v_context.instance != nil {
-		log_debug("Destroying Vulkan instance...")
+		l.log_debug("Destroying Vulkan instance...")
 		vk.DestroyInstance(v_context.instance, v_context.allocator)
 	}
 }
 
-vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u16, height: u16) {
+vulkan_renderer_backend_on_resized :: proc(
+	backend: ^rv.renderer_backend,
+	width: u16,
+	height: u16,
+) {
 	// Update the "framebuffer size generation", a counter which indicates when the
 	// framebuffer size has been updated.
 	cached_framebuffer_width = cast(u32)width
 	cached_framebuffer_height = cast(u32)height
 	v_context.framebuffer_size_generation = v_context.framebuffer_size_generation + 1
 
-	log_info(
+	l.log_info(
 		"Vulkan renderer backend->resized: w/g/gen: %i/%i/%v",
 		width,
 		height,
@@ -486,7 +492,10 @@ vulkan_renderer_backend_on_resized :: proc(backend: ^renderer_backend, width: u1
 	)
 }
 
-vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
+vulkan_renderer_backend_begin_frame :: proc(
+	backend: ^rv.renderer_backend,
+	delta_time: f32,
+) -> bool {
 	v_context.frame_delta_time = delta_time
 	device: ^vulkan_device = &v_context.device
 
@@ -495,14 +504,14 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 		result := vk.DeviceWaitIdle(device.logical_device)
 
 		if !vulkan_result_is_success(result) {
-			log_error(
+			l.log_error(
 				"vulkan renderer backend begin frame vkDeviceWaitIdle (1), failed: '%s'",
 				vulkan_result_string(result, true),
 			)
 			return false
 		}
 
-		log_info("Recreating swapchain, booting")
+		l.log_info("Recreating swapchain, booting")
 		return false
 	}
 
@@ -511,7 +520,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 		result := vk.DeviceWaitIdle(device.logical_device)
 
 		if !vulkan_result_is_success(result) {
-			log_error(
+			l.log_error(
 				"vulkan renderer backend begin frame vkDeviceWaitIdle (2), failed: '%s'",
 				vulkan_result_string(result, true),
 			)
@@ -524,7 +533,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 			return false
 		}
 
-		log_info("Resized, booting")
+		l.log_info("Resized, booting")
 		return false
 	}
 
@@ -535,7 +544,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 		   max(u64),
 	   ) ==
 	   false {
-		log_warning("In-flight fence wait failure!")
+		l.log_warning("In-flight fence wait failure!")
 		return false
 	}
 	// Acquire the next image from the swap chain. Pass along the semaphore that should signaled when this completes.
@@ -587,7 +596,7 @@ vulkan_renderer_backend_begin_frame :: proc(backend: ^renderer_backend, delta_ti
 	return true
 }
 
-vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time: f32) -> bool {
+vulkan_renderer_backend_end_frame :: proc(backend: ^rv.renderer_backend, delta_time: f32) -> bool {
 	command_buffer: ^vulkan_command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
 
 	// End renderpass
@@ -642,7 +651,7 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time
 		v_context.in_flight_fences[v_context.current_frame].handle,
 	)
 	if result != vk.Result.SUCCESS {
-		log_error("vkQueueSubmit failed with result: %s", vulkan_result_string(result, true))
+		l.log_error("vkQueueSubmit failed with result: %s", vulkan_result_string(result, true))
 		return false
 	}
 
@@ -662,16 +671,16 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^renderer_backend, delta_time
 	return true
 }
 
-recreate_swapchain :: proc(backend: ^renderer_backend) -> bool {
+recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 	// If already being recreated, do not try again.
 	if v_context.recreating_swapchain {
-		log_debug("recreate_swapchain called when already recreating. Booting.")
+		l.log_debug("recreate_swapchain called when already recreating. Booting.")
 		return false
 	}
 
 	// Detect if the window is too small to be drawn to
 	if v_context.framebuffer_width == 0 || v_context.framebuffer_height == 0 {
-		log_debug("recreate_swapchain called when window is < 1 in a dimension. Booting.")
+		l.log_debug("recreate_swapchain called when window is < 1 in a dimension. Booting.")
 		return false
 	}
 
@@ -752,12 +761,12 @@ find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryProper
 			return cast(i32)i
 		}
 	}
-	log_warning("Unable to find suitable memory type!")
+	l.log_warning("Unable to find suitable memory type!")
 
 	return -1
 }
 
-create_command_buffers :: proc(backend: ^renderer_backend) {
+create_command_buffers :: proc(backend: ^rv.renderer_backend) {
 	if v_context.graphics_command_buffers == nil {
 		v_context.graphics_command_buffers = arr.darray_create(
 			cast(u64)v_context.swapchain.image_count,
@@ -784,11 +793,11 @@ create_command_buffers :: proc(backend: ^renderer_backend) {
 		)
 	}
 
-	log_debug("Vulkan command buffers created.")
+	l.log_debug("Vulkan command buffers created.")
 }
 
 regenerate_framebuffers :: proc(
-	backend: ^renderer_backend,
+	backend: ^rv.renderer_backend,
 	swapchain: ^vulkan_swapchain,
 	renderpass: ^vulkan_renderpass,
 ) {
@@ -827,7 +836,7 @@ create_buffers :: proc(v_context: ^vulkan_context) -> bool {
 		true,
 		&v_context.object_vertex_buffer,
 	) {
-		log_error("Error creating vertex buffer")
+		l.log_error("Error creating vertex buffer")
 		return false
 	}
 
@@ -847,7 +856,7 @@ create_buffers :: proc(v_context: ^vulkan_context) -> bool {
 		true,
 		&v_context.object_index_buffer,
 	) {
-		log_error("Error creating index buffer")
+		l.log_error("Error creating index buffer")
 		return false
 	}
 
@@ -971,7 +980,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 	memory_prop_flags := vk.MemoryPropertyFlags{.HOST_VISIBLE, .HOST_COHERENT}
 	staging: vulkan_buffer
 	vulkan_buffer_create(&v_context, image_size, usage, memory_prop_flags, true, &staging)
-	log_debug(
+	l.log_debug(
 		"CreateTexture: size=%u w=%d h=%d channels=%d staging=%p",
 		u64(image_size),
 		texture.width,
@@ -979,7 +988,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 		texture.channel_count,
 		staging.handle,
 	)
-	log_debug("CreateTexture: pixel_len=%d", len(pixels))
+	l.log_debug("CreateTexture: pixel_len=%d", len(pixels))
 
 	vulkan_buffer_load_data(&v_context, &staging, 0, u64(image_size), {}, raw_data(pixels))
 
@@ -1002,7 +1011,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 		{.COLOR},
 		&data.image,
 	)
-	log_debug("CreateTexture: image=%p view=%p", data.image.handle, data.image.view)
+	l.log_debug("CreateTexture: image=%p view=%p", data.image.handle, data.image.view)
 
 	temp_buffer: vulkan_command_buffer
 	pool := v_context.device.graphics_command_pool
@@ -1063,7 +1072,7 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 		&data.sampler,
 	)
 	if !vulkan_result_is_success(result) {
-		log_error("Error creating texture sampler: %s", vulkan_result_string(result, true))
+		l.log_error("Error creating texture sampler: %s", vulkan_result_string(result, true))
 		return
 	}
 
@@ -1096,13 +1105,13 @@ vulkan_renderer_create_material :: proc(material: ^material) -> bool {
 			&v_context.material_shader,
 			material,
 		) {
-			log_error("Failed to aqcuire shader resources")
+			l.log_error("Failed to aqcuire shader resources")
 			return false
 		}
-		log_debug("Material created")
+		l.log_debug("Material created")
 		return true
 	}
-	log_error("vulkan renderer create material called with nullptr. Creation failed.")
+	l.log_error("vulkan renderer create material called with nullptr. Creation failed.")
 	return false
 }
 
@@ -1115,9 +1124,10 @@ vulkan_renderer_destroy_material :: proc(material: ^material) {
 				material,
 			)
 		} else {
-			log_warning("material destroy invalid")
+			l.log_warning("material destroy invalid")
 		}
 	} else {
-		log_warning("material null ptr")
+		l.log_warning("material null ptr")
 	}
 }
+

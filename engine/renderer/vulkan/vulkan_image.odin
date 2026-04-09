@@ -1,5 +1,6 @@
-package core
+package renderer
 
+import l "../../logger"
 import vk "vendor:vulkan"
 
 vulkan_image_create :: proc(
@@ -61,7 +62,7 @@ vulkan_image_create :: proc(
 		memory_flags,
 	)
 	if memory_type == -1 {
-		log_error("Required memory type not found. Image not valid.")
+		l.log_error("Required memory type not found. Image not valid.")
 	}
 
 	// Allocate memory
@@ -170,9 +171,9 @@ vulkan_image_transition_layout :: proc(
 	dest_stage: vk.PipelineStageFlags
 
 	// Don't care about the old layout - transition to optimal layout.
-	log_debug("ImageTransition: img=%p old=%d new=%s", image.handle, old_layout, new_layout)
+	l.log_debug("ImageTransition: img=%p old=%d new=%s", image.handle, old_layout, new_layout)
 	if vk.CmdPipelineBarrier == nil {
-		log_fatal("vk.CmdPipelineBarrier is nil")
+		l.log_fatal("vk.CmdPipelineBarrier is nil")
 		return
 	}
 	if old_layout == .UNDEFINED && new_layout == .TRANSFER_DST_OPTIMAL {
@@ -187,7 +188,7 @@ vulkan_image_transition_layout :: proc(
 		source_stage = {.TRANSFER}
 		dest_stage = {.FRAGMENT_SHADER}
 	} else {
-		log_fatal("unsupported layout transition!")
+		l.log_fatal("unsupported layout transition!")
 		return
 	}
 
@@ -228,7 +229,7 @@ vulkan_image_copy_from_buffer :: proc(
 	region.imageExtent.height = image.height
 	region.imageExtent.depth = 1
 
-	log_debug(
+	l.log_debug(
 		"CopyBufferToImage: buf=%p img=%p w=%d h=%d",
 		buffer,
 		image.handle,
@@ -236,7 +237,7 @@ vulkan_image_copy_from_buffer :: proc(
 		image.height,
 	)
 	if vk.CmdCopyBufferToImage == nil {
-		log_fatal("vk.CmdCopyBufferToImage is nil")
+		l.log_fatal("vk.CmdCopyBufferToImage is nil")
 		return
 	}
 	vk.CmdCopyBufferToImage(

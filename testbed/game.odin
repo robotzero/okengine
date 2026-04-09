@@ -1,8 +1,9 @@
 package testbed
 
+import c "../engine/core"
 import idef "../engine/core/input"
-import c "engine:core"
-import "engine:okmath"
+import l "../engine/logger"
+import "../engine/okmath"
 
 create_game :: proc(out_game: ^c.game) -> bool {
 	out_game.app_config.name = "OK Engine Testbed"
@@ -21,7 +22,7 @@ create_game :: proc(out_game: ^c.game) -> bool {
 }
 
 game_initialize :: proc(game_inst: ^c.game) -> bool {
-	c.log_debug("game initialize called")
+	l.log_debug("game initialize called")
 	state := game_inst.state
 
 	state.camera_position = okmath.vec3{0, 0, 30.0}

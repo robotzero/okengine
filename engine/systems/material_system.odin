@@ -1,7 +1,10 @@
-package core
+package systems
 
+import c "../containers"
+import l "../logger"
 import "../okmath"
 import pl "../platform/linux"
+import r "../resources"
 import "core:fmt"
 import "core:os"
 
@@ -20,9 +23,9 @@ material_config :: struct {
 
 material_system_state :: struct {
 	config:                    material_system_config,
-	default_material:          material,
-	registered_materials:      []material,
-	registered_material_table: ^hashtable(material_reference),
+	default_material:          r.material,
+	registered_materials:      []r.material,
+	registered_material_table: ^c.hashtable(material_reference),
 }
 
 material_reference :: struct {
@@ -40,7 +43,7 @@ material_system_initialize :: proc(
 	allocator := context.allocator,
 ) -> b8 {
 	if config.max_material_count == 0 {
-		log_fatal("texture_system_initialize - config.max_texture_count must be > 0.")
+		l.log_fatal("texture_system_initialize - config.max_texture_count must be > 0.")
 		return false
 	}
 	if state == nil {
@@ -104,7 +107,7 @@ material_system_shutdown :: proc() {
 		state_ptr = nil
 	}
 }
-material_system_acquire_from_config :: proc(config: material_config) -> ^material {
+material_system_acquire_from_config :: proc(config: material_config) -> ^r.material {
 	// Return default material
 	if strings_eqali(config.name, DEFAULT_MATERIAL_NAME) {
 		return &state_ptr.default_material
@@ -131,7 +134,7 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^materia
 
 			// Make sure an empty slot was actually found.
 			if m == nil || ref.handle == INVALID_ID {
-				log_fatal(
+				l.log_fatal(
 					"texture_system2_acquire - Texture system cannot hold anymore textures. Adjust configuration to allow more.",
 				)
 				return nil
@@ -139,7 +142,7 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^materia
 
 			// Create new texture.
 			if !load_material(config, m) {
-				log_error("Failed to load texture '%s'.", config.name)
+				l.log_error("Failed to load texture '%s'.", config.name)
 				return nil
 			}
 
@@ -151,13 +154,13 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^materia
 
 			// Also use the handle as the texture id.
 			m.id = ref.handle
-			log_debug(
+			l.log_debug(
 				"Texture '%s' does not yet exist. Created, and ref_count is now %i.",
 				config.name,
 				ref.reference_count,
 			)
 		} else {
-			log_debug(
+			l.log_debug(
 				"Texture '%s' already exists, ref_count increased to %i.",
 				config.name,
 				ref.reference_count,
@@ -170,7 +173,7 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^materia
 	}
 
 	// NOTE: This would only happen in the event something went wrong with the state.
-	log_error(
+	l.log_error(
 		"texture_system2_acquire failed to acquire texture '%s'. Null pointer will be returned.",
 		config.name,
 	)
@@ -185,7 +188,7 @@ material_system_release :: proc(name: string) {
 	ref: material_reference
 	if state_ptr != nil && hashtable_get(state_ptr.registered_material_table, name, &ref) {
 		if ref.reference_count == 0 {
-			log_warning("Tried to release non-existent texture: '%s'", name)
+			l.log_warning("Tried to release non-existent texture: '%s'", name)
 			return
 		}
 		ref.reference_count -= 1
@@ -201,12 +204,12 @@ material_system_release :: proc(name: string) {
 			// Reset the reference.
 			ref.handle = INVALID_ID
 			ref.auto_release = false
-			log_debug(
+			l.log_debug(
 				"Released texture '%s'., Texture unloaded because reference count=0 and auto_release=true.",
 				name,
 			)
 		} else {
-			log_debug(
+			l.log_debug(
 				"Released texture '%s', now has a reference count of '%i' (auto_release=%s).",
 				name,
 				ref.reference_count,
@@ -217,11 +220,11 @@ material_system_release :: proc(name: string) {
 		// Update the entry.
 		hashtable_set(state_ptr.registered_material_table, name, ref)
 	} else {
-		log_error("texture_system2_release failed to release texture '%s'.", name)
+		l.log_error("texture_system2_release failed to release texture '%s'.", name)
 	}
 }
 
-load_material :: proc(config: material_config, m: ^material) -> bool {
+load_material :: proc(config: material_config, m: ^r.material) -> bool {
 	m.name = string_ncopy(config.name, MATERIAL_NAME_MAX_LENGTH)
 	m.diffuse_colour = config.diffuse_colour
 
@@ -229,7 +232,7 @@ load_material :: proc(config: material_config, m: ^material) -> bool {
 		m.diffuse_map.use = texture_use.TEXTURE_USE_MAP_DIFFUSE
 		m.diffuse_map.texture = texture_system_acquire(config.diffuse_map_name, true)
 		if m.diffuse_map.texture == nil {
-			log_warning("Unable to load texture")
+			l.log_warning("Unable to load texture")
 			m.diffuse_map.texture = texture_system_get_default_texture()
 		}
 	} else {
@@ -239,7 +242,7 @@ load_material :: proc(config: material_config, m: ^material) -> bool {
 
 	// Sent it of to the renderer to acquire resources
 	if !renderer_create_material(m) {
-		log_error("Failed to acquire renderer resources for material '%s'", m.name)
+		l.log_error("Failed to acquire renderer resources for material '%s'", m.name)
 		return false
 	}
 
@@ -247,7 +250,7 @@ load_material :: proc(config: material_config, m: ^material) -> bool {
 }
 
 destroy_material :: proc(m: ^material) {
-	log_debug("Destroying material '%s'", m.name)
+	l.log_debug("Destroying material '%s'", m.name)
 
 	// Release texture references
 	if m.diffuse_map.texture != nil {
@@ -271,7 +274,7 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 	state.default_material.diffuse_map.texture = texture_system_get_default_texture()
 
 	if !renderer_create_material(&state.default_material) {
-		log_fatal("Failed to acquire renderer resources for default texture.")
+		l.log_fatal("Failed to acquire renderer resources for default texture.")
 		return false
 	}
 
@@ -285,7 +288,7 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 
 	f, ok := pl.filesystem_open(path, os.O_RDONLY)
 	if !ok {
-		log_error(
+		l.log_error(
 			"load_configuration_file - unable to open material file for reading: '%s'.",
 			path,
 		)
@@ -311,7 +314,7 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 		// Split into var/value.
 		equal_index := string_index_of(trimmed, '=')
 		if equal_index == -1 {
-			log_warning(
+			l.log_warning(
 				"Potential formatting issue found in file '%s': '=' token not found. Skipping line %v.",
 				path,
 				line_number,
@@ -332,7 +335,7 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 			out_config.diffuse_map_name = string_ncopy(trimmed_value, TEXTURE_NAME_MAX_LENGTH)
 		} else if strings_eqali(trimmed_var_name, "diffuse_colour") {
 			if !string_to_vec4(trimmed_value, &out_config.diffuse_colour) {
-				log_warning(
+				l.log_warning(
 					"Error parsing diffuse_colour in file '%s'. Using default of white instead.",
 					path,
 				)
@@ -347,12 +350,12 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 	return true
 }
 
-material_system_acquire :: proc(name: string) -> ^material {
+material_system_acquire :: proc(name: string) -> ^r.material {
 	config: material_config = {}
 	filepath := fmt.aprintf("assets/materials/%s.%s", name, "okmt")
 	defer delete(filepath)
 	if !material_config_load_from_file(filepath, &config) {
-		log_error("Failed to load material file")
+		l.log_error("Failed to load material file")
 		return nil
 	}
 

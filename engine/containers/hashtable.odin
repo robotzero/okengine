@@ -1,4 +1,4 @@
-package core
+package containers
 
 import "core:fmt"
 import "core:hash"

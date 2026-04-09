@@ -1,5 +1,6 @@
-package core
+package renderer
 
+import l "../../logger"
 import "core:mem"
 import vk "vendor:vulkan"
 
@@ -48,7 +49,7 @@ vulkan_buffer_create :: proc(
 		out_buffer.memory_property_flags,
 	)
 	if out_buffer.memory_index == -1 {
-		log_error(
+		l.log_error(
 			"Unable to create vulkan buffer because the required memory type index was not found.",
 		)
 		return false
@@ -67,7 +68,7 @@ vulkan_buffer_create :: proc(
 		&out_buffer.memory,
 	)
 	if res != vk.Result.SUCCESS {
-		log_error(
+		l.log_error(
 			"Unable to create vulkan buffer because the required memory allocation failed. Error: %d",
 			int(res),
 		)
@@ -138,7 +139,7 @@ vulkan_buffer_resize :: proc(
 		&new_memory,
 	)
 	if res != vk.Result.SUCCESS {
-		log_error(
+		l.log_error(
 			"Unable to resize vulkan buffer because the required memory allocation failed. Error: %d",
 			int(res),
 		)
@@ -147,7 +148,7 @@ vulkan_buffer_resize :: proc(
 
 	res = vk.BindBufferMemory(v_context.device.logical_device, new_buffer, new_memory, 0)
 	if res != vk.Result.SUCCESS {
-		log_error("Unable to bind buffer memory")
+		l.log_error("Unable to bind buffer memory")
 		return false
 	}
 
@@ -165,7 +166,7 @@ vulkan_buffer_resize :: proc(
 	)
 	res = vk.DeviceWaitIdle(v_context.device.logical_device)
 	if res != vk.Result.SUCCESS {
-		log_error("Failed to copy the buffer")
+		l.log_error("Failed to copy the buffer")
 		return false
 	}
 
@@ -195,7 +196,7 @@ vulkan_buffer_bind :: proc(v_context: ^vulkan_context, buffer: ^vulkan_buffer, o
 		vk.DeviceSize(offset),
 	)
 	if res != vk.Result.SUCCESS {
-		log_error("FAILED TO BIND A VULKAN BUFFER")
+		l.log_error("FAILED TO BIND A VULKAN BUFFER")
 	}
 }
 
@@ -216,7 +217,7 @@ vulkan_buffer_lock_memory :: proc(
 		&data,
 	)
 	if res != vk.Result.SUCCESS {
-		log_error("Failed to log buffer memory!!!")
+		l.log_error("Failed to log buffer memory!!!")
 	}
 	return data
 }
@@ -243,7 +244,7 @@ vulkan_buffer_load_data :: proc(
 		&data_ptr,
 	)
 	if res != vk.Result.SUCCESS {
-		log_error("Failed to map buffer memory")
+		l.log_error("Failed to map buffer memory")
 	}
 	mem.copy(data_ptr, data, int(size))
 	vk.UnmapMemory(v_context.device.logical_device, buffer.memory)

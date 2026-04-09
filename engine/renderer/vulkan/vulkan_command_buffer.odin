@@ -1,6 +1,7 @@
-package core
+package renderer
 
-import arr "../containers"
+import arr "../../containers"
+import l "../../logger"
 import "core:fmt"
 import vk "vendor:vulkan"
 
@@ -109,14 +110,14 @@ vulkan_command_buffer_end_single_use :: proc(
 
 	res_submit := vk.QueueSubmit(queue, 1, &submit_info, 0)
 	if res_submit != vk.Result.SUCCESS {
-		log_error("QueueSubmit failed: %s", vulkan_result_string(res_submit, true))
+		l.log_error("QueueSubmit failed: %s", vulkan_result_string(res_submit, true))
 		return
 	}
 
 	// Wait for it to finish
 	res := vk.QueueWaitIdle(queue)
 	if res != vk.Result.SUCCESS {
-		log_error("QueueWaitIdle failed: %s", vulkan_result_string(res, true))
+		l.log_error("QueueWaitIdle failed: %s", vulkan_result_string(res, true))
 		return
 	}
 

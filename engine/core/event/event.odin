@@ -1,6 +1,6 @@
 package core
 
-import cnt "../containers"
+import cnt "../../containers"
 
 MAX_MESSAGE_CODES :: 16384
 

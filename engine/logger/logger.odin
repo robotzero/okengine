@@ -1,9 +1,7 @@
-package core
+package logger
 
-import "base:runtime"
 import "core:fmt"
 import "core:log"
-import "core:mem"
 
 LOG_WARN_ENABLED :: true
 LOG_INFO_ENABLED :: true

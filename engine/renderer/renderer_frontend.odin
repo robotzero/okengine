@@ -1,5 +1,7 @@
-package core
+package renderer
 
+import e "../core/event"
+import l "../logger"
 import "../okmath"
 import "core:fmt"
 import "core:strings"
@@ -31,14 +33,18 @@ renderer_system_initialize :: proc(
 	allocator := context.allocator,
 ) -> bool {
 	state_ptr = state
-	event_register(cast(u16)system_event_code.EVENT_CODE_DEBUG0, state_ptr, event_on_debug_event)
+	e.event_register(
+		cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
+		state_ptr,
+		event_on_debug_event,
+	)
 
 	// @TODO: make this configurable
 	renderer_backend_create(.RENDERER_BACKEND_TYPE_VULKAN, &state_ptr.backend)
 	state_ptr.backend.frame_number = 0
 
 	if !state_ptr.backend.initialize(&state_ptr.backend, application_name, allocator) {
-		log_fatal("Renderer backend failed to initialize. Shutting down")
+		l.log_fatal("Renderer backend failed to initialize. Shutting down")
 		return false
 	}
 
@@ -60,8 +66,8 @@ renderer_system_initialize :: proc(
 renderer_system_shutdown :: proc(state: ^renderer_system_state) {
 	if state_ptr != nil {
 		state_ptr.backend.shutdown(&state_ptr.backend)
-		event_unregister(
-			cast(u16)system_event_code.EVENT_CODE_DEBUG0,
+		e.event_unregister(
+			cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
 			state_ptr,
 			event_on_debug_event,
 		)
@@ -101,7 +107,7 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 		if state_ptr.test_material == nil {
 			state_ptr.test_material = material_system_acquire("test_material")
 			if state_ptr.test_material == nil {
-				log_warning(
+				l.log_warning(
 					"Automatic material load failed, failing back to manual default material",
 				)
 				config: material_config = {}
@@ -121,7 +127,7 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 		result: bool = renderer_end_frame(packet.delta_time)
 
 		if !result {
-			log_error("renderer_end_frame failed. Application shutting down...")
+			l.log_error("renderer_end_frame failed. Application shutting down...")
 			return false
 		}
 	}
@@ -139,7 +145,7 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 		)
 		state_ptr.backend.resized(&state_ptr.backend, width, height)
 	} else {
-		log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
+		l.log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
 	}
 }
 
@@ -167,7 +173,7 @@ event_on_debug_event :: proc(
 	code: u16,
 	sender: rawptr,
 	listener_inst: rawptr,
-	data: event_context,
+	data: e.event_context,
 ) -> bool {
 	names := [3]string{"cobblestone", "paving", "paving2"}
 
@@ -181,7 +187,7 @@ event_on_debug_event :: proc(
 	state_ptr.test_material.diffuse_map.texture = texture_system_acquire(names[choice], true)
 
 	if state_ptr.test_material.diffuse_map.texture == nil {
-		log_info("event_on_debug_event no texture! using default")
+		l.log_info("event_on_debug_event no texture! using default")
 		state_ptr.test_material.diffuse_map.texture = texture_system_get_default_texture()
 	}
 	// Release the old texture

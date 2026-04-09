@@ -1,10 +1,12 @@
 #+build linux
+#+feature using-stmt
+package platform
 
-package core
-
-import idef "../../engine/core/input"
-import arr "../containers"
-import l "../platform/linux"
+import arr "../../containers"
+import ev "../../core/event"
+import idef "../../core/input"
+import l "../../logger"
+import rv "../../renderer/vulkan"
 import "core:dynlib"
 import "core:fmt"
 import "core:log"
@@ -22,10 +24,10 @@ foreign import XCBUTIL "system:xcb-util"
 
 @(default_calling_convention = "c", private)
 foreign X11XCB {
-	XGetXCBConnection :: proc(_: ^xlib.Display) -> ^l.Connection ---
+	XGetXCBConnection :: proc(_: ^xlib.Display) -> ^Connection ---
 }
 foreign XCBUTIL {
-	xcb_aux_get_screen :: proc(connection: ^l.Connection, screen: i32) -> ^l.Screen ---
+	xcb_aux_get_screen :: proc(connection: ^Connection, screen: i32) -> ^Screen ---
 }
 
 @(private = "file")
@@ -33,11 +35,11 @@ state_ptr: ^platform_system_state
 
 platform_system_state :: struct {
 	display:       ^xlib.Display,
-	connection:    ^l.Connection,
-	window:        l.Window,
-	screen:        ^l.Screen,
-	wm_protocols:  l.Atom,
-	wm_delete_win: l.Atom,
+	connection:    ^Connection,
+	window:        Window,
+	screen:        ^Screen,
+	wm_protocols:  Atom,
+	wm_delete_win: Atom,
 	surface:       vk.SurfaceKHR,
 }
 
@@ -59,33 +61,33 @@ platform_system_startup :: proc(
 	xlib.AutoRepeatOff(state_ptr.display)
 	screen_p: i32 = 0
 	state_ptr.connection = XGetXCBConnection(state_ptr.display)
-	// state.connection = l.connect(nil, &screen_p)
-	if (l.connection_has_error(state_ptr.connection) == 1) {
+	// state.connection = connect(nil, &screen_p)
+	if (connection_has_error(state_ptr.connection) == 1) {
 		return false
 	}
 
-	setup: ^l.Setup = l.get_setup(state_ptr.connection)
-	it: l.ScreenIterator = l.setup_roots_iterator(setup)
+	setup: ^Setup = get_setup(state_ptr.connection)
+	it: ScreenIterator = setup_roots_iterator(setup)
 
 	for s: i32 = 0; s < screen_p; s -= 1 {
-		l.screen_next(&it)
+		screen_next(&it)
 	}
 	state_ptr.screen = it.data
 	// state.screen = xcb_aux_get_screen(state.connection, screen_p)
-	state_ptr.window = l.generate_id(state_ptr.connection)
-	event_mask := cast(u32)(l.Cw.BackPixel | l.Cw.EventMask)
+	state_ptr.window = generate_id(state_ptr.connection)
+	event_mask := cast(u32)(Cw.BackPixel | Cw.EventMask)
 
-	event_values := cast(u32)(l.EventMask.ButtonPress |
-		l.EventMask.ButtonRelease |
-		l.EventMask.KeyPress |
-		l.EventMask.KeyRelease |
-		l.EventMask.Exposure |
-		l.EventMask.PointerMotion |
-		l.EventMask.StructureNotify)
+	event_values := cast(u32)(EventMask.ButtonPress |
+		EventMask.ButtonRelease |
+		EventMask.KeyPress |
+		EventMask.KeyRelease |
+		EventMask.Exposure |
+		EventMask.PointerMotion |
+		EventMask.StructureNotify)
 	value_list: [3]u32 = {state_ptr.screen.blackPixel, event_values, 0}
-	cookie: l.VoidCookie = l.create_window(
+	cookie: VoidCookie = create_window(
 		state_ptr.connection,
-		cast(u8)l.WindowClass.CopyFromParent,
+		cast(u8)WindowClass.CopyFromParent,
 		state_ptr.window,
 		state_ptr.screen.root,
 		cast(i16)x,
@@ -93,48 +95,48 @@ platform_system_startup :: proc(
 		cast(u16)width,
 		cast(u16)height,
 		0,
-		cast(u16)l.WindowClass.InputOutput,
+		cast(u16)WindowClass.InputOutput,
 		state_ptr.screen.rootVisual,
 		event_mask,
 		&value_list[0],
 	)
-	l.change_property(
+	change_property(
 		state_ptr.connection,
-		cast(u8)l.PropMode.Replace,
+		cast(u8)PropMode.Replace,
 		state_ptr.window,
-		cast(u32)l.AtomEnum.AtomWmName,
-		cast(u32)l.AtomEnum.AtomString,
+		cast(u32)AtomEnum.AtomWmName,
+		cast(u32)AtomEnum.AtomString,
 		8,
 		length,
 		cast(rawptr)(app_name),
 	)
-	wm_delete_cookie: l.InternAtomCookie = l.intern_atom(
+	wm_delete_cookie: InternAtomCookie = intern_atom(
 		state_ptr.connection,
 		0,
 		len("WM_DELETE_WINDOW"),
 		"DELETE_WINDOW",
 	)
-	wm_protocols_cookie: l.InternAtomCookie = l.intern_atom(
+	wm_protocols_cookie: InternAtomCookie = intern_atom(
 		state_ptr.connection,
 		0,
 		len("WM_PROTOCOLS"),
 		"WM_PROTOCOLS",
 	)
-	wm_delete_reply: ^l.InternAtomReply = l.intern_atom_reply(
+	wm_delete_reply: ^InternAtomReply = intern_atom_reply(
 		state_ptr.connection,
 		wm_delete_cookie,
 		nil,
 	)
-	wm_protocols_reply: ^l.InternAtomReply = l.intern_atom_reply(
+	wm_protocols_reply: ^InternAtomReply = intern_atom_reply(
 		state_ptr.connection,
 		wm_protocols_cookie,
 		nil,
 	)
 	state_ptr.wm_delete_win = wm_delete_reply.atom
 	state_ptr.wm_protocols = wm_protocols_reply.atom
-	l.change_property(
+	change_property(
 		state_ptr.connection,
-		cast(u8)l.PropMode.Replace,
+		cast(u8)PropMode.Replace,
 		state_ptr.window,
 		wm_protocols_reply.atom,
 		4,
@@ -142,10 +144,10 @@ platform_system_startup :: proc(
 		1,
 		&wm_delete_reply.atom,
 	)
-	l.map_window(state_ptr.connection, state_ptr.window)
-	stream_result: i32 = l.flush(state_ptr.connection)
+	map_window(state_ptr.connection, state_ptr.window)
+	stream_result: i32 = flush(state_ptr.connection)
 	if stream_result <= 0 {
-		// l.fatal("An error occured when flushing the stream: %d", stream_result)
+		// fatal("An error occured when flushing the stream: %d", stream_result)
 		return false
 	}
 	return true
@@ -153,23 +155,23 @@ platform_system_startup :: proc(
 
 platform_pump_messages :: proc() -> bool {
 	quit_flagged := false
-	e: l.GenericEvent = {}
-	c: l.ClientMessageEvent = {}
+	e: GenericEvent = {}
+	c: ClientMessageEvent = {}
 
 	event := &e
 	cm := &c
 
 	for event != nil {
-		event = l.poll_for_event(state_ptr.connection)
+		event = poll_for_event(state_ptr.connection)
 		if event == nil {
 			break
 		}
 		switch (event.responseType & 0x7f) {
-		case l.KEY_RELEASE, l.KEY_PRESS:
+		case KEY_RELEASE, KEY_PRESS:
 			{
-				keyPressEvent := cast(^l.KeyPressEvent)event
-				pressed := event.responseType == l.KEY_PRESS
-				code: l.Keycode = keyPressEvent.detail
+				keyPressEvent := cast(^KeyPressEvent)event
+				pressed := event.responseType == KEY_PRESS
+				code: Keycode = keyPressEvent.detail
 				key_sym: xlib.KeySym = xlib.KeycodeToKeysym(
 					state_ptr.display,
 					cast(xlib.KeyCode)code,
@@ -181,22 +183,22 @@ platform_pump_messages :: proc() -> bool {
 				input_process_key(key, pressed)
 			}
 
-		case l.BUTTON_PRESS, l.BUTTON_RELEASE:
+		case BUTTON_PRESS, BUTTON_RELEASE:
 			{
-				mouseEvent := cast(^l.ButtonPressEvent)event
-				pressed := event.responseType == l.BUTTON_PRESS
+				mouseEvent := cast(^ButtonPressEvent)event
+				pressed := event.responseType == BUTTON_PRESS
 				mouse_button := idef.buttons.BUTTON_MAX_BUTTONS
 
 				switch mouseEvent.detail {
-				case cast(u8)l.ButtonIndex._1:
+				case cast(u8)ButtonIndex._1:
 					{
 						mouse_button = idef.buttons.BUTTON_LEFT
 					}
-				case cast(u8)l.ButtonIndex._2:
+				case cast(u8)ButtonIndex._2:
 					{
 						mouse_button = idef.buttons.BUTTON_MIDDLE
 					}
-				case cast(u8)l.ButtonIndex._3:
+				case cast(u8)ButtonIndex._3:
 					{
 						mouse_button = idef.buttons.BUTTON_RIGHT
 					}
@@ -208,32 +210,34 @@ platform_pump_messages :: proc() -> bool {
 				}
 			}
 
-		case l.MOTION_NOTIFY:
+		case MOTION_NOTIFY:
 			{
 				// TODO mouse movenet
 				// Mouse move
-				move_event := cast(^l.MotionNotifyEvent)event
+				move_event := cast(^MotionNotifyEvent)event
 
 				// Pass over to the input subsystem
 				input_process_mouse_move(move_event.eventX, move_event.eventY)
 			}
 
-		case l.CONFIGURE_NOTIFY:
+		case CONFIGURE_NOTIFY:
 			{
 				// Resizing - note that this is also triggered by moving the window, but should be
 				// passed anyway since a change in the x/y could mean an upper-left resize.
 				// The application layer can decide what to do with this.
-				configure_event := cast(^l.ConfigureNotifyEvent)event
+				configure_event := cast(^ConfigureNotifyEvent)event
 
 				// Fire the event. The application layer should pick this up, but not handle it
 				// as it shouldn be visible to other parts of the application.
-				c: event_context = {
-					data = [8]u16{0 = configure_event.width, 1 = configure_event.height},
+				c: ev.event_context = {}
+				c.data = [8]u16 {
+					0 = configure_event.width,
+					1 = configure_event.height,
 				}
-				event_fire(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, c)
+				ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_RESIZED, nil, c)
 			}
 		}
-		l.flush(state_ptr.connection)
+		flush(state_ptr.connection)
 	}
 
 	return !quit_flagged
@@ -242,7 +246,7 @@ platform_pump_messages :: proc() -> bool {
 platform_system_shutdown :: proc(plat_state: ^platform_system_state) {
 	platform_console_write(log.Level.Info, "Platform Shutdown")
 	xlib.AutoRepeatOn(state_ptr.display)
-	l.destroy_window(state_ptr.connection, state_ptr.window)
+	destroy_window(state_ptr.connection, state_ptr.window)
 	// defer free(plat_state.internal_state)
 }
 
@@ -288,18 +292,18 @@ platform_allocate :: proc(
 	^T,
 	mem.Allocator_Error,
 ) {
-	// platform_console_write(log.Level.Debug, "OBJECT NEW %s", location)
+	// platform_console_write(log.LeveDebug, "OBJECT NEW %s", location)
 	obj, err := new(T, allocator)
 	if err != nil {
 		log.fatal(err)
 	}
-	// log.log(log.Level.Info, "object %v, location %s", obj, location, allocator, typeid_of(T))
-	// log.log(log.Level.Info, "size of %d", size_of(obj))
+	// log.log(log.LeveInfo, "object %v, location %s", obj, location, allocator, typeid_of(T))
+	// log.log(log.LeveInfo, "size of %d", size_of(obj))
 	return obj, err
 }
 
 platform_free :: proc(object: ^$T, location := #caller_location, allocator := context.allocator) {
-	log.log(log.Level.Info, "object %v, location %s, ob %s", object, location, typeid_of(T))
+	log.log(log.LeveInfo, "object %v, location %s, ob %s", object, location, typeid_of(T))
 	err := mem.free(object, allocator)
 	ensure(err == nil)
 }
@@ -327,17 +331,17 @@ platform_initialize_vulkan :: proc() -> rawptr {
 	return get_instance_proc_address
 }
 
-platform_create_vulkan_surface :: proc(v_context: ^vulkan_context) -> bool {
+platform_create_vulkan_surface :: proc(v_context: ^rv.vulkan_context) -> bool {
 	// Simply cold-cast to the known type.
-	l.load_proc_addresses(v_context.instance)
+	load_proc_addresses(v_context.instance)
 
-	create_info: l.XcbSurfaceCreateInfoKHR = {
+	create_info: XcbSurfaceCreateInfoKHR = {
 		sType      = vk.StructureType.XCB_SURFACE_CREATE_INFO_KHR,
 		connection = state_ptr.connection,
 		window     = state_ptr.window,
 	}
 
-	result: vk.Result = l.CreateXcbSurfaceKHR(
+	result: vk.Result = CreateXcbSurfaceKHR(
 		v_context.instance,
 		&create_info,
 		v_context.allocator,
@@ -345,7 +349,7 @@ platform_create_vulkan_surface :: proc(v_context: ^vulkan_context) -> bool {
 	)
 
 	if result != vk.Result.SUCCESS {
-		log_fatal("Vulkan surface creation failed.")
+		l.log_fatal("Vulkan surface creation failed.")
 		return false
 	}
 

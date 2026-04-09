@@ -1,8 +1,9 @@
-package core
+package renderer
 
+import l "../../logger"
 import vk "vendor:vulkan"
 
-import arr "../containers"
+import arr "../../containers"
 
 vulkan_physical_device_requirements :: struct {
 	graphics:               bool,
@@ -54,7 +55,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		return false
 	}
 
-	log_info("Creating logical device...")
+	l.log_info("Creating logical device...")
 	// @NOTE: Do not create additional queues for shared indices.
 	present_shares_graphics_queue: bool =
 		v_context.device.graphics_queue_index == v_context.device.present_queue_index
@@ -128,7 +129,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		vk.Result.SUCCESS,
 	)
 	// vk.load_proc_addresses_device(v_context.device.logical_device)
-	log_info("Logical device created.")
+	l.log_info("Logical device created.")
 
 	// Get queues.
 	vk.GetDeviceQueue(
@@ -150,7 +151,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		&v_context.device.transfer_queue,
 	)
 
-	log_info("Queues obtained.")
+	l.log_info("Queues obtained.")
 
 	// Create command pool for graphics queue.
 	pool_create_info: vk.CommandPoolCreateInfo = {
@@ -168,7 +169,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		) ==
 		vk.Result.SUCCESS,
 	)
-	log_info("Graphics command pool created.")
+	l.log_info("Graphics command pool created.")
 
 	return true
 }
@@ -179,7 +180,7 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 	v_context.device.present_queue = nil
 	v_context.device.transfer_queue = nil
 
-	log_info("Destroying command pools...")
+	l.log_info("Destroying command pools...")
 	vk.DestroyCommandPool(
 		v_context.device.logical_device,
 		v_context.device.graphics_command_pool,
@@ -187,14 +188,14 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 	)
 
 	// Destroy logical device
-	log_info("Destorying logical device...")
+	l.log_info("Destorying logical device...")
 	if v_context.device.logical_device != nil {
 		vk.DestroyDevice(v_context.device.logical_device, v_context.allocator)
 		v_context.device.logical_device = nil
 	}
 
 	// Physical devices are not destroyed.
-	log_info("Releasing physical device resources...")
+	l.log_info("Releasing physical device resources...")
 	v_context.device.physical_device = nil
 
 	if v_context.device.swapchain_support.formats != nil {
@@ -299,7 +300,7 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 	)
 
 	if physical_device_count == 0 {
-		log_fatal("No devices which support Vulkan were found.")
+		l.log_fatal("No devices which support Vulkan were found.")
 		return false
 	}
 
@@ -351,21 +352,21 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 		)
 
 		if result == true {
-			log_info("Selected device: '%s'.", properties.deviceName)
+			l.log_info("Selected device: '%s'.", properties.deviceName)
 			// GPU type, etc.
 			switch properties.deviceType {
 			case vk.PhysicalDeviceType.OTHER:
-				log_info("GPU type is Unknown.")
+				l.log_info("GPU type is Unknown.")
 			case vk.PhysicalDeviceType.INTEGRATED_GPU:
-				log_info("GPU type is Integrated.")
+				l.log_info("GPU type is Integrated.")
 			case vk.PhysicalDeviceType.DISCRETE_GPU:
-				log_info("GPU type is Discrete.")
+				l.log_info("GPU type is Discrete.")
 			case vk.PhysicalDeviceType.VIRTUAL_GPU:
-				log_info("GPU type is Virtual.")
+				l.log_info("GPU type is Virtual.")
 			case vk.PhysicalDeviceType.CPU:
-				log_info("GPU type is CPU.")
+				l.log_info("GPU type is CPU.")
 			}
-			log_info(
+			l.log_info(
 				"GPU Driver version: %d.%d.%d",
 				properties.apiVersion,
 				properties.apiVersion,
@@ -375,9 +376,9 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 			for mem in memory.memoryHeaps {
 				memory_size_gib: f32 = (cast(f32)mem.size) / 1024.0 / 1024.0 / 1024.0
 				if vk.MemoryHeapFlag.DEVICE_LOCAL in mem.flags {
-					log_info("Local GPU memory: %.2f GiB", memory_size_gib)
+					l.log_info("Local GPU memory: %.2f GiB", memory_size_gib)
 				} else if memory_size_gib > 0 {
-					log_info("Shared system memory: %.2f GiB", memory_size_gib)
+					l.log_info("Shared system memory: %.2f GiB", memory_size_gib)
 				}
 			}
 
@@ -395,11 +396,11 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 	}
 
 	if v_context.device.physical_device == nil {
-		log_error("No physical devices were found which meet the requirements.")
+		l.log_error("No physical devicesl. were found which meet the requirements.")
 		return false
 	}
 
-	log_info("Physical device selected.")
+	l.log_info("Physical device selected.")
 
 	return true
 }
@@ -425,7 +426,7 @@ physical_device_meets_requirements :: proc(
 	// Discrete GPU?
 	if requirements.discrete_gpu {
 		if properies.deviceType != vk.PhysicalDeviceType.DISCRETE_GPU {
-			log_info("Device is not a discrete GPU, and one is required. Skipping.")
+			l.log_info("Device is not a discrete GPU, and one is required. Skipping.")
 			return false
 		}
 	}
@@ -436,7 +437,7 @@ physical_device_meets_requirements :: proc(
 	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, &queue_families[0])
 
 	// Look at each queue and see what queues it supports
-	log_info("Graphics | Present | Compute | Transfer | Name")
+	l.log_info("Graphics | Present | Compute | Transfer | Name")
 	min_transfer_score: u8 = 255
 
 	for queue_family, index in queue_families {
@@ -485,7 +486,7 @@ physical_device_meets_requirements :: proc(
 		using out_queue_info
 		using requirements
 		// Print out some info about the device
-		log_info(
+		l.log_info(
 			"    %v |    %v |   %v |     %v | %s",
 			graphics_family_index != -1,
 			present_family_index != -1,
@@ -497,11 +498,11 @@ physical_device_meets_requirements :: proc(
 		   (!present || (present && present_family_index != -1)) &&
 		   (!compute || (compute && compute_family_index != -1)) &&
 		   (!transfer || (transfer && transfer_family_index != -1)) {
-			log_info("Device meets queue requirements.")
-			log_debug("Grahpics Family Index: %i", graphics_family_index)
-			log_debug("Present Family Index: %i", present_family_index)
-			log_debug("Transfer Family Index: %i", transfer_family_index)
-			log_debug("Compute Family Index: %i", compute_family_index)
+			l.log_info("Device meets queue requirements.")
+			l.log_debug("Grahpics Family Index: %i", graphics_family_index)
+			l.log_debug("Present Family Index: %i", present_family_index)
+			l.log_debug("Transfer Family Index: %i", transfer_family_index)
+			l.log_debug("Compute Family Index: %i", compute_family_index)
 
 			// Quey swapchain support.
 			vulkan_device_query_swapchain_support(device, surface, out_swapchain_support)
@@ -514,7 +515,7 @@ physical_device_meets_requirements :: proc(
 				if out_swapchain_support.present_modes != nil {
 					// Not need to free, we use defer
 				}
-				log_info("Required swapchain support not present, skipping device.")
+				l.log_info("Required swapchain support not present, skipping device.")
 				return false
 			}
 
@@ -559,7 +560,7 @@ physical_device_meets_requirements :: proc(
 						}
 
 						if !found {
-							log_fatal(
+							l.log_fatal(
 								"Required extension not found: %s, skipping device.",
 								extension_name,
 							)
@@ -570,7 +571,7 @@ physical_device_meets_requirements :: proc(
 			}
 
 			if sampler_anisotropy && !features.samplerAnisotropy {
-				log_info("Device does not support samplerAnisotropy, skipping.")
+				l.log_info("Device does not support samplerAnisotropy, skipping.")
 				return false
 			}
 
