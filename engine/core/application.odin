@@ -1,15 +1,24 @@
 package core
 
 import d "../containers"
+import k "../kstring"
+import l "../logger"
+import "../okmath"
+import p "../platform/linux"
+import ren "../renderer"
+import res "../resources"
+import sys "../systems"
+import v "../renderer/vulkan"
 import "core:mem"
 import "core:mem/virtual"
+import e "event"
 import idef "input"
 
 application_state :: struct {
 	game_inst:                         ^game,
 	is_running:                        bool,
 	is_suspended:                      bool,
-	platform:                          platform_system_state,
+	platform:                          p.platform_system_state,
 	width:                             i32,
 	height:                            i32,
 	c:                                 clock,
@@ -18,13 +27,14 @@ application_state :: struct {
 	memory_system_memory_requirement:  u64,
 	memory_system_state:               ^memory_system_state,
 	logging_system_memory_requirement: u64,
-	logging_system_state:              ^logger_system_state,
-	platform_system_state:             ^platform_system_state,
+	logging_system_state:              ^l.logger_system_state,
+	platform_system_state:             ^p.platform_system_state,
 	input_system_state:                ^input_system_state,
-	event_system_state:                ^event_system_state,
-	renderer_system_state:             ^renderer_system_state,
-	texture_system_state:              ^texture_system_state,
-	material_system_state:             ^material_system_state,
+	event_system_state:                ^e.event_system_state,
+	renderer_system_state:             ^ren.renderer_system_state,
+	texture_system_state:              ^sys.texture_system_state,
+	material_system_state:             ^sys.material_system_state,
+	test_material:                     ^res.material,
 }
 
 application_config :: struct {
@@ -43,7 +53,7 @@ application_create :: proc(
 	systems_allocator_total_size: uint,
 ) -> bool {
 	if game_inst.application_state != nil {
-		log_error("application called more than once")
+		l.log_error("application called more than once")
 		return false
 	}
 
@@ -59,11 +69,11 @@ application_create :: proc(
 	// Events
 	event_state, err := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		event_system_state,
+		e.event_system_state,
 		sys_alloc,
 	)
 	ensure(err == nil)
-	event_system_initialize(event_state)
+	e.event_system_initialize(event_state)
 	app_state.event_system_state = event_state
 
 	// Memory
@@ -79,12 +89,12 @@ application_create :: proc(
 	// Logging
 	log_state, log_err := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		logger_system_state,
+		l.logger_system_state,
 		sys_alloc,
 	)
 	ensure(log_err == nil)
 
-	logging_state := initialize_logging(&app_state.logging_system_memory_requirement, log_state)
+	logging_state := l.initialize_logging(&app_state.logging_system_memory_requirement, log_state)
 	app_state.logging_system_state = logging_state
 
 	// Input
@@ -97,24 +107,24 @@ application_create :: proc(
 	input_system_initialize(input_state)
 	app_state.input_system_state = input_state
 
-	event_register(
-		cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT,
+	e.event_register(
+		u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 		nil,
 		application_on_event,
 	)
-	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
-	event_register(cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
-	event_register(cast(u16)system_event_code.EVENT_CODE_RESIZED, nil, application_on_resized)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_KEY_PRESSED), nil, application_on_key)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_KEY_RELEASED), nil, application_on_key)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_RESIZED), nil, application_on_resized)
 
 	// Platform
 	platform_state, pl_err := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		platform_system_state,
+		p.platform_system_state,
 		sys_alloc,
 	)
 	app_state.platform_system_state = platform_state
 
-	if ok := platform_system_startup(
+	if ok := p.platform_system_startup(
 		app_state.platform_system_state,
 		game_inst.app_config.name,
 		game_inst.app_config.start_pos_x,
@@ -126,52 +136,75 @@ application_create :: proc(
 		return false
 	}
 
+	// Register input callbacks with platform layer
+	app_state.platform_system_state.on_key = input_process_key
+	app_state.platform_system_state.on_button = input_process_button
+	app_state.platform_system_state.on_mouse_move = input_process_mouse_move
+
 	// Renderer
 	r_state, r_error := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		renderer_system_state,
+		ren.renderer_system_state,
 		sys_alloc,
 	)
 	app_state.renderer_system_state = r_state
-	if ok := renderer_system_initialize(game_inst.app_config.name, r_state, sys_alloc^); !ok {
-		log_fatal("Failed to initialize renderer. Aborting application.")
+	v.renderer_backend_create(
+		ren.renderer_backend_type.RENDERER_BACKEND_TYPE_VULKAN,
+		&r_state.backend,
+	)
+	if ok := ren.renderer_system_initialize(
+		game_inst.app_config.name,
+		r_state,
+		u32(game_inst.app_config.start_width),
+		u32(game_inst.app_config.start_height),
+		sys_alloc^,
+	); !ok {
+		l.log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}
+
+	// Register debug event
+	e.event_register(
+		u16(e.system_event_code.EVENT_CODE_DEBUG0),
+		nil,
+		application_on_debug_event,
+	)
+
 	// Texture system
-	texture_sys_config: texture_system_config
-	texture_sys_config.max_texture_count = MAX_TEXTURE_COUNT
+	texture_sys_config: sys.texture_system_config
+	texture_sys_config.max_texture_count = sys.MAX_TEXTURE_COUNT
 
 	tstate, terror := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		texture_system_state,
+		sys.texture_system_state,
 		sys_alloc,
 	)
 
 	app_state.texture_system_state = tstate
 
-	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc^) {
-		log_fatal("Failed to initialize texture system. Application cannot continue.")
+	if !sys.texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc^) {
+		l.log_fatal("Failed to initialize texture system. Application cannot continue.")
 		return false
 	}
 
 	// Material System
-	material_sys_config: material_system_config
+	material_sys_config: sys.material_system_config
 	material_sys_config.max_material_count = 4096
 
 	mstate, merror := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		material_system_state,
+		sys.material_system_state,
 		sys_alloc,
 	)
 
 	app_state.material_system_state = mstate
 
-	if !material_system_initialize(
+	if !sys.material_system_initialize(
 		app_state.material_system_state,
 		material_sys_config,
 		sys_alloc^,
 	) {
-		log_fatal("Failed to initialize material system. Application cannot continue.")
+		l.log_fatal("Failed to initialize material system. Application cannot continue.")
 		return false
 	}
 
@@ -188,12 +221,12 @@ application_on_event :: proc(
 	code: u16,
 	sender: rawptr,
 	listener: rawptr,
-	data: event_context,
+	data: e.event_context,
 ) -> bool {
 	switch code {
-	case cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT:
+	case u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT):
 		{
-			log_info("EVENT_CODE_APPLICATION_QUIT received, shutting down. \n")
+			l.log_info("EVENT_CODE_APPLICATION_QUIT received, shutting down. \n")
 			app_state.is_running = false
 			return true
 		}
@@ -205,37 +238,37 @@ application_on_key :: proc(
 	code: u16,
 	sender: rawptr,
 	listener: rawptr,
-	data: event_context,
+	data: e.event_context,
 ) -> bool {
-	if code == cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED {
+	if code == u16(e.system_event_code.EVENT_CODE_KEY_PRESSED) {
 		event_context_data := data.data.([8]u16)
 		key_code: u16 = event_context_data[0]
-		if key_code == cast(u16)idef.keys.KEY_ESCAPE {
-			event_context_data_new: event_context = {}
-			event_fire(
-				cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT,
+		if key_code == u16(idef.keys.KEY_ESCAPE) {
+			event_context_data_new: e.event_context = {}
+			e.event_fire(
+				u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 				nil,
 				event_context_data_new,
 			)
 
 			// Block anything else from processing this.
 			return true
-		} else if key_code == cast(u16)idef.keys.KEY_A {
+		} else if key_code == u16(idef.keys.KEY_A) {
 			// Checking if it is working
-			log_debug("Explicit - A key pressed!")
+			l.log_debug("Explicit - A key pressed!")
 		} else {
-			log_debug("'%c' key pressed in a window.", key_code)
+			l.log_debug("'%c' key pressed in a window.", key_code)
 		}
-	} else if code == cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED {
+	} else if code == u16(e.system_event_code.EVENT_CODE_KEY_RELEASED) {
 		if event_context_data, ok := data.data.([8]u16); ok {
 			key_code: u16 = event_context_data[0]
-			if key_code == cast(u16)idef.keys.KEY_B {
-				log_debug("Explicit B key released")
+			if key_code == u16(idef.keys.KEY_B) {
+				l.log_debug("Explicit B key released")
 			} else {
-				log_debug("'%c' key released in window.", key_code)
+				l.log_debug("'%c' key released in window.", key_code)
 			}
 		} else {
-			log_fatal("Event data not correct type!")
+			l.log_fatal("Event data not correct type!")
 		}
 	}
 	return false
@@ -245,31 +278,31 @@ application_on_resized :: proc(
 	code: u16,
 	sender: rawptr,
 	listener: rawptr,
-	data: event_context,
+	data: e.event_context,
 ) -> bool {
-	if code == cast(u16)system_event_code.EVENT_CODE_RESIZED {
+	if code == u16(e.system_event_code.EVENT_CODE_RESIZED) {
 		event_context_data := data.data.([8]u16)
 		width: u16 = event_context_data[0]
 		height: u16 = event_context_data[1]
 
-		if cast(i32)width != app_state.width || cast(i32)height != app_state.height {
-			app_state.width = cast(i32)width
-			app_state.height = cast(i32)height
+		if i32(width) != app_state.width || i32(height) != app_state.height {
+			app_state.width = i32(width)
+			app_state.height = i32(height)
 
-			log_debug("Window resize: %i, %i", width, height)
+			l.log_debug("Window resize: %i, %i", width, height)
 
 			// Handle minimization
 			if width == 0 || height == 0 {
-				log_info("Window minimized, suspending application.")
+				l.log_info("Window minimized, suspending application.")
 				app_state.is_suspended = true
 				return true
 			} else {
 				if app_state.is_suspended {
-					log_info("Window restored, resuming application.")
+					l.log_info("Window restored, resuming application.")
 					app_state.is_suspended = false
 				}
-				app_state.game_inst.on_resize(app_state.game_inst, cast(i32)width, cast(i32)height)
-				renderer_on_resized(width, height)
+				app_state.game_inst.on_resize(app_state.game_inst, i32(width), i32(height))
+				ren.renderer_on_resized(width, height)
 			}
 		}
 	}
@@ -278,27 +311,67 @@ application_on_resized :: proc(
 	return false
 }
 
+@(private = "file")
+debug_choice: i8 = 2
+
+application_on_debug_event :: proc(
+	code: u16,
+	sender: rawptr,
+	listener_inst: rawptr,
+	data: e.event_context,
+) -> bool {
+	names := [3]string{"cobblestone", "paving", "paving2"}
+
+	// Save off the old name
+	old_name := names[debug_choice]
+
+	debug_choice = debug_choice + 1
+	debug_choice %= 3
+
+	if app_state.test_material != nil {
+		// Acquire the new texture
+		app_state.test_material.diffuse_map.texture = sys.texture_system_acquire(
+			names[debug_choice],
+			true,
+		)
+
+		if app_state.test_material.diffuse_map.texture == nil {
+			l.log_info("application_on_debug_event no texture! using default")
+			app_state.test_material.diffuse_map.texture = sys.texture_system_get_default_texture()
+		}
+		// Release the old texture
+		sys.texture_system_release(old_name)
+	}
+	return true
+}
+
 application_run :: proc() -> bool {
 	defer memory_system_shutdown(app_state.memory_system_state)
-	defer platform_system_shutdown(app_state.platform_system_state)
-	defer renderer_system_shutdown(app_state.renderer_system_state)
-	defer texture_system_shutdown()
+	defer p.platform_system_shutdown(app_state.platform_system_state)
+	defer ren.renderer_system_shutdown(app_state.renderer_system_state)
+	defer sys.texture_system_shutdown()
+	defer sys.material_system_shutdown()
 	defer input_system_shutdown(app_state.input_system_state)
-	defer event_system_shutdown(app_state.event_system_state)
-	defer event_unregister(
-		cast(u16)system_event_code.EVENT_CODE_APPLICATION_QUIT,
+	defer e.event_system_shutdown(app_state.event_system_state)
+	defer e.event_unregister(
+		u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 		nil,
 		application_on_event,
 	)
-	defer event_unregister(
-		cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED,
+	defer e.event_unregister(
+		u16(e.system_event_code.EVENT_CODE_KEY_PRESSED),
 		nil,
 		application_on_key,
 	)
-	defer event_unregister(
-		cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED,
+	defer e.event_unregister(
+		u16(e.system_event_code.EVENT_CODE_KEY_RELEASED),
 		nil,
 		application_on_key,
+	)
+	defer e.event_unregister(
+		u16(e.system_event_code.EVENT_CODE_DEBUG0),
+		nil,
+		application_on_debug_event,
 	)
 	defer app_state.is_running = false
 
@@ -312,10 +385,10 @@ application_run :: proc() -> bool {
 
 	mem_info := get_memory_usage_str()
 	defer delete(mem_info)
-	log_info(mem_info)
+	l.log_info(mem_info)
 
 	for app_state.is_running {
-		if !platform_pump_messages() {
+		if !p.platform_pump_messages() {
 			app_state.is_running = false
 		}
 
@@ -324,27 +397,52 @@ application_run :: proc() -> bool {
 			clock_update(&app_state.c)
 			current_time: f64 = app_state.c.elapsed
 			delta: f64 = current_time - app_state.last_time
-			frame_start_time: f64 = platform_get_absolute_time()
+			frame_start_time: f64 = p.platform_get_absolute_time()
 
 			if !app_state.game_inst.update(app_state.game_inst, f32(delta)) {
-				log_fatal("Game update failed, shutting down.")
+				l.log_fatal("Game update failed, shutting down.")
 				app_state.is_running = false
 				break
 			}
 
 			if !app_state.game_inst.render(app_state.game_inst, f32(delta)) {
-				log_fatal("Game render failed, shutting down.")
+				l.log_fatal("Game render failed, shutting down.")
 				app_state.is_running = false
 				break
 			}
 
+			// Prepare render data
+			if app_state.test_material == nil {
+				app_state.test_material = sys.material_system_acquire("test_material")
+				if app_state.test_material == nil {
+					l.log_warning(
+						"Automatic material load failed, falling back to manual default material",
+					)
+					config: sys.material_config = {}
+					config.name = k.string_ncopy("test_material", res.MATERIAL_NAME_MAX_LENGTH)
+					config.auto_release = false
+					config.diffuse_colour = okmath.vec4_one()
+					config.diffuse_map_name = k.string_ncopy(
+						sys.DEFAULT_TEXTURE_NAME,
+						res.TEXTURE_NAME_MAX_LENGTH,
+					)
+					app_state.test_material = sys.material_system_acquire_from_config(config)
+				}
+			}
+
+			model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+			data: ren.geometry_render_data = {}
+			data.model = model
+			data.material = app_state.test_material
+
 			// TODO: refactor packet creation
-			packet: render_packet
+			packet: ren.render_packet
 			packet.delta_time = f32(delta)
-			renderer_draw_frame(&packet)
+			objects := [1]ren.geometry_render_data{data}
+			ren.renderer_draw_frame(&packet, objects[:])
 
 			// Figure out how long the frame took and, if below
-			frame_end_time: f64 = platform_get_absolute_time()
+			frame_end_time: f64 = p.platform_get_absolute_time()
 			frame_elapsed_time: f64 = frame_end_time - frame_start_time
 			running_time += frame_elapsed_time
 			remaining_seconds: f64 = target_frame_seconds - frame_elapsed_time
@@ -355,7 +453,7 @@ application_run :: proc() -> bool {
 				// If there is a time left, give it back to the OS.
 				limit_frames := false
 				if remaining_seconds > 0 && limit_frames {
-					platform_sleep(remaining_ms - 1)
+					p.platform_sleep(remaining_ms - 1)
 				}
 
 				frame_count = frame_count + 1
@@ -381,4 +479,3 @@ application_get_framebuffer_size :: proc(width: ^u32, height: ^u32) {
 	width^ = cast(u32)app_state.width
 	height^ = cast(u32)app_state.height
 }
-

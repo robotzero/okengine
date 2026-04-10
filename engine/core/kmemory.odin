@@ -1,5 +1,7 @@
 package core
 
+import l "../logger"
+import p "../platform/linux"
 import "core:fmt"
 import "core:strings"
 
@@ -69,12 +71,12 @@ memory_system_initialize :: proc(
 	memory_state_ptr = state
 	memory_state_ptr.alloc_count = 0
 	// TODO zero this crap
-	platform_zero_memory(&memory_state_ptr.stats, size_of(memory_stats))
+	p.platform_zero_memory(&memory_state_ptr.stats, size_of(memory_stats))
 	return memory_state_ptr
 }
 
 memory_system_shutdown :: proc(state: ^memory_system_state, allocator := context.allocator) {
-	platform_free(app_state)
+	p.platform_free(app_state)
 	memory_state_ptr = nil
 	// linear_allocator_free_all(linear_allocator.allocator)
 	// linear_allocator_destroy(alloc)
@@ -87,7 +89,7 @@ kallocate :: proc(
 	location := #caller_location,
 ) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
-		log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
+		l.log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
 	if memory_state_ptr != nil {
@@ -96,7 +98,7 @@ kallocate :: proc(
 		memory_state_ptr.alloc_count = memory_state_ptr.alloc_count + 1
 	}
 
-	obj, err := platform_allocate(false, T, allocator, location)
+	obj, err := p.platform_allocate(false, T, allocator, location)
 
 	ensure(err == nil)
 
@@ -111,7 +113,7 @@ kfree :: proc(
 	location := #caller_location,
 ) {
 	if tag == .MEMORY_TAG_UNKNOWN {
-		log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
+		l.log_warning("kfree called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
 	if memory_state_ptr != nil {
@@ -119,12 +121,12 @@ kfree :: proc(
 		memory_state_ptr.stats.tagged_allocations[tag] -= size
 	}
 
-	platform_free(object, location, allocator)
+	p.platform_free(object, location, allocator)
 }
 
 kzero_memory :: proc(block: rawptr, size: int) -> rawptr {
 	//@TODO missing stuff
-	return platform_zero_memory(block, size)
+	return p.platform_zero_memory(block, size)
 }
 
 get_memory_alloc_count :: proc() -> u64 {
@@ -135,11 +137,11 @@ get_memory_alloc_count :: proc() -> u64 {
 }
 
 kcopy_memory :: proc(dest: rawptr, source: rawptr, size: int) -> rawptr {
-	return platform_copy_memory(dest, source, size)
+	return p.platform_copy_memory(dest, source, size)
 }
 
 kset_memory :: proc(ptr: rawptr, value: byte, size: int) {
-	platform_set_memory(ptr, value, size)
+	p.platform_set_memory(ptr, value, size)
 }
 
 get_memory_usage_str :: proc() -> string {
@@ -186,8 +188,9 @@ get_memory_usage_str :: proc() -> string {
 
 	str, err := strings.concatenate(msg[:])
 	defer if err != nil {
-		log_error("Unable to get memory usage", err)
+		l.log_error("Unable to get memory usage", err)
 		str = ""
 	}
 	return str
 }
+

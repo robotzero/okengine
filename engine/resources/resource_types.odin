@@ -1,6 +1,8 @@
-package core
+package resources
 
 import "../okmath"
+
+INVALID_ID :: 4294967295
 
 TEXTURE_NAME_MAX_LENGTH :: 512
 MATERIAL_NAME_MAX_LENGTH :: 256
@@ -30,7 +32,7 @@ texture :: struct {
 	channel_count:    u8,
 	has_transparency: bool,
 	generation:       u32,
-	internal_data:    ^vulkan_texture_data,
+	internal_data:    rawptr,
 	name:             string,
 }
 

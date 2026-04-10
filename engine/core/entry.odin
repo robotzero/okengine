@@ -1,11 +1,11 @@
 package core
 
+import l "../logger"
 import "core:fmt"
 import "core:log"
 import "core:mem"
 import "core:mem/virtual"
 import "core:os"
-import "engine:okmath"
 
 // Externally-defined function to create a game.
 create_game_proc :: #type proc(out_game: ^game) -> bool
@@ -21,7 +21,7 @@ main :: proc() {
 	arena: virtual.Arena
 	erre := virtual.arena_init_static(
 		&arena,
-		reserved = cast(uint)systems_allocator_total_size * mem.Megabyte,
+		reserved = uint(systems_allocator_total_size) * mem.Megabyte,
 		// commit_size = 16 * mem.Megabyte,
 	)
 	ensure(erre == nil)
@@ -76,7 +76,7 @@ main :: proc() {
 	game_inst: game
 
 	if !create_game(&game_inst) {
-		log_fatal("Could not create game")
+		l.log_fatal("Could not create game")
 		os.exit(-1)
 
 	}
@@ -96,17 +96,17 @@ main :: proc() {
 	   game_inst.update == nil ||
 	   game_inst.initialize == nil ||
 	   game_inst.on_resize == nil {
-		log_fatal("The game's function pointers must be assinged!")
+		l.log_fatal("The game's function pointers must be assinged!")
 		os.exit(-2)
 	}
 
-	if !application_create(&game_inst, &sys_alloc, cast(uint)systems_allocator_total_size) {
-		log_info("application failed to create!")
+	if !application_create(&game_inst, &sys_alloc, uint(systems_allocator_total_size)) {
+		l.log_info("application failed to create!")
 		os.exit(1)
 	}
 
 	if !application_run() {
-		log_info("application did not shutdown gracefully.")
+		l.log_info("application did not shutdown gracefully.")
 		os.exit(2)
 	}
 }

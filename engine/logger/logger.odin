@@ -1,9 +1,7 @@
-package core
+package logger
 
-import "base:runtime"
 import "core:fmt"
 import "core:log"
-import "core:mem"
 
 LOG_WARN_ENABLED :: true
 LOG_INFO_ENABLED :: true
@@ -52,7 +50,7 @@ log_output :: proc(
 	// defer mem.zero_slice(out_message)
 
 	out_message := fmt.tprintf(message, ..args)
-	platform_console_write(log_level, out_message, location)
+	console_write(log_level, out_message, location)
 }
 
 @(disabled = LOG_INFO_ENABLED == false)
@@ -76,6 +74,28 @@ log_error :: proc(message: string, args: ..any, location := #caller_location) {
 @(disabled = LOG_WARN_ENABLED == false)
 log_warning :: proc(message: string, args: ..any, location := #caller_location) {
 	log_output(log.Level.Warning, message, location, ..args)
+}
+
+console_write :: proc(
+	log_level: log.Level,
+	message: string,
+	location := #caller_location,
+) {
+	color_strings := [?]string{"0;41", "1;31", "1;33", "1;32", "1;34", "1;30"}
+	colour := 3
+	switch log_level {
+	case .Info:
+		colour = 3
+	case .Debug:
+		colour = 4
+	case .Warning:
+		colour = 2
+	case .Error:
+		colour = 1
+	case .Fatal:
+		colour = 0
+	}
+	log.logf(log_level, "\033[%sm%s\033[0m", color_strings[colour], message, location = location)
 }
 
 // rl_log_buf: []byte

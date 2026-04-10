@@ -2,3 +2,6 @@ bin/
 .vscode/
 AGENTS.md
 resume.txt
+resume
+.claude/
+CLAUDE.md

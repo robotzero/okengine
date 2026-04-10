@@ -1,6 +1,6 @@
-package core
+package event
 
-import cnt "../containers"
+import cnt "../../containers"
 
 MAX_MESSAGE_CODES :: 16384
 
@@ -100,7 +100,7 @@ registered_event :: struct {
 state_ptr: ^event_system_state
 
 event_system_initialize :: proc(state: ^event_system_state) {
-	kzero_memory(state, size_of(state))
+	state^ = {}
 	state_ptr = state
 }
 

@@ -1,5 +1,7 @@
 package core
 
+import e "../core/event"
+import l "../logger"
 import idef "input"
 
 keyboard_state :: struct {
@@ -24,7 +26,7 @@ state_ptr: ^input_system_state
 input_system_initialize :: proc(state: ^input_system_state) {
 	kzero_memory(state, size_of(input_system_state))
 	state_ptr = state
-	log_info("Input subsystem initialized.")
+	l.log_info("Input subsystem initialized.")
 }
 
 input_system_shutdown :: proc(state: ^input_system_state) {
@@ -47,17 +49,17 @@ input_update :: proc(delta_time: f64) {
 
 input_process_key :: proc(key: idef.keys, pressed: bool) {
 	if key == idef.keys.KEY_LALT {
-		log_info("Left alt pressed.")
+		l.log_info("Left alt pressed.")
 	}
 	if key == idef.keys.KEY_RALT {
-		log_info("Right alt pressed.")
+		l.log_info("Right alt pressed.")
 	}
 
 	if key == idef.keys.KEY_LCONTROL {
-		log_info("Left ctrl pressed")
+		l.log_info("Left ctrl pressed")
 	}
 	if key == idef.keys.KEY_RCONTROL {
-		log_info("Right ctrl pressed")
+		l.log_info("Right ctrl pressed")
 	}
 
 	// Only handle this if the state actually changed.
@@ -65,11 +67,11 @@ input_process_key :: proc(key: idef.keys, pressed: bool) {
 		// Update internal state.
 		state_ptr.keyboard_current.keys[key] = pressed
 
-		input_context: event_context = {
+		input_context: e.event_context = {
 			data = [8]u16{0 = cast(u16)key},
 		}
-		event_fire(
-			pressed ? cast(u16)system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)system_event_code.EVENT_CODE_KEY_RELEASED,
+		e.event_fire(
+			pressed ? cast(u16)e.system_event_code.EVENT_CODE_KEY_PRESSED : cast(u16)e.system_event_code.EVENT_CODE_KEY_RELEASED,
 			nil,
 			input_context,
 		)
@@ -83,11 +85,11 @@ input_process_button :: proc(button: idef.buttons, pressed: bool) {
 		state_ptr.mouse_current.buttons[button] = pressed
 
 		// Fire the event.
-		input_context: event_context = {
+		input_context: e.event_context = {
 			data = [8]u16{0 = cast(u16)button},
 		}
-		event_fire(
-			pressed ? cast(u16)system_event_code.EVENT_CODE_BUTTON_PRESSED : cast(u16)system_event_code.EVENT_CODE_BUTTON_RELEASED,
+		e.event_fire(
+			pressed ? cast(u16)e.system_event_code.EVENT_CODE_BUTTON_PRESSED : cast(u16)e.system_event_code.EVENT_CODE_BUTTON_RELEASED,
 			nil,
 			input_context,
 		)
@@ -102,10 +104,10 @@ input_process_mouse_move :: proc(x, y: i16) {
 		state_ptr.mouse_current.x = x
 		state_ptr.mouse_current.y = y
 
-		input_context: event_context = {
+		input_context: e.event_context = {
 			data = [8]u16{0 = cast(u16)x, 1 = cast(u16)y, 2 ..= 7 = {}},
 		}
-		event_fire(cast(u16)system_event_code.EVENT_CODE_MOUSE_MOVED, nil, input_context)
+		e.event_fire(cast(u16)e.system_event_code.EVENT_CODE_MOUSE_MOVED, nil, input_context)
 	}
 }
 
@@ -113,7 +115,7 @@ input_process_mouse_wheel :: proc(z_delta: i8) {
 	// NOTE: no internal state to update.
 
 	// Fire the event.
-	input_context: event_context = {
+	input_context: e.event_context = {
 		data = [16]u8{0 = cast(u8)z_delta},
 	}
 }

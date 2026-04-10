@@ -1,8 +1,9 @@
-package core
+package vulkan_renderer
 
+import l "../../logger"
 import vk "vendor:vulkan"
 
-import arr "../containers"
+import arr "../../containers"
 
 vulkan_physical_device_requirements :: struct {
 	graphics:               bool,
@@ -54,7 +55,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		return false
 	}
 
-	log_info("Creating logical device...")
+	l.log_info("Creating logical device...")
 	// @NOTE: Do not create additional queues for shared indices.
 	present_shares_graphics_queue: bool =
 		v_context.device.graphics_queue_index == v_context.device.present_queue_index
@@ -83,20 +84,14 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 
 	queue_create_infos: [32]vk.DeviceQueueCreateInfo = {}
 	// defer delete(queue_create_infos)
-	for i: i32 = 0; i < index_count; i += 1 {
-		queue_create_infos[i] = {}
-		queue_create_infos[i].sType = vk.StructureType.DEVICE_QUEUE_CREATE_INFO
-		queue_create_infos[i].queueFamilyIndex = cast(u32)indices[i]
-		queue_create_infos[i].queueCount = 1
-
-		// @TODO: Enable this for future enhancement
-		// if indices[i] == v_context.device.graphics_queue_index {
-		// 	queue_create_infos[i].queueCount = 1
-		// }
-		queue_create_infos[i].flags = nil
-		queue_create_infos[i].pNext = nil
+	for i in 0 ..< index_count {
 		queue_priority: f32 = 1.0
-		queue_create_infos[i].pQueuePriorities = &queue_priority
+		queue_create_infos[i] = vk.DeviceQueueCreateInfo {
+			sType            = .DEVICE_QUEUE_CREATE_INFO,
+			queueFamilyIndex = u32(indices[i]),
+			queueCount       = 1,
+			pQueuePriorities = &queue_priority,
+		}
 	}
 
 	// Request device features.
@@ -107,7 +102,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 	extension_names := [?]cstring{"VK_KHR_swapchain"}
 	device_create_info: vk.DeviceCreateInfo = {
 		sType                   = vk.StructureType.DEVICE_QUEUE_CREATE_INFO,
-		queueCreateInfoCount    = cast(u32)index_count,
+		queueCreateInfoCount    = u32(index_count),
 		pQueueCreateInfos       = &queue_create_infos[0],
 		pEnabledFeatures        = &device_features,
 		ppEnabledExtensionNames = &extension_names[0],
@@ -127,35 +122,35 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		) ==
 		vk.Result.SUCCESS,
 	)
-	// vk.load_proc_addresses_device(v_context.device.logical_device)
-	log_info("Logical device created.")
+	vk.load_proc_addresses_device(v_context.device.logical_device)
+	l.log_info("Logical device created.")
 
 	// Get queues.
 	vk.GetDeviceQueue(
 		v_context.device.logical_device,
-		cast(u32)v_context.device.graphics_queue_index,
+		u32(v_context.device.graphics_queue_index),
 		0,
 		&v_context.device.graphics_queue,
 	)
 	vk.GetDeviceQueue(
 		v_context.device.logical_device,
-		cast(u32)v_context.device.present_queue_index,
+		u32(v_context.device.present_queue_index),
 		0,
 		&v_context.device.present_queue,
 	)
 	vk.GetDeviceQueue(
 		v_context.device.logical_device,
-		cast(u32)v_context.device.transfer_queue_index,
+		u32(v_context.device.transfer_queue_index),
 		0,
 		&v_context.device.transfer_queue,
 	)
 
-	log_info("Queues obtained.")
+	l.log_info("Queues obtained.")
 
 	// Create command pool for graphics queue.
 	pool_create_info: vk.CommandPoolCreateInfo = {
 		sType            = vk.StructureType.COMMAND_POOL_CREATE_INFO,
-		queueFamilyIndex = cast(u32)v_context.device.graphics_queue_index,
+		queueFamilyIndex = u32(v_context.device.graphics_queue_index),
 		flags            = {vk.CommandPoolCreateFlag.RESET_COMMAND_BUFFER},
 	}
 
@@ -168,7 +163,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		) ==
 		vk.Result.SUCCESS,
 	)
-	log_info("Graphics command pool created.")
+	l.log_info("Graphics command pool created.")
 
 	return true
 }
@@ -179,7 +174,7 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 	v_context.device.present_queue = nil
 	v_context.device.transfer_queue = nil
 
-	log_info("Destroying command pools...")
+	l.log_info("Destroying command pools...")
 	vk.DestroyCommandPool(
 		v_context.device.logical_device,
 		v_context.device.graphics_command_pool,
@@ -187,14 +182,14 @@ vulkan_device_destroy :: proc(v_context: ^vulkan_context) {
 	)
 
 	// Destroy logical device
-	log_info("Destorying logical device...")
+	l.log_info("Destorying logical device...")
 	if v_context.device.logical_device != nil {
 		vk.DestroyDevice(v_context.device.logical_device, v_context.allocator)
 		v_context.device.logical_device = nil
 	}
 
 	// Physical devices are not destroyed.
-	log_info("Releasing physical device resources...")
+	l.log_info("Releasing physical device resources...")
 	v_context.device.physical_device = nil
 
 	if v_context.device.swapchain_support.formats != nil {
@@ -245,7 +240,7 @@ vulkan_device_query_swapchain_support :: proc(
 	if out_support_info.format_count != 0 {
 		if out_support_info.formats == nil {
 			out_support_info.formats = arr.darray_create(
-				cast(u64)out_support_info.format_count,
+				u64(out_support_info.format_count),
 				vk.SurfaceFormatKHR,
 			)
 		}
@@ -274,7 +269,7 @@ vulkan_device_query_swapchain_support :: proc(
 	if out_support_info.present_mode_count != 0 {
 		if out_support_info.present_modes == nil {
 			out_support_info.present_modes = arr.darray_create(
-				cast(u64)out_support_info.present_mode_count,
+				u64(out_support_info.present_mode_count),
 				vk.PresentModeKHR,
 			)
 		}
@@ -299,7 +294,7 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 	)
 
 	if physical_device_count == 0 {
-		log_fatal("No devices which support Vulkan were found.")
+		l.log_fatal("No devices which support Vulkan were found.")
 		return false
 	}
 
@@ -351,21 +346,21 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 		)
 
 		if result == true {
-			log_info("Selected device: '%s'.", properties.deviceName)
+			l.log_info("Selected device: '%s'.", properties.deviceName)
 			// GPU type, etc.
 			switch properties.deviceType {
 			case vk.PhysicalDeviceType.OTHER:
-				log_info("GPU type is Unknown.")
+				l.log_info("GPU type is Unknown.")
 			case vk.PhysicalDeviceType.INTEGRATED_GPU:
-				log_info("GPU type is Integrated.")
+				l.log_info("GPU type is Integrated.")
 			case vk.PhysicalDeviceType.DISCRETE_GPU:
-				log_info("GPU type is Discrete.")
+				l.log_info("GPU type is Discrete.")
 			case vk.PhysicalDeviceType.VIRTUAL_GPU:
-				log_info("GPU type is Virtual.")
+				l.log_info("GPU type is Virtual.")
 			case vk.PhysicalDeviceType.CPU:
-				log_info("GPU type is CPU.")
+				l.log_info("GPU type is CPU.")
 			}
-			log_info(
+			l.log_info(
 				"GPU Driver version: %d.%d.%d",
 				properties.apiVersion,
 				properties.apiVersion,
@@ -373,11 +368,11 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 			)
 
 			for mem in memory.memoryHeaps {
-				memory_size_gib: f32 = (cast(f32)mem.size) / 1024.0 / 1024.0 / 1024.0
+				memory_size_gib: f32 = (f32(mem.size)) / 1024.0 / 1024.0 / 1024.0
 				if vk.MemoryHeapFlag.DEVICE_LOCAL in mem.flags {
-					log_info("Local GPU memory: %.2f GiB", memory_size_gib)
+					l.log_info("Local GPU memory: %.2f GiB", memory_size_gib)
 				} else if memory_size_gib > 0 {
-					log_info("Shared system memory: %.2f GiB", memory_size_gib)
+					l.log_info("Shared system memory: %.2f GiB", memory_size_gib)
 				}
 			}
 
@@ -395,11 +390,11 @@ select_physical_device :: proc(v_context: ^vulkan_context) -> bool {
 	}
 
 	if v_context.device.physical_device == nil {
-		log_error("No physical devices were found which meet the requirements.")
+		l.log_error("No physical devicesl. were found which meet the requirements.")
 		return false
 	}
 
-	log_info("Physical device selected.")
+	l.log_info("Physical device selected.")
 
 	return true
 }
@@ -425,7 +420,7 @@ physical_device_meets_requirements :: proc(
 	// Discrete GPU?
 	if requirements.discrete_gpu {
 		if properies.deviceType != vk.PhysicalDeviceType.DISCRETE_GPU {
-			log_info("Device is not a discrete GPU, and one is required. Skipping.")
+			l.log_info("Device is not a discrete GPU, and one is required. Skipping.")
 			return false
 		}
 	}
@@ -436,7 +431,7 @@ physical_device_meets_requirements :: proc(
 	vk.GetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, &queue_families[0])
 
 	// Look at each queue and see what queues it supports
-	log_info("Graphics | Present | Compute | Transfer | Name")
+	l.log_info("Graphics | Present | Compute | Transfer | Name")
 	min_transfer_score: u8 = 255
 
 	for queue_family, index in queue_families {
@@ -444,13 +439,13 @@ physical_device_meets_requirements :: proc(
 
 		// Graphics queue?
 		if vk.QueueFlag.GRAPHICS in queue_family.queueFlags {
-			out_queue_info.graphics_family_index = cast(i32)index
+			out_queue_info.graphics_family_index = i32(index)
 			current_transfer_score += current_transfer_score
 		}
 
 		// Compute queue
 		if vk.QueueFlag.COMPUTE in queue_family.queueFlags {
-			out_queue_info.compute_family_index = cast(i32)index
+			out_queue_info.compute_family_index = i32(index)
 			current_transfer_score += current_transfer_score
 		}
 
@@ -460,7 +455,7 @@ physical_device_meets_requirements :: proc(
 			// likehood that it is a dedicated transfer queue.
 			if current_transfer_score <= min_transfer_score {
 				min_transfer_score = current_transfer_score
-				out_queue_info.transfer_family_index = cast(i32)index
+				out_queue_info.transfer_family_index = i32(index)
 			}
 		}
 
@@ -469,7 +464,7 @@ physical_device_meets_requirements :: proc(
 		assert(
 			vk.GetPhysicalDeviceSurfaceSupportKHR(
 				device,
-				cast(u32)index,
+				u32(index),
 				surface,
 				&supports_present,
 			) ==
@@ -477,31 +472,29 @@ physical_device_meets_requirements :: proc(
 		)
 
 		if supports_present {
-			out_queue_info.present_family_index = cast(i32)index
+			out_queue_info.present_family_index = i32(index)
 		}
 	}
 
 	{
-		using out_queue_info
-		using requirements
 		// Print out some info about the device
-		log_info(
+		l.log_info(
 			"    %v |    %v |   %v |     %v | %s",
-			graphics_family_index != -1,
-			present_family_index != -1,
-			compute_family_index != -1,
-			transfer_family_index != -1,
+			out_queue_info.graphics_family_index != -1,
+			out_queue_info.present_family_index != -1,
+			out_queue_info.compute_family_index != -1,
+			out_queue_info.transfer_family_index != -1,
 			properies.deviceName,
 		)
-		if (!graphics || (graphics && graphics_family_index != -1)) &&
-		   (!present || (present && present_family_index != -1)) &&
-		   (!compute || (compute && compute_family_index != -1)) &&
-		   (!transfer || (transfer && transfer_family_index != -1)) {
-			log_info("Device meets queue requirements.")
-			log_debug("Grahpics Family Index: %i", graphics_family_index)
-			log_debug("Present Family Index: %i", present_family_index)
-			log_debug("Transfer Family Index: %i", transfer_family_index)
-			log_debug("Compute Family Index: %i", compute_family_index)
+		if (!requirements.graphics || (requirements.graphics && out_queue_info.graphics_family_index != -1)) &&
+		   (!requirements.present || (requirements.present && out_queue_info.present_family_index != -1)) &&
+		   (!requirements.compute || (requirements.compute && out_queue_info.compute_family_index != -1)) &&
+		   (!requirements.transfer || (requirements.transfer && out_queue_info.transfer_family_index != -1)) {
+			l.log_info("Device meets queue requirements.")
+			l.log_debug("Grahpics Family Index: %i", out_queue_info.graphics_family_index)
+			l.log_debug("Present Family Index: %i", out_queue_info.present_family_index)
+			l.log_debug("Transfer Family Index: %i", out_queue_info.transfer_family_index)
+			l.log_debug("Compute Family Index: %i", out_queue_info.compute_family_index)
 
 			// Quey swapchain support.
 			vulkan_device_query_swapchain_support(device, surface, out_swapchain_support)
@@ -514,12 +507,12 @@ physical_device_meets_requirements :: proc(
 				if out_swapchain_support.present_modes != nil {
 					// Not need to free, we use defer
 				}
-				log_info("Required swapchain support not present, skipping device.")
+				l.log_info("Required swapchain support not present, skipping device.")
 				return false
 			}
 
 			// Device extensions.
-			if device_extension_names != nil {
+			if requirements.device_extension_names != nil {
 				available_extension_count: u32 = 0
 				available_extensions: []vk.ExtensionProperties = nil
 				assert(
@@ -548,20 +541,20 @@ physical_device_meets_requirements :: proc(
 						vk.Result.SUCCESS,
 					)
 
-					required_extension_count := arr.darray_length(device_extension_names)
-					for extension_name in device_extension_names {
+					required_extension_count := arr.darray_length(requirements.device_extension_names)
+					for ext_name in requirements.device_extension_names {
 						found := false
 						for &available_extension in available_extensions {
-							if extension_name == cstring(&available_extension.extensionName[0]) {
+							if ext_name == cstring(&available_extension.extensionName[0]) {
 								found = true
 								break
 							}
 						}
 
 						if !found {
-							log_fatal(
+							l.log_fatal(
 								"Required extension not found: %s, skipping device.",
-								extension_name,
+								ext_name,
 							)
 							return false
 						}
@@ -569,8 +562,8 @@ physical_device_meets_requirements :: proc(
 				}
 			}
 
-			if sampler_anisotropy && !features.samplerAnisotropy {
-				log_info("Device does not support samplerAnisotropy, skipping.")
+			if requirements.sampler_anisotropy && !features.samplerAnisotropy {
+				l.log_info("Device does not support samplerAnisotropy, skipping.")
 				return false
 			}
 

@@ -73,19 +73,19 @@ kabs :: proc(x: f32) -> f32 {
 krandom :: proc() -> i32 {
 	if !rand_seeded {
 		current_time := time.now()
-		rnd.reset(cast(u64)current_time._nsec)
+		rnd.reset(u64(current_time._nsec))
 		rand_seeded = true
 	}
-	return cast(i32)rnd.uint32()
+	return i32(rnd.uint32())
 }
 
 krandom_in_range :: proc(min: i32, max: i32) -> i32 {
 	if !rand_seeded {
 		current_time := time.now()
-		rnd.reset(cast(u64)current_time._nsec)
+		rnd.reset(u64(current_time._nsec))
 		rand_seeded = true
 	}
-	return cast(i32)rnd.float32_range(cast(f32)min, cast(f32)max)
+	return i32(rnd.float32_range(f32(min), f32(max)))
 }
 
 fkrandom :: proc() -> f32 {

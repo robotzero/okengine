@@ -1,4 +1,4 @@
-package core
+package vulkan_renderer
 
 import vk "vendor:vulkan"
 
@@ -155,12 +155,12 @@ vulkan_renderpass_begin :: proc(
 		framebuffer = frame_buffer,
 	}
 	begin_info.renderArea.offset = {
-		x = cast(i32)renderpass.x,
-		y = cast(i32)renderpass.y,
+		x = i32(renderpass.x),
+		y = i32(renderpass.y),
 	}
 	begin_info.renderArea.extent = {
-		width  = cast(u32)renderpass.w,
-		height = cast(u32)renderpass.h,
+		width  = u32(renderpass.w),
+		height = u32(renderpass.h),
 	}
 
 	clear_values: [2]vk.ClearValue

@@ -1,6 +1,7 @@
-package core
+package vulkan_renderer
 
-import "../okmath"
+import l "../../logger"
+import "../../okmath"
 import "core:mem"
 import vk "vendor:vulkan"
 
@@ -142,7 +143,7 @@ vulkan_graphics_pipeline_create :: proc(
 		&out_pipeline.pipeline_layout,
 	)
 	if result != vk.Result.SUCCESS {
-		log_error("vkCreatePipelineLayout failed: ...")
+		l.log_error("vkCreatePipelineLayout failed: ...")
 		return false
 	}
 
@@ -177,11 +178,11 @@ vulkan_graphics_pipeline_create :: proc(
 	)
 
 	if vulkan_result_is_success(result) {
-		log_debug("Graphics pipeline created!")
+		l.log_debug("Graphics pipeline created!")
 		return true
 	}
 
-	log_error("vkCreateGraphicsPipelines failed with %s", vulkan_result_string(result, true))
+	l.log_error("vkCreateGraphicsPipelines failed with %s", vulkan_result_string(result, true))
 	return false
 }
 
@@ -197,7 +198,11 @@ vulkan_pipeline_destroy :: proc(v_context: ^vulkan_context, pipeline: ^vulkan_pi
 	if pipeline != nil {
 		// Destroy pipeline
 		if pipeline.handle != 0 {
-			vk.DestroyPipeline(v_context.device.logical_device, pipeline.handle, v_context.allocator)
+			vk.DestroyPipeline(
+				v_context.device.logical_device,
+				pipeline.handle,
+				v_context.allocator,
+			)
 			pipeline.handle = 0
 		}
 
@@ -212,3 +217,4 @@ vulkan_pipeline_destroy :: proc(v_context: ^vulkan_context, pipeline: ^vulkan_pi
 		}
 	}
 }
+

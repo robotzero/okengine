@@ -1,5 +1,6 @@
 package core
 
+import l "../logger"
 import "core:mem"
 import "core:mem/virtual"
 
@@ -76,7 +77,7 @@ linear_allocator_allocate :: proc(
 	// @TODO force to handle this error and log only in debug mode, otherwise return error code
 	if linear_alloc.allocated + size_of(T) > linear_alloc.total_size * mem.Megabyte {
 		remaining := linear_alloc.total_size - linear_alloc.allocated
-		log_error(
+		l.log_error(
 			"linear_allocator_allocate = Tried to allocate %v, only %v remaining",
 			size_of(T),
 			remaining,
