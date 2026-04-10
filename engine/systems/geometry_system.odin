@@ -70,6 +70,8 @@ geometry_system_shutdown :: proc() {
 			}
 		}
 		destroy_geometry(&geo_state_ptr.default_geometry)
+		delete(geo_state_ptr.registered_geometries)
+		delete(geo_state_ptr.geometry_references)
 		geo_state_ptr = nil
 	}
 }

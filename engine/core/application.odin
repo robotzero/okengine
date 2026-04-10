@@ -1,7 +1,6 @@
 package core
 
 import d "../containers"
-import k "../kstring"
 import l "../logger"
 import "../okmath"
 import p "../platform/linux"
@@ -31,6 +30,7 @@ application_state :: struct {
 	platform_system_state:             ^p.platform_system_state,
 	input_system_state:                ^input_system_state,
 	event_system_state:                ^e.event_system_state,
+	resource_system_state:             ^sys.resource_system_state,
 	renderer_system_state:             ^ren.renderer_system_state,
 	texture_system_state:              ^sys.texture_system_state,
 	material_system_state:             ^sys.material_system_state,
@@ -141,6 +141,24 @@ application_create :: proc(
 	app_state.platform_system_state.on_key = input_process_key
 	app_state.platform_system_state.on_button = input_process_button
 	app_state.platform_system_state.on_mouse_move = input_process_mouse_move
+
+	// Resource System
+	res_sys_config: sys.resource_system_config
+	res_sys_config.asset_base_path = "bin/assets"
+	res_sys_config.max_loader_count = 32
+
+	rsstate, rserror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		sys.resource_system_state,
+		sys_alloc,
+	)
+
+	app_state.resource_system_state = rsstate
+
+	if !sys.resource_system_initialize(app_state.resource_system_state, res_sys_config) {
+		l.log_fatal("Failed to initialize resource system. Aborting application.")
+		return false
+	}
 
 	// Renderer
 	r_state, r_error := linear_allocator_allocate(
@@ -371,6 +389,7 @@ application_run :: proc() -> bool {
 	defer sys.texture_system_shutdown()
 	defer sys.material_system_shutdown()
 	defer sys.geometry_system_shutdown()
+	defer sys.resource_system_shutdown()
 	defer input_system_shutdown(app_state.input_system_state)
 	defer e.event_system_shutdown(app_state.event_system_state)
 	defer e.event_unregister(
