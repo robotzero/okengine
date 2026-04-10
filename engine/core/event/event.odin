@@ -1,7 +1,6 @@
 package event
 
 import cnt "../../containers"
-import "core:mem"
 
 MAX_MESSAGE_CODES :: 16384
 
@@ -101,7 +100,7 @@ registered_event :: struct {
 state_ptr: ^event_system_state
 
 event_system_initialize :: proc(state: ^event_system_state) {
-	mem.set(state, 0, size_of(event_system_state))
+	state^ = {}
 	state_ptr = state
 }
 

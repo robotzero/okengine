@@ -103,7 +103,7 @@ vulkan_swapchain_present :: proc(
 
 	// Increment (and loop) the index.
 	v_context.current_frame =
-		(v_context.current_frame + 1) % cast(u32)swapchain.max_frames_in_flight
+		(v_context.current_frame + 1) % u32(swapchain.max_frames_in_flight)
 }
 
 @(private)
@@ -176,8 +176,8 @@ create :: proc(v_context: ^vulkan_context, width: u32, height: u32, swapchain: ^
 	// Setup the queue family indices
 	if v_context.device.graphics_queue_index != v_context.device.present_queue_index {
 		queueFamilyIndices: []u32 = {
-			cast(u32)v_context.device.graphics_queue_index,
-			cast(u32)v_context.device.present_queue_index,
+			u32(v_context.device.graphics_queue_index),
+			u32(v_context.device.present_queue_index),
 		}
 		swapchain_create_info.imageSharingMode = .CONCURRENT
 		swapchain_create_info.queueFamilyIndexCount = 2

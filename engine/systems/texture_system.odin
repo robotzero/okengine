@@ -6,7 +6,6 @@ import l "../logger"
 import ren "../renderer"
 import r "../resources"
 import "core:fmt"
-import "core:mem"
 import "core:strings"
 import si "vendor:stb/image"
 
@@ -54,28 +53,27 @@ texture_system_initialize :: proc(
 
 	//@MEMORY use containers to that we can tag memory
 	hashtable_var := new(c.hashtable(texture_reference), allocator)
-	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, allocator)
-
-	// Create a hashtable for texture lookups.
 	c.hashtable_create(
 		size_of(texture_reference),
 		config.max_texture_count,
 		false,
 		hashtable_var,
-		hashtable_memory,
 		nil,
+		nil,
+		allocator,
 	)
 
 	// Fill the hashtable with invalid references to use as a default.
-	invalid_ref: texture_reference
-	invalid_ref.auto_release = false
-	invalid_ref.handle = r.INVALID_ID // Primary reason for needing default values.
-	invalid_ref.reference_count = 0
+	invalid_ref := texture_reference {
+		auto_release    = false,
+		handle          = r.INVALID_ID, // Primary reason for needing default values.
+		reference_count = 0,
+	}
 	state_ptr.registered_texture_table = hashtable_var
 	c.hashtable_fill(state_ptr.registered_texture_table, invalid_ref)
 
 	// Invalidate all textures in the array.
-	for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
+	for i in 0 ..< state_ptr.config.max_texture_count {
 		state_ptr.registered_textures[i].id = r.INVALID_ID
 		state_ptr.registered_textures[i].generation = r.INVALID_ID
 	}
@@ -89,7 +87,7 @@ texture_system_initialize :: proc(
 texture_system_shutdown :: proc() {
 	if state_ptr != nil {
 		// Destroy all loaded textures.
-		for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
+		for i in 0 ..< state_ptr.config.max_texture_count {
 			t := &state_ptr.registered_textures[i]
 			if t.generation != r.INVALID_ID {
 				ren.renderer_destroy_texture(t)
@@ -122,7 +120,7 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^r.texture {
 		if ref.handle == r.INVALID_ID {
 			// This means no texture exists here. Find a free index first.
 			t: ^r.texture = nil
-			for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
+			for i in 0 ..< state_ptr.config.max_texture_count {
 				if state_ptr.registered_textures[i].id == r.INVALID_ID {
 					// A free slot has been found. Use its index as the handle.
 					ref.handle = i
@@ -237,8 +235,8 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// kset_memory(&pixels[0], 255, int(size_of(pixels)))
 
 	// Each pixel.
-	for row: u32 = 0; row < tex_dimension; row += 1 {
-		for col: u32 = 0; col < tex_dimension; col += 1 {
+	for row in 0 ..< u32(tex_dimension) {
+		for col in 0 ..< u32(tex_dimension) {
 			index := row * tex_dimension + col
 			index_bpp := index * channels
 			if (row % 2) != 0 {
@@ -304,7 +302,7 @@ load_texture :: proc(texture_name: string, t: ^r.texture) -> b8 {
 
 		// Check for transparency
 		has_transparency := false
-		for i: u64 = 0; i < total_size; i += u64(required_channel_count) {
+		for i: u64 = 0; i < total_size; i += u64(required_channel_count) { // non-unit stride, keep C-style
 			a := data_slice[i + 3]
 			if a < 255 {
 				has_transparency = true

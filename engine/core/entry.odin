@@ -21,7 +21,7 @@ main :: proc() {
 	arena: virtual.Arena
 	erre := virtual.arena_init_static(
 		&arena,
-		reserved = cast(uint)systems_allocator_total_size * mem.Megabyte,
+		reserved = uint(systems_allocator_total_size) * mem.Megabyte,
 		// commit_size = 16 * mem.Megabyte,
 	)
 	ensure(erre == nil)
@@ -100,7 +100,7 @@ main :: proc() {
 		os.exit(-2)
 	}
 
-	if !application_create(&game_inst, &sys_alloc, cast(uint)systems_allocator_total_size) {
+	if !application_create(&game_inst, &sys_alloc, uint(systems_allocator_total_size)) {
 		l.log_info("application failed to create!")
 		os.exit(1)
 	}

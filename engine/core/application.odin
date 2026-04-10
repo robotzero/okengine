@@ -108,13 +108,13 @@ application_create :: proc(
 	app_state.input_system_state = input_state
 
 	e.event_register(
-		cast(u16)e.system_event_code.EVENT_CODE_APPLICATION_QUIT,
+		u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 		nil,
 		application_on_event,
 	)
-	e.event_register(cast(u16)e.system_event_code.EVENT_CODE_KEY_PRESSED, nil, application_on_key)
-	e.event_register(cast(u16)e.system_event_code.EVENT_CODE_KEY_RELEASED, nil, application_on_key)
-	e.event_register(cast(u16)e.system_event_code.EVENT_CODE_RESIZED, nil, application_on_resized)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_KEY_PRESSED), nil, application_on_key)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_KEY_RELEASED), nil, application_on_key)
+	e.event_register(u16(e.system_event_code.EVENT_CODE_RESIZED), nil, application_on_resized)
 
 	// Platform
 	platform_state, pl_err := linear_allocator_allocate(
@@ -155,8 +155,8 @@ application_create :: proc(
 	if ok := ren.renderer_system_initialize(
 		game_inst.app_config.name,
 		r_state,
-		cast(u32)game_inst.app_config.start_width,
-		cast(u32)game_inst.app_config.start_height,
+		u32(game_inst.app_config.start_width),
+		u32(game_inst.app_config.start_height),
 		sys_alloc^,
 	); !ok {
 		l.log_fatal("Failed to initialize renderer. Aborting application.")
@@ -165,7 +165,7 @@ application_create :: proc(
 
 	// Register debug event
 	e.event_register(
-		cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
+		u16(e.system_event_code.EVENT_CODE_DEBUG0),
 		nil,
 		application_on_debug_event,
 	)
@@ -224,7 +224,7 @@ application_on_event :: proc(
 	data: e.event_context,
 ) -> bool {
 	switch code {
-	case cast(u16)e.system_event_code.EVENT_CODE_APPLICATION_QUIT:
+	case u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT):
 		{
 			l.log_info("EVENT_CODE_APPLICATION_QUIT received, shutting down. \n")
 			app_state.is_running = false
@@ -240,29 +240,29 @@ application_on_key :: proc(
 	listener: rawptr,
 	data: e.event_context,
 ) -> bool {
-	if code == cast(u16)e.system_event_code.EVENT_CODE_KEY_PRESSED {
+	if code == u16(e.system_event_code.EVENT_CODE_KEY_PRESSED) {
 		event_context_data := data.data.([8]u16)
 		key_code: u16 = event_context_data[0]
-		if key_code == cast(u16)idef.keys.KEY_ESCAPE {
+		if key_code == u16(idef.keys.KEY_ESCAPE) {
 			event_context_data_new: e.event_context = {}
 			e.event_fire(
-				cast(u16)e.system_event_code.EVENT_CODE_APPLICATION_QUIT,
+				u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 				nil,
 				event_context_data_new,
 			)
 
 			// Block anything else from processing this.
 			return true
-		} else if key_code == cast(u16)idef.keys.KEY_A {
+		} else if key_code == u16(idef.keys.KEY_A) {
 			// Checking if it is working
 			l.log_debug("Explicit - A key pressed!")
 		} else {
 			l.log_debug("'%c' key pressed in a window.", key_code)
 		}
-	} else if code == cast(u16)e.system_event_code.EVENT_CODE_KEY_RELEASED {
+	} else if code == u16(e.system_event_code.EVENT_CODE_KEY_RELEASED) {
 		if event_context_data, ok := data.data.([8]u16); ok {
 			key_code: u16 = event_context_data[0]
-			if key_code == cast(u16)idef.keys.KEY_B {
+			if key_code == u16(idef.keys.KEY_B) {
 				l.log_debug("Explicit B key released")
 			} else {
 				l.log_debug("'%c' key released in window.", key_code)
@@ -280,14 +280,14 @@ application_on_resized :: proc(
 	listener: rawptr,
 	data: e.event_context,
 ) -> bool {
-	if code == cast(u16)e.system_event_code.EVENT_CODE_RESIZED {
+	if code == u16(e.system_event_code.EVENT_CODE_RESIZED) {
 		event_context_data := data.data.([8]u16)
 		width: u16 = event_context_data[0]
 		height: u16 = event_context_data[1]
 
-		if cast(i32)width != app_state.width || cast(i32)height != app_state.height {
-			app_state.width = cast(i32)width
-			app_state.height = cast(i32)height
+		if i32(width) != app_state.width || i32(height) != app_state.height {
+			app_state.width = i32(width)
+			app_state.height = i32(height)
 
 			l.log_debug("Window resize: %i, %i", width, height)
 
@@ -301,7 +301,7 @@ application_on_resized :: proc(
 					l.log_info("Window restored, resuming application.")
 					app_state.is_suspended = false
 				}
-				app_state.game_inst.on_resize(app_state.game_inst, cast(i32)width, cast(i32)height)
+				app_state.game_inst.on_resize(app_state.game_inst, i32(width), i32(height))
 				ren.renderer_on_resized(width, height)
 			}
 		}
@@ -354,22 +354,22 @@ application_run :: proc() -> bool {
 	defer input_system_shutdown(app_state.input_system_state)
 	defer e.event_system_shutdown(app_state.event_system_state)
 	defer e.event_unregister(
-		cast(u16)e.system_event_code.EVENT_CODE_APPLICATION_QUIT,
+		u16(e.system_event_code.EVENT_CODE_APPLICATION_QUIT),
 		nil,
 		application_on_event,
 	)
 	defer e.event_unregister(
-		cast(u16)e.system_event_code.EVENT_CODE_KEY_PRESSED,
+		u16(e.system_event_code.EVENT_CODE_KEY_PRESSED),
 		nil,
 		application_on_key,
 	)
 	defer e.event_unregister(
-		cast(u16)e.system_event_code.EVENT_CODE_KEY_RELEASED,
+		u16(e.system_event_code.EVENT_CODE_KEY_RELEASED),
 		nil,
 		application_on_key,
 	)
 	defer e.event_unregister(
-		cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
+		u16(e.system_event_code.EVENT_CODE_DEBUG0),
 		nil,
 		application_on_debug_event,
 	)

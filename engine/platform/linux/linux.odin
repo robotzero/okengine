@@ -63,7 +63,7 @@ platform_system_startup :: proc(
 	app_name: cstring = strings.clone_to_cstring(application_name)
 	defer delete(app_name)
 	state_ptr = state
-	length := cast(u32)len(application_name)
+	length := u32(len(application_name))
 	state_ptr.display = xlib.OpenDisplay(nil)
 	xlib.AutoRepeatOff(state_ptr.display)
 	screen_p: i32 = 0
@@ -76,7 +76,7 @@ platform_system_startup :: proc(
 	setup: ^Setup = get_setup(state_ptr.connection)
 	it: ScreenIterator = setup_roots_iterator(setup)
 
-	for s: i32 = 0; s < screen_p; s -= 1 {
+	for _ in 0 ..< screen_p {
 		screen_next(&it)
 	}
 	state_ptr.screen = it.data
@@ -247,7 +247,7 @@ platform_pump_messages :: proc() -> bool {
 					0 = configure_event.width,
 					1 = configure_event.height,
 				}
-				ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_RESIZED, nil, c)
+				ev.event_fire(u16(ev.system_event_code.EVENT_CODE_RESIZED), nil, c)
 			}
 		}
 		flush(state_ptr.connection)

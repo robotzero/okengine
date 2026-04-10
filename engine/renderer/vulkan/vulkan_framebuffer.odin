@@ -13,7 +13,7 @@ vulkan_framebuffer_create :: proc(
 	out_framebuffer: ^vulkan_framebuffer,
 ) {
 	// Take a copy of the attachments, renderpass and attachments count
-	out_framebuffer.attachments = arr.darray_create(cast(u64)len(attachments), vk.ImageView)
+	out_framebuffer.attachments = arr.darray_create(u64(len(attachments)), vk.ImageView)
 	for i in 0 ..< attachment_count {
 		out_framebuffer.attachments[i] = attachments[i]
 	}

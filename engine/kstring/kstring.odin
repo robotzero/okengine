@@ -80,7 +80,7 @@ string_index_of :: proc(source: string, c: u8) -> i32 {
 	if len(source) == 0 {
 		return -1
 	}
-	for i: int = 0; i < len(source); i += 1 {
+	for i in 0 ..< len(source) {
 		if source[i] == c {
 			return i32(i)
 		}

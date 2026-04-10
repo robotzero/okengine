@@ -8,7 +8,6 @@ import f "../platform/linux/filesystem"
 import ren "../renderer"
 import r "../resources"
 import "core:fmt"
-import "core:mem"
 
 DEFAULT_MATERIAL_NAME :: "default"
 
@@ -60,28 +59,27 @@ material_system_initialize :: proc(
 
 	//@MEMORY use containers to that we can tag memory
 	hashtable_var := new(c.hashtable(material_reference), allocator)
-	hashtable_memory := make([]material_reference, config.max_material_count, allocator)
-
-	// Create a hashtable for texture lookups.
 	c.hashtable_create(
 		size_of(material_reference),
 		config.max_material_count,
 		false,
 		hashtable_var,
-		hashtable_memory,
 		nil,
+		nil,
+		allocator,
 	)
 
 	// Fill the hashtable with invalid references to use as a default.
-	invalid_ref: material_reference
-	invalid_ref.auto_release = false
-	invalid_ref.handle = r.INVALID_ID // Primary reason for needing default values.
-	invalid_ref.reference_count = 0
+	invalid_ref := material_reference {
+		auto_release    = false,
+		handle          = r.INVALID_ID, // Primary reason for needing default values.
+		reference_count = 0,
+	}
 	state_ptr.registered_material_table = hashtable_var
 	c.hashtable_fill(state_ptr.registered_material_table, invalid_ref)
 
 	// Invalidate all textures in the array.
-	for i: u32 = 0; i < state_ptr.config.max_material_count; i += 1 {
+	for i in 0 ..< state_ptr.config.max_material_count {
 		state_ptr.registered_materials[i].id = r.INVALID_ID
 		state_ptr.registered_materials[i].generation = r.INVALID_ID
 		state_ptr.registered_materials[i].internal_id = r.INVALID_ID
@@ -96,7 +94,7 @@ material_system_initialize :: proc(
 material_system_shutdown :: proc() {
 	if state_ptr != nil {
 		// Destroy all loaded materials.
-		for i: u32 = 0; i < state_ptr.config.max_material_count; i += 1 {
+		for i in 0 ..< state_ptr.config.max_material_count {
 			s := &state_ptr.registered_materials[i]
 			if s.id != r.INVALID_ID {
 				destroy_material(s)
@@ -125,7 +123,7 @@ material_system_acquire_from_config :: proc(config: material_config) -> ^r.mater
 		if ref.handle == r.INVALID_ID {
 			// This means no material exists here. Find a free index first.
 			m: ^r.material = nil
-			for i: u32 = 0; i < state_ptr.config.max_material_count; i += 1 {
+			for i in 0 ..< state_ptr.config.max_material_count {
 				if state_ptr.registered_materials[i].id == r.INVALID_ID {
 					// A free slot has been found. Use its index as the handle.
 					ref.handle = i
@@ -201,7 +199,7 @@ material_system_release :: proc(name: string) {
 			destroy_material(m)
 
 			// Reset the array entry, ensure invalid ids are set.
-			mem.set(m, 0, size_of(r.material))
+			m^ = {}
 
 			// Reset the reference.
 			ref.handle = r.INVALID_ID

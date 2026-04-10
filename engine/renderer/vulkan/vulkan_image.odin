@@ -70,7 +70,7 @@ vulkan_image_create :: proc(
 		sType = vk.StructureType.MEMORY_ALLOCATE_INFO,
 	}
 	memory_allocate_info.allocationSize = memory_requirements.size
-	memory_allocate_info.memoryTypeIndex = cast(u32)memory_type
+	memory_allocate_info.memoryTypeIndex = u32(memory_type)
 	assert(
 		vk.AllocateMemory(
 			v_context.device.logical_device,
@@ -158,8 +158,8 @@ vulkan_image_transition_layout :: proc(
 	}
 	barrier.oldLayout = old_layout
 	barrier.newLayout = new_layout
-	barrier.srcQueueFamilyIndex = cast(u32)v_context.device.graphics_queue_index
-	barrier.dstQueueFamilyIndex = cast(u32)v_context.device.graphics_queue_index
+	barrier.srcQueueFamilyIndex = u32(v_context.device.graphics_queue_index)
+	barrier.dstQueueFamilyIndex = u32(v_context.device.graphics_queue_index)
 	barrier.image = image.handle
 	barrier.subresourceRange.aspectMask = {vk.ImageAspectFlag.COLOR}
 	barrier.subresourceRange.baseMipLevel = 0

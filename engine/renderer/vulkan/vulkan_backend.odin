@@ -96,7 +96,7 @@ vulkan_renderer_backend_initialize :: proc(
 		arr.darray_push(required_extensions, vk.EXT_DEBUG_UTILS_EXTENSION_NAME)
 		l.log_debug("Required extensions:")
 		for v, _ in required_extensions {
-			l.log_debug(cast(string)v)
+			l.log_debug(string(v))
 		}
 
 		// If validation should be done, get a list of the required validation layer names
@@ -106,9 +106,9 @@ vulkan_renderer_backend_initialize :: proc(
 		// The list of validation layers required.
 		required_validation_layer_names: [dynamic]cstring = arr.darray_create_default(cstring)
 		arr.darray_push(&required_validation_layer_names, "VK_LAYER_KHRONOS_validation")
-		required_validation_layer_count := cast(u32)arr.darray_length(
+		required_validation_layer_count := u32(arr.darray_length(
 			required_validation_layer_names,
-		)
+		))
 
 		// Obtain a list of available validation layers
 		available_layer_count: u32 = 0
@@ -116,7 +116,7 @@ vulkan_renderer_backend_initialize :: proc(
 		   ok != vk.Result.SUCCESS {
 			l.log_error("Failed to enumerate instance layer properties")
 		}
-		available_layers := arr.darray_create(cast(u64)available_layer_count, vk.LayerProperties)
+		available_layers := arr.darray_create(u64(available_layer_count), vk.LayerProperties)
 		if ok := vk.EnumerateInstanceLayerProperties(
 			&available_layer_count,
 			raw_data(available_layers),
@@ -161,9 +161,9 @@ vulkan_renderer_backend_initialize :: proc(
 	create_info: vk.InstanceCreateInfo = {
 			sType                   = vk.StructureType.INSTANCE_CREATE_INFO,
 			pApplicationInfo        = &app_info,
-			enabledExtensionCount   = cast(u32)arr.darray_length(required_extensions),
+			enabledExtensionCount   = u32(arr.darray_length(required_extensions)),
 			ppEnabledExtensionNames = &required_extensions[0],
-			enabledLayerCount       = cast(u32)arr.darray_length(required_validation_layer_names),
+			enabledLayerCount       = u32(arr.darray_length(required_validation_layer_names)),
 			ppEnabledLayerNames     = &required_validation_layer_names[0],
 		}
 
@@ -252,8 +252,8 @@ vulkan_renderer_backend_initialize :: proc(
 		&v_context.main_renderpass,
 		0,
 		0,
-		cast(f32)v_context.framebuffer_width,
-		cast(f32)v_context.framebuffer_height,
+		f32(v_context.framebuffer_width),
+		f32(v_context.framebuffer_height),
 		0.0,
 		0.0,
 		0.2,
@@ -264,7 +264,7 @@ vulkan_renderer_backend_initialize :: proc(
 
 	// Swapchain framebuffers.
 	v_context.swapchain.framebuffers = arr.darray_create(
-		cast(u64)v_context.swapchain.image_count,
+		u64(v_context.swapchain.image_count),
 		vulkan_framebuffer,
 	)
 	regenerate_framebuffers(backend, &v_context.swapchain, &v_context.main_renderpass)
@@ -274,15 +274,15 @@ vulkan_renderer_backend_initialize :: proc(
 
 	// Create sync object.
 	v_context.image_available_semaphores = arr.darray_create(
-		cast(u64)v_context.swapchain.max_frames_in_flight,
+		u64(v_context.swapchain.max_frames_in_flight),
 		vk.Semaphore,
 	)
 	v_context.queue_complete_semaphores = arr.darray_create(
-		cast(u64)v_context.swapchain.max_frames_in_flight,
+		u64(v_context.swapchain.max_frames_in_flight),
 		vk.Semaphore,
 	)
 	v_context.in_flight_fences = arr.darray_create(
-		cast(u64)v_context.swapchain.max_frames_in_flight,
+		u64(v_context.swapchain.max_frames_in_flight),
 		vulkan_fence,
 	)
 
@@ -314,7 +314,7 @@ vulkan_renderer_backend_initialize :: proc(
 	// because the initial state should be 0, and will be 0 when not in use. Actual fences are not owned
 	// by this list.
 	v_context.images_in_flight = arr.darray_create(
-		cast(u64)v_context.swapchain.image_count,
+		u64(v_context.swapchain.image_count),
 		^vulkan_fence,
 	)
 	for i in 0 ..< v_context.swapchain.image_count {
@@ -487,8 +487,8 @@ vulkan_renderer_backend_on_resized :: proc(
 ) {
 	// Update the "framebuffer size generation", a counter which indicates when the
 	// framebuffer size has been updated.
-	cached_framebuffer_width = cast(u32)width
-	cached_framebuffer_height = cast(u32)height
+	cached_framebuffer_width = u32(width)
+	cached_framebuffer_height = u32(height)
 	v_context.framebuffer_size_generation = v_context.framebuffer_size_generation + 1
 
 	l.log_info(
@@ -573,26 +573,26 @@ vulkan_renderer_backend_begin_frame :: proc(
 	vulkan_command_buffer_begin(command_buffer, false, false, false)
 
 	// Dynamic state
-	viewport: vk.Viewport = {}
-	viewport.x = 0.0
-	viewport.y = cast(f32)v_context.framebuffer_height
-	viewport.width = cast(f32)v_context.framebuffer_width
-	viewport.height = -cast(f32)v_context.framebuffer_height
-	viewport.minDepth = 0.0
-	viewport.maxDepth = 1.0
+	viewport := vk.Viewport {
+		x        = 0.0,
+		y        = f32(v_context.framebuffer_height),
+		width    = f32(v_context.framebuffer_width),
+		height   = -f32(v_context.framebuffer_height),
+		minDepth = 0.0,
+		maxDepth = 1.0,
+	}
 
 	// Scissor
-	scissor: vk.Rect2D = {}
-	scissor.offset.x = 0
-	scissor.offset.y = 0
-	scissor.extent.width = v_context.framebuffer_width
-	scissor.extent.height = v_context.framebuffer_height
+	scissor := vk.Rect2D {
+		offset = {x = 0, y = 0},
+		extent = {width = v_context.framebuffer_width, height = v_context.framebuffer_height},
+	}
 
 	vk.CmdSetViewport(command_buffer.handle, 0, 1, &viewport)
 	vk.CmdSetScissor(command_buffer.handle, 0, 1, &scissor)
 
-	v_context.main_renderpass.w = cast(f32)v_context.framebuffer_width
-	v_context.main_renderpass.h = cast(f32)v_context.framebuffer_height
+	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
 
 	// Begin the render pass.
 	vulkan_renderpass_begin(
@@ -720,8 +720,8 @@ recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 	// Sync the framebuffer size with the cached sizes.
 	v_context.framebuffer_width = cached_framebuffer_width
 	v_context.framebuffer_height = cached_framebuffer_height
-	v_context.main_renderpass.w = cast(f32)v_context.framebuffer_width
-	v_context.main_renderpass.h = cast(f32)v_context.framebuffer_height
+	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
 	cached_framebuffer_width = 0
 	cached_framebuffer_height = 0
 
@@ -744,8 +744,8 @@ recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 
 	v_context.main_renderpass.x = 0
 	v_context.main_renderpass.y = 0
-	v_context.main_renderpass.w = cast(f32)v_context.framebuffer_width
-	v_context.main_renderpass.h = cast(f32)v_context.framebuffer_height
+	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
 
 	regenerate_framebuffers(backend, &v_context.swapchain, &v_context.main_renderpass)
 
@@ -765,7 +765,7 @@ find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryProper
 		// Check each memory type to see if its bit is set to 1
 		if (type_filter & (1 << i) != 0) &&
 		   (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags {
-			return cast(i32)i
+			return i32(i)
 		}
 	}
 	l.log_warning("Unable to find suitable memory type!")
@@ -776,7 +776,7 @@ find_memory_index_proc :: proc(type_filter: u32, property_flags: vk.MemoryProper
 create_command_buffers :: proc(backend: ^rv.renderer_backend) {
 	if v_context.graphics_command_buffers == nil {
 		v_context.graphics_command_buffers = arr.darray_create(
-			cast(u64)v_context.swapchain.image_count,
+			u64(v_context.swapchain.image_count),
 			vulkan_command_buffer,
 		)
 	}
@@ -1094,14 +1094,14 @@ vulkan_renderer_destroy_texture :: proc(texture: ^res.texture) {
 	}
 
 	vulkan_image_destroy(&v_context, &data.image)
-	mem.set(&data.image, 0, size_of(vulkan_image))
+	data.image = {}
 	vk.DestroySampler(v_context.device.logical_device, data.sampler, v_context.allocator)
 	data.sampler = 0
 
 	texture_alloc := runtime.default_context().allocator
 	free(data, texture_alloc)
 	// Clear the full texture struct, not just pointer-sized bytes.
-	mem.set(texture, 0, size_of(res.texture))
+	texture^ = {}
 }
 
 vulkan_renderer_create_material :: proc(material: ^res.material) -> bool {
