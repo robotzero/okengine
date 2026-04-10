@@ -1,8 +1,8 @@
-package renderer
+package vulkan_renderer
 
 import f "../../platform/linux/filesystem"
 import "core:fmt"
-import "core:os"
+import "core:mem"
 import "core:slice"
 import vk "vendor:vulkan"
 
@@ -20,7 +20,7 @@ create_shader_module :: proc(
 	// kzero_memory(shader_stages[stage_index].create_info, size_of(vk.ShaderModuleCreateInfo))
 	shader_stages[stage_index].create_info.sType = vk.StructureType.SHADER_MODULE_CREATE_INFO
 
-	handle, success := f.filesystem_open(file_name, os.O_RDONLY)
+	handle, success := f.filesystem_open(file_name)
 	defer f.filesystem_close(handle)
 	if !success {
 		return success
@@ -49,8 +49,9 @@ create_shader_module :: proc(
 	)
 
 	// Shader stage info
-	kzero_memory(
+	mem.set(
 		&shader_stages[stage_index].shader_stage_create_info,
+		0,
 		size_of(vk.PipelineShaderStageCreateInfo),
 	)
 	shader_stages[stage_index].shader_stage_create_info.sType =

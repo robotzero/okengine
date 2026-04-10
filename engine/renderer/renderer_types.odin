@@ -1,6 +1,7 @@
 package renderer
 
 import "../okmath"
+import res "../resources"
 
 renderer_backend_type :: enum {
 	RENDERER_BACKEND_TYPE_VULKAN,
@@ -11,6 +12,8 @@ renderer_backend_type :: enum {
 renderer_initialize_proc :: #type proc(
 	backend: ^renderer_backend,
 	application_name: string,
+	framebuffer_width: u32,
+	framebuffer_height: u32,
 	allocator := context.allocator,
 ) -> bool
 renderer_shutdown_proc :: #type proc(backend: ^renderer_backend)
@@ -25,10 +28,10 @@ update_global_state_proc :: #type proc(
 	mode: i32,
 )
 update_object_proc :: #type proc(data: geometry_render_data)
-create_texture_proc :: #type proc(pixels: []u8, out_texture: ^texture)
-destroy_texture_proc :: #type proc(texture: ^texture)
-create_material_proc :: #type proc(material: ^material) -> bool
-destroy_material_proc :: #type proc(material: ^material)
+create_texture_proc :: #type proc(pixels: []u8, out_texture: ^res.texture)
+destroy_texture_proc :: #type proc(texture: ^res.texture)
+create_material_proc :: #type proc(material: ^res.material) -> bool
+destroy_material_proc :: #type proc(material: ^res.material)
 
 global_uniform_object :: struct {
 	projection:  okmath.mat4,
@@ -66,6 +69,5 @@ material_uniform_object :: struct {
 geometry_render_data :: struct {
 	object_id: u32,
 	model:     okmath.mat4,
-	material:  ^material,
+	material:  ^res.material,
 }
-

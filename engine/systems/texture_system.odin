@@ -1,7 +1,9 @@
 package systems
 
 import c "../containers"
+import k "../kstring"
 import l "../logger"
+import ren "../renderer"
 import r "../resources"
 import "core:fmt"
 import "core:mem"
@@ -41,12 +43,6 @@ texture_system_initialize :: proc(
 		return false
 	}
 
-	// Block of memory will contain state structure, then block for array, then block for hashtable.
-	// struct_requirement: u64 = size_of(texture_system2_state)
-	// array_requirement: u64 = size_of(texture) * u64(config.max_texture_count)
-	// hashtable_requirement: u64 = size_of(texture_reference2) * u64(config.max_texture_count)
-	// memory_requirement^ = struct_requirement + array_requirement + hashtable_requirement
-
 	if state == nil {
 		return true
 	}
@@ -54,14 +50,14 @@ texture_system_initialize :: proc(
 	state_ptr = state
 	state_ptr.config = config
 	//@MEMORY use containers so that we can tag the memory
-	state_ptr.registered_textures = make([]texture, MAX_TEXTURE_COUNT, allocator)
+	state_ptr.registered_textures = make([]r.texture, MAX_TEXTURE_COUNT, allocator)
 
 	//@MEMORY use containers to that we can tag memory
-	hashtable_var := new(hashtable(texture_reference), allocator)
+	hashtable_var := new(c.hashtable(texture_reference), allocator)
 	hashtable_memory := make([]texture_reference, MAX_TEXTURE_COUNT, allocator)
 
 	// Create a hashtable for texture lookups.
-	hashtable_create(
+	c.hashtable_create(
 		size_of(texture_reference),
 		config.max_texture_count,
 		false,
@@ -73,15 +69,15 @@ texture_system_initialize :: proc(
 	// Fill the hashtable with invalid references to use as a default.
 	invalid_ref: texture_reference
 	invalid_ref.auto_release = false
-	invalid_ref.handle = INVALID_ID // Primary reason for needing default values.
+	invalid_ref.handle = r.INVALID_ID // Primary reason for needing default values.
 	invalid_ref.reference_count = 0
 	state_ptr.registered_texture_table = hashtable_var
-	hashtable_fill(state_ptr.registered_texture_table, invalid_ref)
+	c.hashtable_fill(state_ptr.registered_texture_table, invalid_ref)
 
 	// Invalidate all textures in the array.
 	for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
-		state_ptr.registered_textures[i].id = INVALID_ID
-		state_ptr.registered_textures[i].generation = INVALID_ID
+		state_ptr.registered_textures[i].id = r.INVALID_ID
+		state_ptr.registered_textures[i].generation = r.INVALID_ID
 	}
 
 	// Create default textures for use in the system.
@@ -95,8 +91,8 @@ texture_system_shutdown :: proc() {
 		// Destroy all loaded textures.
 		for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
 			t := &state_ptr.registered_textures[i]
-			if t.generation != INVALID_ID {
-				renderer_destroy_texture(t)
+			if t.generation != r.INVALID_ID {
+				ren.renderer_destroy_texture(t)
 			}
 		}
 
@@ -111,23 +107,23 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^r.texture {
 	// Return default texture, but warn about it since this should be returned via get_default_texture();
 	if strings.equal_fold(name, DEFAULT_TEXTURE_NAME) {
 		l.log_warning(
-			"texture_system_acquire called for default texture. Use texture_system2_get_default_texture for texture 'default'.",
+			"texture_system_acquire called for default texture. Use texture_system_get_default_texture for texture 'default'.",
 		)
 		return &state_ptr.default_texture
 	}
 
 	ref: texture_reference
-	if state_ptr != nil && hashtable_get(state_ptr.registered_texture_table, name, &ref) {
+	if state_ptr != nil && c.hashtable_get(state_ptr.registered_texture_table, name, &ref) {
 		// This can only be changed the first time a texture is loaded.
 		if ref.reference_count == 0 {
 			ref.auto_release = auto_release
 		}
 		ref.reference_count += 1
-		if ref.handle == INVALID_ID {
+		if ref.handle == r.INVALID_ID {
 			// This means no texture exists here. Find a free index first.
-			t: ^texture = nil
+			t: ^r.texture = nil
 			for i: u32 = 0; i < state_ptr.config.max_texture_count; i += 1 {
-				if state_ptr.registered_textures[i].id == INVALID_ID {
+				if state_ptr.registered_textures[i].id == r.INVALID_ID {
 					// A free slot has been found. Use its index as the handle.
 					ref.handle = i
 					t = &state_ptr.registered_textures[i]
@@ -136,9 +132,9 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^r.texture {
 			}
 
 			// Make sure an empty slot was actually found.
-			if t == nil || ref.handle == INVALID_ID {
+			if t == nil || ref.handle == r.INVALID_ID {
 				l.log_fatal(
-					"texture_system2_acquire - Texture system cannot hold anymore textures. Adjust configuration to allow more.",
+					"texture_system_acquire - Texture system cannot hold anymore textures. Adjust configuration to allow more.",
 				)
 				return nil
 			}
@@ -165,13 +161,13 @@ texture_system_acquire :: proc(name: string, auto_release: bool) -> ^r.texture {
 		}
 
 		// Update the entry.
-		hashtable_set(state_ptr.registered_texture_table, name, ref)
+		c.hashtable_set(state_ptr.registered_texture_table, name, ref)
 		return &state_ptr.registered_textures[ref.handle]
 	}
 
 	// NOTE: This would only happen in the event something went wrong with the state.
 	l.log_error(
-		"texture_system2_acquire failed to acquire texture '%s'. Null pointer will be returned.",
+		"texture_system_acquire failed to acquire texture '%s'. Null pointer will be returned.",
 		name,
 	)
 	return nil
@@ -183,13 +179,13 @@ texture_system_release :: proc(name: string) {
 		return
 	}
 	ref: texture_reference
-	if state_ptr != nil && hashtable_get(state_ptr.registered_texture_table, name, &ref) {
+	if state_ptr != nil && c.hashtable_get(state_ptr.registered_texture_table, name, &ref) {
 		if ref.reference_count == 0 {
 			l.log_warning("Tried to release non-existent texture: '%s'", name)
 			return
 		}
 		// Take a copy of the name since it will be wiped out by destroy
-		name_copy := string_ncopy(name, TEXTURE_NAME_MAX_LENGTH)
+		name_copy := k.string_ncopy(name, r.TEXTURE_NAME_MAX_LENGTH)
 		ref.reference_count -= 1
 		if ref.reference_count == 0 && ref.auto_release {
 			t := &state_ptr.registered_textures[ref.handle]
@@ -197,7 +193,7 @@ texture_system_release :: proc(name: string) {
 			destroy_texture(t)
 
 			// Reset the reference.
-			ref.handle = INVALID_ID
+			ref.handle = r.INVALID_ID
 			ref.auto_release = false
 			l.log_debug(
 				"Released texture '%s'., Texture unloaded because reference count=0 and auto_release=true.",
@@ -213,9 +209,9 @@ texture_system_release :: proc(name: string) {
 		}
 
 		// Update the entry.
-		hashtable_set(state_ptr.registered_texture_table, name_copy, ref)
+		c.hashtable_set(state_ptr.registered_texture_table, name_copy, ref)
 	} else {
-		l.log_error("texture_system2_release failed to release texture '%s'.", name)
+		l.log_error("texture_system_release failed to release texture '%s'.", name)
 	}
 }
 
@@ -225,7 +221,7 @@ texture_system_get_default_texture :: proc() -> ^r.texture {
 	}
 
 	l.log_error(
-		"texture_system2_get_default_texture called before texture system initialization! Null pointer returned.",
+		"texture_system_get_default_texture called before texture system initialization! Null pointer returned.",
 	)
 	return nil
 }
@@ -259,15 +255,15 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 		}
 	}
 	pixels_slice := pixels[:]
-	state.default_texture.name = string_ncopy(DEFAULT_TEXTURE_NAME, TEXTURE_NAME_MAX_LENGTH)
+	state.default_texture.name = k.string_ncopy(DEFAULT_TEXTURE_NAME, r.TEXTURE_NAME_MAX_LENGTH)
 	state.default_texture.width = tex_dimension
 	state.default_texture.height = tex_dimension
 	state.default_texture.channel_count = 4
-	state.default_texture.generation = INVALID_ID
+	state.default_texture.generation = r.INVALID_ID
 	state.default_texture.has_transparency = false
-	renderer_create_texture(pixels_slice, &state.default_texture)
+	ren.renderer_create_texture(pixels_slice, &state.default_texture)
 	// Manually set the texture generation to invalid since this is a default texture.
-	state.default_texture.generation = INVALID_ID
+	state.default_texture.generation = r.INVALID_ID
 
 	return true
 }
@@ -278,7 +274,7 @@ destroy_default_textures :: proc(state: ^texture_system_state) {
 	}
 }
 
-load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
+load_texture :: proc(texture_name: string, t: ^r.texture) -> b8 {
 	// TODO: Should be able to be located anywhere.
 	required_channel_count: i32 = 4
 	si.set_flip_vertically_on_load(1)
@@ -287,7 +283,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 	si_path := strings.clone_to_cstring(full_file_path)
 	defer delete(si_path)
 	// Use a temporary texture to load into.
-	temp_texture: texture
+	temp_texture: r.texture
 
 	width_i32: i32
 	height_i32: i32
@@ -300,7 +296,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 
 	if data != nil {
 		current_generation := t.generation
-		t.generation = INVALID_ID
+		t.generation = r.INVALID_ID
 
 		total_size: u64 =
 			u64(temp_texture.width) * u64(temp_texture.height) * u64(required_channel_count)
@@ -318,19 +314,19 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 
 		if si.failure_reason() != nil {
 			l.log_warning(
-				"load_texture2() failed to load file '%s': %s",
+				"load_texture() failed to load file '%s': %s",
 				full_file_path,
 				si.failure_reason(),
 			)
 			return false
 		}
-		temp_texture.name = string_ncopy(texture_name, TEXTURE_NAME_MAX_LENGTH)
-		temp_texture.generation = INVALID_ID
+		temp_texture.name = k.string_ncopy(texture_name, r.TEXTURE_NAME_MAX_LENGTH)
+		temp_texture.generation = r.INVALID_ID
 		temp_texture.has_transparency = has_transparency
 
 		// Acquire internal texture resources and upload to GPU.
 		pixels_slice := data_slice
-		renderer_create_texture(pixels_slice, &temp_texture)
+		ren.renderer_create_texture(pixels_slice, &temp_texture)
 
 		// Take a copy of the old texture.
 		old := t^
@@ -339,9 +335,9 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 		t^ = temp_texture
 
 		// Destroy the old texture.
-		renderer_destroy_texture(&old)
+		ren.renderer_destroy_texture(&old)
 
-		if current_generation == INVALID_ID {
+		if current_generation == r.INVALID_ID {
 			t.generation = 0
 		} else {
 			t.generation = current_generation + 1
@@ -353,7 +349,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 	} else {
 		if si.failure_reason() != nil {
 			l.log_warning(
-				"load_texture2() failed to load file '%s': %s",
+				"load_texture() failed to load file '%s': %s",
 				full_file_path,
 				si.failure_reason(),
 			)
@@ -363,8 +359,7 @@ load_texture :: proc(texture_name: string, t: ^texture) -> b8 {
 }
 
 destroy_texture :: proc(t: ^r.texture) {
-	renderer_destroy_texture(t)
-	t.id = INVALID_ID
-	t.generation = INVALID_ID
+	ren.renderer_destroy_texture(t)
+	t.id = r.INVALID_ID
+	t.generation = r.INVALID_ID
 }
-

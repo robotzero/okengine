@@ -6,7 +6,6 @@ import arr "../../containers"
 import ev "../../core/event"
 import idef "../../core/input"
 import l "../../logger"
-import rv "../../renderer/vulkan"
 import "core:dynlib"
 import "core:fmt"
 import "core:log"
@@ -34,13 +33,17 @@ foreign XCBUTIL {
 state_ptr: ^platform_system_state
 
 platform_system_state :: struct {
-	display:       ^xlib.Display,
-	connection:    ^Connection,
-	window:        Window,
-	screen:        ^Screen,
-	wm_protocols:  Atom,
-	wm_delete_win: Atom,
-	surface:       vk.SurfaceKHR,
+	display:              ^xlib.Display,
+	connection:           ^Connection,
+	window:               Window,
+	screen:               ^Screen,
+	wm_protocols:         Atom,
+	wm_delete_win:        Atom,
+	surface:              vk.SurfaceKHR,
+	// Input callbacks (set by core to avoid circular dependency)
+	on_key:               proc(key: idef.keys, pressed: bool),
+	on_button:            proc(button: idef.buttons, pressed: bool),
+	on_mouse_move:        proc(x, y: i16),
 }
 
 platform_system_startup :: proc(
@@ -180,7 +183,9 @@ platform_pump_messages :: proc() -> bool {
 				key: idef.keys = translate_keycode(key_sym)
 
 				// Pass to the input subsystem for processing
-				input_process_key(key, pressed)
+				if state_ptr.on_key != nil {
+					state_ptr.on_key(key, pressed)
+				}
 			}
 
 		case BUTTON_PRESS, BUTTON_RELEASE:
@@ -206,7 +211,9 @@ platform_pump_messages :: proc() -> bool {
 
 				// Pass over to the input subsystem.
 				if mouse_button != idef.buttons.BUTTON_MAX_BUTTONS {
-					input_process_button(mouse_button, pressed)
+					if state_ptr.on_button != nil {
+						state_ptr.on_button(mouse_button, pressed)
+					}
 				}
 			}
 
@@ -217,7 +224,9 @@ platform_pump_messages :: proc() -> bool {
 				move_event := cast(^MotionNotifyEvent)event
 
 				// Pass over to the input subsystem
-				input_process_mouse_move(move_event.eventX, move_event.eventY)
+				if state_ptr.on_mouse_move != nil {
+					state_ptr.on_mouse_move(move_event.eventX, move_event.eventY)
+				}
 			}
 
 		case CONFIGURE_NOTIFY:
@@ -303,7 +312,7 @@ platform_allocate :: proc(
 }
 
 platform_free :: proc(object: ^$T, location := #caller_location, allocator := context.allocator) {
-	log.log(log.LeveInfo, "object %v, location %s, ob %s", object, location, typeid_of(T))
+	log.log(log.Level.Info, "object %v, location %s, ob %s", object, location, typeid_of(T))
 	err := mem.free(object, allocator)
 	ensure(err == nil)
 }
@@ -331,9 +340,13 @@ platform_initialize_vulkan :: proc() -> rawptr {
 	return get_instance_proc_address
 }
 
-platform_create_vulkan_surface :: proc(v_context: ^rv.vulkan_context) -> bool {
+platform_create_vulkan_surface :: proc(
+	instance: vk.Instance,
+	vk_allocator: ^vk.AllocationCallbacks,
+	out_surface: ^vk.SurfaceKHR,
+) -> bool {
 	// Simply cold-cast to the known type.
-	load_proc_addresses(v_context.instance)
+	load_proc_addresses(instance)
 
 	create_info: XcbSurfaceCreateInfoKHR = {
 		sType      = vk.StructureType.XCB_SURFACE_CREATE_INFO_KHR,
@@ -342,9 +355,9 @@ platform_create_vulkan_surface :: proc(v_context: ^rv.vulkan_context) -> bool {
 	}
 
 	result: vk.Result = CreateXcbSurfaceKHR(
-		v_context.instance,
+		instance,
 		&create_info,
-		v_context.allocator,
+		vk_allocator,
 		&state_ptr.surface,
 	)
 
@@ -353,7 +366,7 @@ platform_create_vulkan_surface :: proc(v_context: ^rv.vulkan_context) -> bool {
 		return false
 	}
 
-	v_context.surface = state_ptr.surface
+	out_surface^ = state_ptr.surface
 	return true
 }
 

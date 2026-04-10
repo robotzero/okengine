@@ -1,4 +1,4 @@
-package renderer
+package vulkan_renderer
 
 import l "../../logger"
 import "../../okmath"

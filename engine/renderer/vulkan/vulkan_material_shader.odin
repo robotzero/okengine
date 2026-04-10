@@ -1,8 +1,10 @@
-package renderer
+package vulkan_renderer
 
 import l "../../logger"
 import "../../okmath"
+import sys "../../systems"
 import "base:runtime"
+import "core:mem"
 import vk "vendor:vulkan"
 
 BUILDIN_SHADER_NAME_MATERIAL :: "Builtin.MaterialShader"
@@ -86,8 +88,9 @@ vulkan_material_shader_create :: proc(
 		.COMBINED_IMAGE_SAMPLER, // Binding 1 - Diffuse sampler layout.
 	}
 	bindings: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding
-	kzero_memory(
+	mem.set(
 		&bindings[0],
+		0,
 		size_of(vk.DescriptorSetLayoutBinding) * VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT,
 	)
 	for i: u32 = 0; i < VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT; i += 1 {
@@ -378,8 +381,9 @@ vulkan_material_shader_update_object :: proc(
 
 	// TODO: if needs update
 	descriptor_writes: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.WriteDescriptorSet
-	kzero_memory(
+	mem.set(
 		&descriptor_writes[0],
+		0,
 		size_of(vk.WriteDescriptorSet) * VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT,
 	)
 	descriptor_count: u32 = 0
@@ -440,7 +444,7 @@ vulkan_material_shader_update_object :: proc(
 		descriptor_id := &object_state.descriptor_states[descriptor_index].ids[image_index]
 
 		if t.generation == INVALID_ID {
-			t = texture_system_get_default_texture()
+			t = sys.texture_system_get_default_texture()
 			descriptor_generation^ = INVALID_ID
 
 		}

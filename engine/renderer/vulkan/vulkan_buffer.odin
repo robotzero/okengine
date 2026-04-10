@@ -1,4 +1,4 @@
-package renderer
+package vulkan_renderer
 
 import l "../../logger"
 import "core:mem"
@@ -12,7 +12,7 @@ vulkan_buffer_create :: proc(
 	bind_on_create: b8,
 	out_buffer: ^vulkan_buffer,
 ) -> b8 {
-	kzero_memory(out_buffer, size_of(vulkan_buffer))
+	mem.set(out_buffer, 0, size_of(vulkan_buffer))
 
 	out_buffer.total_size = u64(size)
 	out_buffer.usage = usage

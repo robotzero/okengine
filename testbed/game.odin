@@ -1,9 +1,11 @@
 package testbed
 
 import c "../engine/core"
+import ev "../engine/core/event"
 import idef "../engine/core/input"
 import l "../engine/logger"
 import "../engine/okmath"
+import ren "../engine/renderer"
 
 create_game :: proc(out_game: ^c.game) -> bool {
 	out_game.app_config.name = "OK Engine Testbed"
@@ -39,8 +41,8 @@ game_initialize :: proc(game_inst: ^c.game) -> bool {
 game_update :: proc(game_inst: ^c.game, delta_time: f32) -> bool {
 
 	if c.input_is_key_up(idef.keys.KEY_T) && c.input_was_key_down(idef.keys.KEY_T) {
-		ev_context: c.event_context = {}
-		c.event_fire(cast(u16)c.system_event_code.EVENT_CODE_DEBUG0, game_inst, ev_context)
+		ev_context: ev.event_context = {}
+		ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_DEBUG0, game_inst, ev_context)
 	}
 	state := game_inst.state
 	if c.input_is_key_down(idef.keys.KEY_A) || c.input_is_key_down(idef.keys.KEY_LEFT) {
@@ -97,7 +99,7 @@ game_update :: proc(game_inst: ^c.game, delta_time: f32) -> bool {
 
 	recalculate_view_matrix(state)
 
-	c.renderer_set_view(state.view)
+	ren.renderer_set_view(state.view)
 	return true
 }
 

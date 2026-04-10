@@ -1,15 +1,25 @@
 #+feature dynamic-literals
-package renderer
+package vulkan_renderer
 
 import l "../../logger"
 import "../../okmath"
+import p "../../platform/linux"
+import res "../../resources"
 import rv "../../renderer"
 import "base:runtime"
 import "core:c"
+import "core:mem"
 import "core:strings"
 
 import arr "../../containers"
 import vk "vendor:vulkan"
+
+// Local error enum for vulkan initialization (avoids circular import with core)
+Error :: enum int {
+	Okay                     = 0,
+	Missing_Validation_Layer = 1,
+	Create_Debugger_Fail     = 2,
+}
 
 find_memory_index :: #type proc(type_filter: u32, property_flags: vk.MemoryPropertyFlags) -> i32
 
@@ -44,9 +54,11 @@ vulkan_debug_callback :: proc "stdcall" (
 vulkan_renderer_backend_initialize :: proc(
 	backend: ^rv.renderer_backend,
 	application_name: string,
+	framebuffer_width: u32,
+	framebuffer_height: u32,
 	allocator := context.allocator,
 ) -> bool {
-	vulkan_proc_addr := platform_initialize_vulkan()
+	vulkan_proc_addr := p.platform_initialize_vulkan()
 	vk.load_proc_addresses_global(vulkan_proc_addr)
 	vk.load_proc_addresses(vulkan_proc_addr)
 
@@ -56,15 +68,14 @@ vulkan_renderer_backend_initialize :: proc(
 	// @TODO: custom allocator.
 	v_context.allocator = nil
 
-	application_get_framebuffer_size(&cached_framebuffer_width, &cached_framebuffer_height)
-	v_context.framebuffer_width = cached_framebuffer_width != 0 ? cached_framebuffer_width : 800
-	v_context.framebuffer_height = cached_framebuffer_height != 0 ? cached_framebuffer_height : 600
+	v_context.framebuffer_width = framebuffer_width != 0 ? framebuffer_width : 800
+	v_context.framebuffer_height = framebuffer_height != 0 ? framebuffer_height : 600
 	cached_framebuffer_width = 0
 	cached_framebuffer_height = 0
 
 	required_extensions := arr.darray_create_default(cstring)
 	arr.darray_push(&required_extensions, vk.KHR_SURFACE_EXTENSION_NAME)
-	platform_get_required_extension_names(&required_extensions)
+	p.platform_get_required_extension_names(&required_extensions)
 	required_validation_layer_names: [dynamic]cstring
 	required_validation_layer_count: u32 = 0
 	err: Error = Error.Okay
@@ -221,7 +232,7 @@ vulkan_renderer_backend_initialize :: proc(
 	}
 
 	l.log_debug("Creating Vulkan surface...")
-	if platform_create_vulkan_surface(&v_context) == false {
+	if p.platform_create_vulkan_surface(v_context.instance, v_context.allocator, &v_context.surface) == false {
 		l.log_error("Failed to create platform surface")
 		return false
 	}
@@ -962,12 +973,11 @@ vulkan_backend_update_object :: proc(data: geometry_render_data) {
 	vk.CmdDrawIndexed(command_buffer.handle, 6, 1, 0, 0, 0)
 }
 
-vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
+vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^res.texture) {
 	// Internal data creation.
 	// TODO: Use an allocator for this.
 	texture_alloc := runtime.default_context().allocator
-	data := kallocate(memory_tag.MEMORY_TAG_TEXTURE, vulkan_texture_data, texture_alloc)
-	// @TODO change rawptr to just ptr
+	data := new(vulkan_texture_data, texture_alloc)
 	texture.internal_data = data
 	temp_size := u32(texture.width) * u32(texture.height) * u32(texture.channel_count)
 	image_size: vk.DeviceSize = vk.DeviceSize(u64(temp_size))
@@ -1080,25 +1090,25 @@ vulkan_renderer_create_texture :: proc(pixels: []u8, texture: ^texture) {
 
 }
 
-vulkan_renderer_destroy_texture :: proc(texture: ^texture) {
+vulkan_renderer_destroy_texture :: proc(texture: ^res.texture) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
-	data := texture.internal_data
+	data := cast(^vulkan_texture_data)texture.internal_data
 	if data == nil {
 		return
 	}
 
 	vulkan_image_destroy(&v_context, &data.image)
-	kzero_memory(&data.image, size_of(vulkan_image))
+	mem.set(&data.image, 0, size_of(vulkan_image))
 	vk.DestroySampler(v_context.device.logical_device, data.sampler, v_context.allocator)
 	data.sampler = 0
 
 	texture_alloc := runtime.default_context().allocator
-	kfree(data, size_of(vulkan_texture_data), memory_tag.MEMORY_TAG_TEXTURE, texture_alloc)
+	free(data, texture_alloc)
 	// Clear the full texture struct, not just pointer-sized bytes.
-	kzero_memory(texture, size_of(texture^))
+	mem.set(texture, 0, size_of(res.texture))
 }
 
-vulkan_renderer_create_material :: proc(material: ^material) -> bool {
+vulkan_renderer_create_material :: proc(material: ^res.material) -> bool {
 	if material != nil {
 		if !vulkan_material_shader_acquire_resources(
 			&v_context,
@@ -1115,7 +1125,7 @@ vulkan_renderer_create_material :: proc(material: ^material) -> bool {
 	return false
 }
 
-vulkan_renderer_destroy_material :: proc(material: ^material) {
+vulkan_renderer_destroy_material :: proc(material: ^res.material) {
 	if material != nil {
 		if material.internal_id != INVALID_ID {
 			vulkan_material_shader_release_resources(

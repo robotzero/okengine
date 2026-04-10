@@ -1,4 +1,4 @@
-package core
+package kstring
 
 import "../okmath"
 import "base:runtime"

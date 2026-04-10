@@ -1,8 +1,14 @@
 package core
 
 import d "../containers"
+import k "../kstring"
 import l "../logger"
+import "../okmath"
 import p "../platform/linux"
+import ren "../renderer"
+import res "../resources"
+import sys "../systems"
+import v "../renderer/vulkan"
 import "core:mem"
 import "core:mem/virtual"
 import e "event"
@@ -22,12 +28,13 @@ application_state :: struct {
 	memory_system_state:               ^memory_system_state,
 	logging_system_memory_requirement: u64,
 	logging_system_state:              ^l.logger_system_state,
-	platform_system_state:             ^platform_system_state,
+	platform_system_state:             ^p.platform_system_state,
 	input_system_state:                ^input_system_state,
 	event_system_state:                ^e.event_system_state,
-	renderer_system_state:             ^renderer_system_state,
-	texture_system_state:              ^texture_system_state,
-	material_system_state:             ^material_system_state,
+	renderer_system_state:             ^ren.renderer_system_state,
+	texture_system_state:              ^sys.texture_system_state,
+	material_system_state:             ^sys.material_system_state,
+	test_material:                     ^res.material,
 }
 
 application_config :: struct {
@@ -129,47 +136,70 @@ application_create :: proc(
 		return false
 	}
 
+	// Register input callbacks with platform layer
+	app_state.platform_system_state.on_key = input_process_key
+	app_state.platform_system_state.on_button = input_process_button
+	app_state.platform_system_state.on_mouse_move = input_process_mouse_move
+
 	// Renderer
 	r_state, r_error := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		renderer_system_state,
+		ren.renderer_system_state,
 		sys_alloc,
 	)
 	app_state.renderer_system_state = r_state
-	if ok := renderer_system_initialize(game_inst.app_config.name, r_state, sys_alloc^); !ok {
+	v.renderer_backend_create(
+		ren.renderer_backend_type.RENDERER_BACKEND_TYPE_VULKAN,
+		&r_state.backend,
+	)
+	if ok := ren.renderer_system_initialize(
+		game_inst.app_config.name,
+		r_state,
+		cast(u32)game_inst.app_config.start_width,
+		cast(u32)game_inst.app_config.start_height,
+		sys_alloc^,
+	); !ok {
 		l.log_fatal("Failed to initialize renderer. Aborting application.")
 		return false
 	}
+
+	// Register debug event
+	e.event_register(
+		cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
+		nil,
+		application_on_debug_event,
+	)
+
 	// Texture system
-	texture_sys_config: texture_system_config
-	texture_sys_config.max_texture_count = MAX_TEXTURE_COUNT
+	texture_sys_config: sys.texture_system_config
+	texture_sys_config.max_texture_count = sys.MAX_TEXTURE_COUNT
 
 	tstate, terror := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		texture_system_state,
+		sys.texture_system_state,
 		sys_alloc,
 	)
 
 	app_state.texture_system_state = tstate
 
-	if !texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc^) {
+	if !sys.texture_system_initialize(app_state.texture_system_state, texture_sys_config, sys_alloc^) {
 		l.log_fatal("Failed to initialize texture system. Application cannot continue.")
 		return false
 	}
 
 	// Material System
-	material_sys_config: material_system_config
+	material_sys_config: sys.material_system_config
 	material_sys_config.max_material_count = 4096
 
 	mstate, merror := linear_allocator_allocate(
 		&app_state.systems_allocator,
-		material_system_state,
+		sys.material_system_state,
 		sys_alloc,
 	)
 
 	app_state.material_system_state = mstate
 
-	if !material_system_initialize(
+	if !sys.material_system_initialize(
 		app_state.material_system_state,
 		material_sys_config,
 		sys_alloc^,
@@ -272,7 +302,7 @@ application_on_resized :: proc(
 					app_state.is_suspended = false
 				}
 				app_state.game_inst.on_resize(app_state.game_inst, cast(i32)width, cast(i32)height)
-				renderer_on_resized(width, height)
+				ren.renderer_on_resized(width, height)
 			}
 		}
 	}
@@ -281,11 +311,46 @@ application_on_resized :: proc(
 	return false
 }
 
+@(private = "file")
+debug_choice: i8 = 2
+
+application_on_debug_event :: proc(
+	code: u16,
+	sender: rawptr,
+	listener_inst: rawptr,
+	data: e.event_context,
+) -> bool {
+	names := [3]string{"cobblestone", "paving", "paving2"}
+
+	// Save off the old name
+	old_name := names[debug_choice]
+
+	debug_choice = debug_choice + 1
+	debug_choice %= 3
+
+	if app_state.test_material != nil {
+		// Acquire the new texture
+		app_state.test_material.diffuse_map.texture = sys.texture_system_acquire(
+			names[debug_choice],
+			true,
+		)
+
+		if app_state.test_material.diffuse_map.texture == nil {
+			l.log_info("application_on_debug_event no texture! using default")
+			app_state.test_material.diffuse_map.texture = sys.texture_system_get_default_texture()
+		}
+		// Release the old texture
+		sys.texture_system_release(old_name)
+	}
+	return true
+}
+
 application_run :: proc() -> bool {
 	defer memory_system_shutdown(app_state.memory_system_state)
 	defer p.platform_system_shutdown(app_state.platform_system_state)
-	defer renderer_system_shutdown(app_state.renderer_system_state)
-	defer texture_system_shutdown()
+	defer ren.renderer_system_shutdown(app_state.renderer_system_state)
+	defer sys.texture_system_shutdown()
+	defer sys.material_system_shutdown()
 	defer input_system_shutdown(app_state.input_system_state)
 	defer e.event_system_shutdown(app_state.event_system_state)
 	defer e.event_unregister(
@@ -302,6 +367,11 @@ application_run :: proc() -> bool {
 		cast(u16)e.system_event_code.EVENT_CODE_KEY_RELEASED,
 		nil,
 		application_on_key,
+	)
+	defer e.event_unregister(
+		cast(u16)e.system_event_code.EVENT_CODE_DEBUG0,
+		nil,
+		application_on_debug_event,
 	)
 	defer app_state.is_running = false
 
@@ -341,10 +411,35 @@ application_run :: proc() -> bool {
 				break
 			}
 
+			// Prepare render data
+			if app_state.test_material == nil {
+				app_state.test_material = sys.material_system_acquire("test_material")
+				if app_state.test_material == nil {
+					l.log_warning(
+						"Automatic material load failed, falling back to manual default material",
+					)
+					config: sys.material_config = {}
+					config.name = k.string_ncopy("test_material", res.MATERIAL_NAME_MAX_LENGTH)
+					config.auto_release = false
+					config.diffuse_colour = okmath.vec4_one()
+					config.diffuse_map_name = k.string_ncopy(
+						sys.DEFAULT_TEXTURE_NAME,
+						res.TEXTURE_NAME_MAX_LENGTH,
+					)
+					app_state.test_material = sys.material_system_acquire_from_config(config)
+				}
+			}
+
+			model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+			data: ren.geometry_render_data = {}
+			data.model = model
+			data.material = app_state.test_material
+
 			// TODO: refactor packet creation
-			packet: render_packet
+			packet: ren.render_packet
 			packet.delta_time = f32(delta)
-			renderer_draw_frame(&packet)
+			objects := [1]ren.geometry_render_data{data}
+			ren.renderer_draw_frame(&packet, objects[:])
 
 			// Figure out how long the frame took and, if below
 			frame_end_time: f64 = p.platform_get_absolute_time()
@@ -384,4 +479,3 @@ application_get_framebuffer_size :: proc(width: ^u32, height: ^u32) {
 	width^ = cast(u32)app_state.width
 	height^ = cast(u32)app_state.height
 }
-

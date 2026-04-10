@@ -1,5 +1,7 @@
 package core
 
+import p "../platform/linux"
+
 clock :: struct {
 	start_time: f64,
 	elapsed:    f64,
@@ -7,12 +9,12 @@ clock :: struct {
 
 clock_update :: proc(c: ^clock) {
 	if c.start_time != 0 {
-		c.elapsed = platform_get_absolute_time() - c.start_time
+		c.elapsed = p.platform_get_absolute_time() - c.start_time
 	}
 }
 
 clock_start :: proc(c: ^clock) {
-	c.start_time = platform_get_absolute_time()
+	c.start_time = p.platform_get_absolute_time()
 	c.elapsed = 0
 }
 

@@ -1,5 +1,7 @@
-package renderer
+package vulkan_renderer
 
+import rv "../../renderer"
+import res "../../resources"
 import vk "vendor:vulkan"
 
 MATERIAL_SHADER_STAGE_COUNT :: 2
@@ -7,7 +9,13 @@ VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT :: 2
 VULKAN_MATERIAL_MAX_OBJECT_COUNT :: 1024
 VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 1
 VULKAN_MAX_MATERIAL_COUNT :: 1024
-INVALID_ID :: 4294967295
+INVALID_ID :: res.INVALID_ID
+global_uniform_object :: rv.global_uniform_object
+material_uniform_object :: rv.material_uniform_object
+geometry_render_data :: rv.geometry_render_data
+texture_use :: res.texture_use
+texture :: res.texture
+material :: res.material
 
 vulkan_command_buffer_state :: enum {
 	COMMAND_BUFFER_STATE_READY,

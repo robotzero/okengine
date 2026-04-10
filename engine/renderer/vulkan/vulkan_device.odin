@@ -1,4 +1,4 @@
-package renderer
+package vulkan_renderer
 
 import l "../../logger"
 import vk "vendor:vulkan"
@@ -483,26 +483,24 @@ physical_device_meets_requirements :: proc(
 	}
 
 	{
-		using out_queue_info
-		using requirements
 		// Print out some info about the device
 		l.log_info(
 			"    %v |    %v |   %v |     %v | %s",
-			graphics_family_index != -1,
-			present_family_index != -1,
-			compute_family_index != -1,
-			transfer_family_index != -1,
+			out_queue_info.graphics_family_index != -1,
+			out_queue_info.present_family_index != -1,
+			out_queue_info.compute_family_index != -1,
+			out_queue_info.transfer_family_index != -1,
 			properies.deviceName,
 		)
-		if (!graphics || (graphics && graphics_family_index != -1)) &&
-		   (!present || (present && present_family_index != -1)) &&
-		   (!compute || (compute && compute_family_index != -1)) &&
-		   (!transfer || (transfer && transfer_family_index != -1)) {
+		if (!requirements.graphics || (requirements.graphics && out_queue_info.graphics_family_index != -1)) &&
+		   (!requirements.present || (requirements.present && out_queue_info.present_family_index != -1)) &&
+		   (!requirements.compute || (requirements.compute && out_queue_info.compute_family_index != -1)) &&
+		   (!requirements.transfer || (requirements.transfer && out_queue_info.transfer_family_index != -1)) {
 			l.log_info("Device meets queue requirements.")
-			l.log_debug("Grahpics Family Index: %i", graphics_family_index)
-			l.log_debug("Present Family Index: %i", present_family_index)
-			l.log_debug("Transfer Family Index: %i", transfer_family_index)
-			l.log_debug("Compute Family Index: %i", compute_family_index)
+			l.log_debug("Grahpics Family Index: %i", out_queue_info.graphics_family_index)
+			l.log_debug("Present Family Index: %i", out_queue_info.present_family_index)
+			l.log_debug("Transfer Family Index: %i", out_queue_info.transfer_family_index)
+			l.log_debug("Compute Family Index: %i", out_queue_info.compute_family_index)
 
 			// Quey swapchain support.
 			vulkan_device_query_swapchain_support(device, surface, out_swapchain_support)
@@ -520,7 +518,7 @@ physical_device_meets_requirements :: proc(
 			}
 
 			// Device extensions.
-			if device_extension_names != nil {
+			if requirements.device_extension_names != nil {
 				available_extension_count: u32 = 0
 				available_extensions: []vk.ExtensionProperties = nil
 				assert(
@@ -549,11 +547,11 @@ physical_device_meets_requirements :: proc(
 						vk.Result.SUCCESS,
 					)
 
-					required_extension_count := arr.darray_length(device_extension_names)
-					for extension_name in device_extension_names {
+					required_extension_count := arr.darray_length(requirements.device_extension_names)
+					for ext_name in requirements.device_extension_names {
 						found := false
 						for &available_extension in available_extensions {
-							if extension_name == cstring(&available_extension.extensionName[0]) {
+							if ext_name == cstring(&available_extension.extensionName[0]) {
 								found = true
 								break
 							}
@@ -562,7 +560,7 @@ physical_device_meets_requirements :: proc(
 						if !found {
 							l.log_fatal(
 								"Required extension not found: %s, skipping device.",
-								extension_name,
+								ext_name,
 							)
 							return false
 						}
@@ -570,7 +568,7 @@ physical_device_meets_requirements :: proc(
 				}
 			}
 
-			if sampler_anisotropy && !features.samplerAnisotropy {
+			if requirements.sampler_anisotropy && !features.samplerAnisotropy {
 				l.log_info("Device does not support samplerAnisotropy, skipping.")
 				return false
 			}

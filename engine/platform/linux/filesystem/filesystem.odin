@@ -1,39 +1,34 @@
-package platform
+package filesystem
 
 import "core:io"
 import "core:log"
 import "core:os"
 
 file_handle :: struct {
-	handle:   os.Handle,
+	handle:   ^os.File,
 	is_valid: bool,
 }
 
-file_modes :: enum {
-	FILE_MODE_READ  = os.O_RDONLY,
-	FILE_MODE_WRITE = os.O_RDWR,
-}
-
-filesystem_open :: proc(path: string, mode: int) -> (os.Handle, bool) {
-	handle, err := os.open(path, mode)
+filesystem_open :: proc(path: string, flags := os.File_Flags{.Read}) -> (^os.File, bool) {
+	handle, err := os.open(path, flags)
 	if err != nil {
 		log.errorf("AAAAAAAA %s", err)
-		return 0, false
+		return nil, false
 	}
 	return handle, true
 }
 
-filesystem_exists :: proc(path: string) -> bool {
-	fi, err := os.stat(path)
-	defer os.file_info_slice_delete({fi})
+filesystem_exists :: proc(path: string, allocator := context.allocator) -> bool {
+	fi, err := os.stat(path, allocator)
+	defer os.file_info_slice_delete({fi}, allocator)
 	if err != nil {
-		panic("NOOOO")
+		return false
 	}
 	return true
 }
 
-filesystem_close :: proc(handle: os.Handle) {
-	if handle != 0 {
+filesystem_close :: proc(handle: ^os.File) {
+	if handle != nil {
 		err := os.close(handle)
 		if err != nil {
 			panic("AAAAAAAAAAAAAAAAAAAA")
@@ -41,11 +36,13 @@ filesystem_close :: proc(handle: os.Handle) {
 	}
 }
 
-file_system_read_all_bytes :: proc(handle: os.Handle, allocator := context.allocator) -> []u8 {
-	if handle != 0 {
-		data, err := os.read_entire_file_from_handle_or_err(handle)
+file_system_read_all_bytes :: proc(handle: ^os.File, allocator := context.allocator) -> []u8 {
+	if handle != nil {
+		data, err := os.read_entire_file_from_file(handle, allocator)
 		if err != nil {
-			delete(data)
+			if data != nil {
+				delete(data, allocator)
+			}
 			panic("AAAAAAAAAAAAAAAAAA")
 		}
 		return data
@@ -76,11 +73,11 @@ read_line_into :: proc(r: io.Reader, buf: []u8) -> (n: int, ok: bool, err: io.Er
 	return len(buf), true, nil
 }
 
-filesystem_read_line :: proc(handle: os.Handle, buf: []u8, out_line_length: ^u64) -> b8 {
-	if handle == 0 || out_line_length == nil {
+filesystem_read_line :: proc(handle: ^os.File, buf: []u8, out_line_length: ^u64) -> b8 {
+	if handle == nil || out_line_length == nil {
 		return false
 	}
-	r := os.stream_from_handle(handle)
+	r := os.to_stream(handle)
 	n, ok, _ := read_line_into(r, buf)
 	if !ok {
 		return false
