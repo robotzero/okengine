@@ -6,6 +6,7 @@ INVALID_ID :: 4294967295
 
 TEXTURE_NAME_MAX_LENGTH :: 512
 MATERIAL_NAME_MAX_LENGTH :: 256
+GEOMETRY_NAME_MAX_LENGTH :: 256
 
 texture_use :: enum {
 	TEXTURE_USE_UNKNOWN     = 0x00,
@@ -25,6 +26,14 @@ material :: struct {
 	diffuse_colour: okmath.vec4,
 	diffuse_map:    texture_map,
 }
+geometry :: struct {
+	id:          u32,
+	internal_id: u32,
+	generation:  u32,
+	name:        string,
+	material:    ^material,
+}
+
 texture :: struct {
 	id:               u32,
 	width:            u32,

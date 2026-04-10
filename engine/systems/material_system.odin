@@ -350,6 +350,14 @@ material_config_load_from_file :: proc(path: string, out_config: ^material_confi
 	return true
 }
 
+material_system_get_default :: proc() -> ^r.material {
+	if state_ptr != nil {
+		return &state_ptr.default_material
+	}
+	l.log_fatal("material_system_get_default called before system was initialized. Returning nil.")
+	return nil
+}
+
 material_system_acquire :: proc(name: string) -> ^r.material {
 	config: material_config = {}
 	filepath := fmt.aprintf("assets/materials/%s.%s", name, "okmt")

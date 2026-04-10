@@ -72,7 +72,7 @@ renderer_end_frame :: proc(delta_time: f32) -> bool {
 	return result
 }
 
-renderer_draw_frame :: proc(packet: ^render_packet, objects: []geometry_render_data) -> bool {
+renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 	// If the begin frame returned successfully, mid-frame operation may continue.
 	if renderer_begin_frame(packet.delta_time) {
 		state_ptr.backend.update_global_state(
@@ -82,8 +82,8 @@ renderer_draw_frame :: proc(packet: ^render_packet, objects: []geometry_render_d
 			okmath.vec4_one(),
 			0,
 		)
-		for obj in objects {
-			state_ptr.backend.update_object(obj)
+		for i in 0 ..< packet.geometry_count {
+			state_ptr.backend.draw_geometry(packet.geometries[i])
 		}
 		// End the frame. If this fails, it is likely unrecoverable.
 		result: bool = renderer_end_frame(packet.delta_time)
@@ -129,4 +129,18 @@ renderer_create_material :: proc(material: ^res.material) -> bool {
 
 renderer_destroy_material :: proc(material: ^res.material) {
 	state_ptr.backend.destroy_material(material)
+}
+
+renderer_create_geometry :: proc(
+	geometry: ^res.geometry,
+	vertex_count: u32,
+	vertices: []okmath.vertex_3d,
+	index_count: u32,
+	indices: []u32,
+) -> bool {
+	return state_ptr.backend.create_geometry(geometry, vertex_count, vertices, index_count, indices)
+}
+
+renderer_destroy_geometry :: proc(geometry: ^res.geometry) {
+	state_ptr.backend.destroy_geometry(geometry)
 }

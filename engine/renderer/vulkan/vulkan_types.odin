@@ -9,6 +9,7 @@ VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT :: 2
 VULKAN_MATERIAL_MAX_OBJECT_COUNT :: 1024
 VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 1
 VULKAN_MAX_MATERIAL_COUNT :: 1024
+VULKAN_MAX_GEOMETRY_COUNT :: 4096
 INVALID_ID :: res.INVALID_ID
 global_uniform_object :: rv.global_uniform_object
 material_uniform_object :: rv.material_uniform_object
@@ -98,7 +99,21 @@ vulkan_context :: struct {
 	find_memory_index_proc:           find_memory_index,
 	geometry_vertex_offset:           u64,
 	geometry_index_offset:            u64,
+	geometries:                       [VULKAN_MAX_GEOMETRY_COUNT]vulkan_geometry_data,
 }
+
+vulkan_geometry_data :: struct {
+	id:                   u32,
+	generation:           u32,
+	vertex_count:         u32,
+	vertex_size:          u64,
+	vertex_buffer_offset: u64,
+	index_count:          u32,
+	index_size:           u64,
+	index_buffer_offset:  u64,
+}
+
+geometry :: res.geometry
 
 vulkan_texture_data :: struct {
 	image:   vulkan_image,

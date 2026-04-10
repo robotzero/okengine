@@ -352,25 +352,39 @@ vulkan_material_shader_use :: proc(v_context: ^vulkan_context, shader: ^vulkan_m
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
 }
 
-vulkan_material_shader_update_object :: proc(
+vulkan_material_shader_set_model :: proc(
 	v_context: ^vulkan_context,
 	shader: ^vulkan_material_shader,
-	data: geometry_render_data,
+	model: okmath.mat4,
 ) {
+	if v_context != nil && shader != nil {
+		image_index := int(v_context.image_index)
+		command_buffer := v_context.graphics_command_buffers[image_index].handle
+		local_model := model
+		vk.CmdPushConstants(
+			command_buffer,
+			shader.pipeline.pipeline_layout,
+			{.VERTEX},
+			0,
+			size_of(okmath.mat4),
+			&local_model,
+		)
+	}
+}
+
+vulkan_material_shader_apply_material :: proc(
+	v_context: ^vulkan_context,
+	shader: ^vulkan_material_shader,
+	mat: ^material,
+) {
+	if v_context == nil || shader == nil {
+		return
+	}
 	image_index := int(v_context.image_index)
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
-	local_model := data.model
-	vk.CmdPushConstants(
-		command_buffer,
-		shader.pipeline.pipeline_layout,
-		{.VERTEX},
-		0,
-		size_of(okmath.mat4),
-		&local_model,
-	)
 
 	// Obtain material data.
-	object_state := &shader.instance_states[int(data.material.internal_id)]
+	object_state := &shader.instance_states[int(mat.internal_id)]
 	object_descriptor_set := object_state.descriptor_sets[image_index]
 
 	// TODO: if needs update
@@ -380,19 +394,16 @@ vulkan_material_shader_update_object :: proc(
 
 	// Descriptor 0 - Uniform buffer
 	range: u64 = u64(size_of(material_uniform_object))
-	offset: u64 = range * u64(data.material.internal_id) // also the index into the array.
+	offset: u64 = range * u64(mat.internal_id) // also the index into the array.
 	obo: material_uniform_object
 
 	// TODO: get diffuse colour from a material.
-	// object_shader_accumulator += v_context.frame_delta_time
-	// s := (okmath.ksin(object_shader_accumulator) + 1.0) / 2.0 // scale from -1, 1 to 0, 1
-	// obo.diffuse_color = okmath.vec4_create(s, s, s, 1.0)
-	obo.diffuse_color = data.material.diffuse_colour
+	obo.diffuse_color = mat.diffuse_colour
 
 	// Load the data into the buffer.
 	vulkan_buffer_load_data(v_context, &shader.object_uniform_buffer, offset, range, {}, &obo)
 	global_ubo_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
-	if global_ubo_generation^ == INVALID_ID || global_ubo_generation^ != data.material.generation {
+	if global_ubo_generation^ == INVALID_ID || global_ubo_generation^ != mat.generation {
 		buffer_info := vk.DescriptorBufferInfo {
 			buffer = shader.object_uniform_buffer.handle,
 			offset = vk.DeviceSize(offset),
@@ -412,7 +423,7 @@ vulkan_material_shader_update_object :: proc(
 		descriptor_count += 1
 
 		// Update the frame generation. In this case it is only needed once since this is a buffer.
-		global_ubo_generation^ = data.material.generation
+		global_ubo_generation^ = mat.generation
 	}
 	descriptor_index += 1
 
@@ -424,7 +435,7 @@ vulkan_material_shader_update_object :: proc(
 		t: ^texture
 		#partial switch (use) {
 		case texture_use.TEXTURE_USE_MAP_DIFFUSE:
-			t = data.material.diffuse_map.texture
+			t = mat.diffuse_map.texture
 		case:
 			l.log_fatal("Unable to bind sampler to unknown use.")
 			return
@@ -435,7 +446,6 @@ vulkan_material_shader_update_object :: proc(
 		if t.generation == INVALID_ID {
 			t = sys.texture_system_get_default_texture()
 			descriptor_generation^ = INVALID_ID
-
 		}
 		// Check if the descriptor needs updating first.
 		if t != nil &&
