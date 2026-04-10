@@ -36,6 +36,17 @@ filesystem_close :: proc(handle: ^os.File) {
 	}
 }
 
+filesystem_size :: proc(handle: ^os.File) -> (u64, bool) {
+	if handle != nil {
+		size, err := os.file_size(handle)
+		if err != nil {
+			return 0, false
+		}
+		return u64(size), true
+	}
+	return 0, false
+}
+
 file_system_read_all_bytes :: proc(handle: ^os.File, allocator := context.allocator) -> []u8 {
 	if handle != nil {
 		data, err := os.read_entire_file_from_file(handle, allocator)
@@ -49,6 +60,20 @@ file_system_read_all_bytes :: proc(handle: ^os.File, allocator := context.alloca
 	}
 
 	return {}
+}
+
+filesystem_read_all_text :: proc(handle: ^os.File, allocator := context.allocator) -> (string, bool) {
+	if handle != nil {
+		data, err := os.read_entire_file_from_file(handle, allocator)
+		if err != nil {
+			if data != nil {
+				delete(data, allocator)
+			}
+			return "", false
+		}
+		return string(data), true
+	}
+	return "", false
 }
 
 read_line_into :: proc(r: io.Reader, buf: []u8) -> (n: int, ok: bool, err: io.Error) {

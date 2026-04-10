@@ -1,7 +1,6 @@
 package core
 
 import d "../containers"
-import k "../kstring"
 import l "../logger"
 import "../okmath"
 import p "../platform/linux"
@@ -31,10 +30,12 @@ application_state :: struct {
 	platform_system_state:             ^p.platform_system_state,
 	input_system_state:                ^input_system_state,
 	event_system_state:                ^e.event_system_state,
+	resource_system_state:             ^sys.resource_system_state,
 	renderer_system_state:             ^ren.renderer_system_state,
 	texture_system_state:              ^sys.texture_system_state,
 	material_system_state:             ^sys.material_system_state,
-	test_material:                     ^res.material,
+	geometry_system_state:             ^sys.geometry_system_state,
+	test_geometry:                     ^res.geometry,
 }
 
 application_config :: struct {
@@ -141,6 +142,24 @@ application_create :: proc(
 	app_state.platform_system_state.on_button = input_process_button
 	app_state.platform_system_state.on_mouse_move = input_process_mouse_move
 
+	// Resource System
+	res_sys_config: sys.resource_system_config
+	res_sys_config.asset_base_path = "bin/assets"
+	res_sys_config.max_loader_count = 32
+
+	rsstate, rserror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		sys.resource_system_state,
+		sys_alloc,
+	)
+
+	app_state.resource_system_state = rsstate
+
+	if !sys.resource_system_initialize(app_state.resource_system_state, res_sys_config) {
+		l.log_fatal("Failed to initialize resource system. Aborting application.")
+		return false
+	}
+
 	// Renderer
 	r_state, r_error := linear_allocator_allocate(
 		&app_state.systems_allocator,
@@ -205,6 +224,23 @@ application_create :: proc(
 		sys_alloc^,
 	) {
 		l.log_fatal("Failed to initialize material system. Application cannot continue.")
+		return false
+	}
+
+	// Geometry System
+	geometry_sys_config: sys.geometry_system_config
+	geometry_sys_config.max_geometry_count = 4096
+
+	gstate, gerror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		sys.geometry_system_state,
+		sys_alloc,
+	)
+
+	app_state.geometry_system_state = gstate
+
+	if !sys.geometry_system_initialize(app_state.geometry_system_state, geometry_sys_config) {
+		l.log_fatal("Failed to initialize geometry system. Application cannot continue.")
 		return false
 	}
 
@@ -328,16 +364,17 @@ application_on_debug_event :: proc(
 	debug_choice = debug_choice + 1
 	debug_choice %= 3
 
-	if app_state.test_material != nil {
+	mat: ^res.material = nil
+	if app_state.test_geometry != nil {
+		mat = app_state.test_geometry.material
+	}
+	if mat != nil {
 		// Acquire the new texture
-		app_state.test_material.diffuse_map.texture = sys.texture_system_acquire(
-			names[debug_choice],
-			true,
-		)
+		mat.diffuse_map.texture = sys.texture_system_acquire(names[debug_choice], true)
 
-		if app_state.test_material.diffuse_map.texture == nil {
+		if mat.diffuse_map.texture == nil {
 			l.log_info("application_on_debug_event no texture! using default")
-			app_state.test_material.diffuse_map.texture = sys.texture_system_get_default_texture()
+			mat.diffuse_map.texture = sys.texture_system_get_default_texture()
 		}
 		// Release the old texture
 		sys.texture_system_release(old_name)
@@ -351,6 +388,8 @@ application_run :: proc() -> bool {
 	defer ren.renderer_system_shutdown(app_state.renderer_system_state)
 	defer sys.texture_system_shutdown()
 	defer sys.material_system_shutdown()
+	defer sys.geometry_system_shutdown()
+	defer sys.resource_system_shutdown()
 	defer input_system_shutdown(app_state.input_system_state)
 	defer e.event_system_shutdown(app_state.event_system_state)
 	defer e.event_unregister(
@@ -412,34 +451,47 @@ application_run :: proc() -> bool {
 			}
 
 			// Prepare render data
-			if app_state.test_material == nil {
-				app_state.test_material = sys.material_system_acquire("test_material")
-				if app_state.test_material == nil {
+			if app_state.test_geometry == nil {
+				// Generate a test plane geometry
+				vertices, indices := sys.geometry_system_generate_plane_config(
+					10.0,
+					10.0,
+					1,
+					1,
+					1.0,
+					1.0,
+				)
+				app_state.test_geometry = sys.geometry_system_acquire_from_config(
+					u32(len(vertices)),
+					vertices,
+					u32(len(indices)),
+					indices,
+					"test_geometry",
+					"test_material",
+					false,
+				)
+				delete(vertices)
+				delete(indices)
+				if app_state.test_geometry == nil {
 					l.log_warning(
-						"Automatic material load failed, falling back to manual default material",
+						"Geometry creation failed, using default geometry.",
 					)
-					config: sys.material_config = {}
-					config.name = k.string_ncopy("test_material", res.MATERIAL_NAME_MAX_LENGTH)
-					config.auto_release = false
-					config.diffuse_colour = okmath.vec4_one()
-					config.diffuse_map_name = k.string_ncopy(
-						sys.DEFAULT_TEXTURE_NAME,
-						res.TEXTURE_NAME_MAX_LENGTH,
-					)
-					app_state.test_material = sys.material_system_acquire_from_config(config)
+					app_state.test_geometry = sys.geometry_system_get_default()
 				}
 			}
-
-			model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
-			data: ren.geometry_render_data = {}
-			data.model = model
-			data.material = app_state.test_material
 
 			// TODO: refactor packet creation
 			packet: ren.render_packet
 			packet.delta_time = f32(delta)
-			objects := [1]ren.geometry_render_data{data}
-			ren.renderer_draw_frame(&packet, objects[:])
+			model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+			geo_data := ren.geometry_render_data {
+				model    = model,
+				geometry = app_state.test_geometry,
+			}
+			objects := [1]ren.geometry_render_data{geo_data}
+			packet.geometry_count = 1
+			packet.geometries = objects[:]
+			ren.renderer_draw_frame(&packet)
 
 			// Figure out how long the frame took and, if below
 			frame_end_time: f64 = p.platform_get_absolute_time()

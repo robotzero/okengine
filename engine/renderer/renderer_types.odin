@@ -27,11 +27,19 @@ update_global_state_proc :: #type proc(
 	ambient_colour: okmath.vec4,
 	mode: i32,
 )
-update_object_proc :: #type proc(data: geometry_render_data)
+draw_geometry_proc :: #type proc(data: geometry_render_data)
 create_texture_proc :: #type proc(pixels: []u8, out_texture: ^res.texture)
 destroy_texture_proc :: #type proc(texture: ^res.texture)
 create_material_proc :: #type proc(material: ^res.material) -> bool
 destroy_material_proc :: #type proc(material: ^res.material)
+create_geometry_proc :: #type proc(
+	geometry: ^res.geometry,
+	vertex_count: u32,
+	vertices: []okmath.vertex_3d,
+	index_count: u32,
+	indices: []u32,
+) -> bool
+destroy_geometry_proc :: #type proc(geometry: ^res.geometry)
 
 global_uniform_object :: struct {
 	projection:  okmath.mat4,
@@ -48,15 +56,19 @@ renderer_backend :: struct {
 	begin_frame:         renderer_begin_frame_proc,
 	end_frame:           renderer_end_frame_proc,
 	update_global_state: update_global_state_proc,
-	update_object:       update_object_proc,
+	draw_geometry:       draw_geometry_proc,
 	create_texture:      create_texture_proc,
 	destroy_texture:     destroy_texture_proc,
 	create_material:     create_material_proc,
 	destroy_material:    destroy_material_proc,
+	create_geometry:     create_geometry_proc,
+	destroy_geometry:    destroy_geometry_proc,
 }
 
 render_packet :: struct {
-	delta_time: f32,
+	delta_time:     f32,
+	geometry_count: u32,
+	geometries:     []geometry_render_data,
 }
 
 material_uniform_object :: struct {
@@ -67,7 +79,6 @@ material_uniform_object :: struct {
 }
 
 geometry_render_data :: struct {
-	object_id: u32,
-	model:     okmath.mat4,
-	material:  ^res.material,
+	model:    okmath.mat4,
+	geometry: ^res.geometry,
 }

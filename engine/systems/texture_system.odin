@@ -5,9 +5,7 @@ import k "../kstring"
 import l "../logger"
 import ren "../renderer"
 import r "../resources"
-import "core:fmt"
 import "core:strings"
-import si "vendor:stb/image"
 
 texture_system_config :: struct {
 	max_texture_count: u32,
@@ -273,87 +271,63 @@ destroy_default_textures :: proc(state: ^texture_system_state) {
 }
 
 load_texture :: proc(texture_name: string, t: ^r.texture) -> b8 {
-	// TODO: Should be able to be located anywhere.
-	required_channel_count: i32 = 4
-	si.set_flip_vertically_on_load(1)
-	full_file_path := fmt.aprintf("assets/textures/%s.%s", texture_name, "png")
-	defer delete(full_file_path)
-	si_path := strings.clone_to_cstring(full_file_path)
-	defer delete(si_path)
-	// Use a temporary texture to load into.
-	temp_texture: r.texture
-
-	width_i32: i32
-	height_i32: i32
-	channels_i32: i32
-	data := si.load(si_path, &width_i32, &height_i32, &channels_i32, required_channel_count)
-
-	temp_texture.width = u32(width_i32)
-	temp_texture.height = u32(height_i32)
-	temp_texture.channel_count = u8(required_channel_count)
-
-	if data != nil {
-		current_generation := t.generation
-		t.generation = r.INVALID_ID
-
-		total_size: u64 =
-			u64(temp_texture.width) * u64(temp_texture.height) * u64(required_channel_count)
-		data_slice := ([^]u8)(data)[:int(total_size)]
-
-		// Check for transparency
-		has_transparency := false
-		for i: u64 = 0; i < total_size; i += u64(required_channel_count) { // non-unit stride, keep C-style
-			a := data_slice[i + 3]
-			if a < 255 {
-				has_transparency = true
-				break
-			}
-		}
-
-		if si.failure_reason() != nil {
-			l.log_warning(
-				"load_texture() failed to load file '%s': %s",
-				full_file_path,
-				si.failure_reason(),
-			)
-			return false
-		}
-		temp_texture.name = k.string_ncopy(texture_name, r.TEXTURE_NAME_MAX_LENGTH)
-		temp_texture.generation = r.INVALID_ID
-		temp_texture.has_transparency = has_transparency
-
-		// Acquire internal texture resources and upload to GPU.
-		pixels_slice := data_slice
-		ren.renderer_create_texture(pixels_slice, &temp_texture)
-
-		// Take a copy of the old texture.
-		old := t^
-
-		// Assign the temp texture to the pointer.
-		t^ = temp_texture
-
-		// Destroy the old texture.
-		ren.renderer_destroy_texture(&old)
-
-		if current_generation == r.INVALID_ID {
-			t.generation = 0
-		} else {
-			t.generation = current_generation + 1
-		}
-
-		// Clean up data.
-		si.image_free(data)
-		return true
-	} else {
-		if si.failure_reason() != nil {
-			l.log_warning(
-				"load_texture() failed to load file '%s': %s",
-				full_file_path,
-				si.failure_reason(),
-			)
-		}
+	img_resource: r.resource
+	if !resource_system_load(texture_name, .IMAGE, &img_resource) {
+		l.log_error("Failed to load image resource for texture '%s'", texture_name)
 		return false
 	}
+
+	resource_data := img_resource.data.(r.image_resource_data)
+
+	// Use a temporary texture to load into.
+	temp_texture: r.texture
+	temp_texture.width = resource_data.width
+	temp_texture.height = resource_data.height
+	temp_texture.channel_count = resource_data.channel_count
+
+	current_generation := t.generation
+	t.generation = r.INVALID_ID
+
+	total_size: u64 =
+		u64(temp_texture.width) * u64(temp_texture.height) * u64(temp_texture.channel_count)
+
+	// Check for transparency
+	has_transparency := false
+	for i: u64 = 0; i < total_size; i += u64(temp_texture.channel_count) { // non-unit stride, keep C-style
+		a := resource_data.pixels[i + 3]
+		if a < 255 {
+			has_transparency = true
+			break
+		}
+	}
+
+	// Take a copy of the name.
+	temp_texture.name = k.string_ncopy(texture_name, r.TEXTURE_NAME_MAX_LENGTH)
+	temp_texture.generation = r.INVALID_ID
+	temp_texture.has_transparency = has_transparency
+
+	// Acquire internal texture resources and upload to GPU.
+	pixels_slice := resource_data.pixels[:int(total_size)]
+	ren.renderer_create_texture(pixels_slice, &temp_texture)
+
+	// Take a copy of the old texture.
+	old := t^
+
+	// Assign the temp texture to the pointer.
+	t^ = temp_texture
+
+	// Destroy the old texture.
+	ren.renderer_destroy_texture(&old)
+
+	if current_generation == r.INVALID_ID {
+		t.generation = 0
+	} else {
+		t.generation = current_generation + 1
+	}
+
+	// Clean up data.
+	resource_system_unload(&img_resource)
+	return true
 }
 
 destroy_texture :: proc(t: ^r.texture) {

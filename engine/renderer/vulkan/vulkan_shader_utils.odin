@@ -1,8 +1,9 @@
 package vulkan_renderer
 
-import f "../../platform/linux/filesystem"
+import l "../../logger"
+import res "../../resources"
+import sys "../../systems"
 import "core:fmt"
-import "core:mem"
 import "core:slice"
 import vk "vendor:vulkan"
 
@@ -14,30 +15,25 @@ create_shader_module :: proc(
 	stage_index: u32,
 	shader_stages: ^[MATERIAL_SHADER_STAGE_COUNT]vulkan_shader_stage,
 ) -> bool {
-
-	file_name := fmt.aprintf("bin/assets/shaders/%s.%s.spv", name, type_str)
+	// Build file name — the resource system prepends the asset base path.
+	file_name := fmt.aprintf("shaders/%s.%s.spv", name, type_str)
 	defer delete(file_name)
-	// kzero_memory(shader_stages[stage_index].create_info, size_of(vk.ShaderModuleCreateInfo))
-	shader_stages[stage_index].create_info.sType = vk.StructureType.SHADER_MODULE_CREATE_INFO
 
-	handle, success := f.filesystem_open(file_name)
-	defer f.filesystem_close(handle)
-	if !success {
-		return success
+	// Read the resource.
+	binary_resource: res.resource
+	if !sys.resource_system_load(file_name, .BINARY, &binary_resource) {
+		l.log_error("Unable to read shader module: %s.", file_name)
+		return false
 	}
 
-	data := f.file_system_read_all_bytes(handle)
-	defer {
-		if data != nil {
-			delete(data)
-			data = nil
-		}
+	binary_data := binary_resource.data.(res.binary_resource_data)
+	as_u32 := slice.reinterpret([]u32, binary_data.bytes)
+
+	shader_stages[stage_index].create_info = vk.ShaderModuleCreateInfo {
+		sType    = .SHADER_MODULE_CREATE_INFO,
+		codeSize = len(binary_data.bytes),
+		pCode    = raw_data(as_u32),
 	}
-
-	as_u32 := slice.reinterpret([]u32, data)
-
-	shader_stages[stage_index].create_info.codeSize = len(data)
-	shader_stages[stage_index].create_info.pCode = raw_data(as_u32)
 
 	must(
 		vk.CreateShaderModule(
@@ -48,17 +44,16 @@ create_shader_module :: proc(
 		),
 	)
 
+	// Release the resource.
+	sys.resource_system_unload(&binary_resource)
+
 	// Shader stage info
-	mem.set(
-		&shader_stages[stage_index].shader_stage_create_info,
-		0,
-		size_of(vk.PipelineShaderStageCreateInfo),
-	)
-	shader_stages[stage_index].shader_stage_create_info.sType =
-		vk.StructureType.PIPELINE_SHADER_STAGE_CREATE_INFO
-	shader_stages[stage_index].shader_stage_create_info.stage = shader_stage_flag
-	shader_stages[stage_index].shader_stage_create_info.module = shader_stages[stage_index].handle
-	shader_stages[stage_index].shader_stage_create_info.pName = "main"
+	shader_stages[stage_index].shader_stage_create_info = vk.PipelineShaderStageCreateInfo {
+		sType  = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+		stage  = shader_stage_flag,
+		module = shader_stages[stage_index].handle,
+		pName  = "main",
+	}
 
 	return true
 }

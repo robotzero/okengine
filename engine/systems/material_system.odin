@@ -4,22 +4,15 @@ import c "../containers"
 import k "../kstring"
 import l "../logger"
 import "../okmath"
-import f "../platform/linux/filesystem"
 import ren "../renderer"
 import r "../resources"
-import "core:fmt"
 
 DEFAULT_MATERIAL_NAME :: "default"
 
+material_config :: r.material_config
+
 material_system_config :: struct {
 	max_material_count: u32,
-}
-
-material_config :: struct {
-	name:             string,
-	auto_release:     bool,
-	diffuse_colour:   okmath.vec4,
-	diffuse_map_name: string,
 }
 
 material_system_state :: struct {
@@ -281,83 +274,33 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 	return true
 }
 
-material_config_load_from_file :: proc(path: string, out_config: ^material_config) -> bool {
-	if out_config == nil {
-		return false
+material_system_get_default :: proc() -> ^r.material {
+	if state_ptr != nil {
+		return &state_ptr.default_material
 	}
-
-	fh, ok := f.filesystem_open(path)
-	if !ok {
-		l.log_error(
-			"load_configuration_file - unable to open material file for reading: '%s'.",
-			path,
-		)
-		return false
-	}
-	defer f.filesystem_close(fh)
-
-	// Read each line of the file.
-	line_buf: [512]u8
-	line_length: u64 = 0
-	line_number: u32 = 1
-	for f.filesystem_read_line(fh, line_buf[:511], &line_length) {
-		line := string(line_buf[:line_length])
-		trimmed := k.string_trim(line)
-		line_length = u64(k.string_length(trimmed))
-
-		// Skip blank lines and comments.
-		if line_length < 1 || trimmed[0] == '#' {
-			line_number += 1
-			continue
-		}
-
-		// Split into var/value.
-		equal_index := k.string_index_of(trimmed, '=')
-		if equal_index == -1 {
-			l.log_warning(
-				"Potential formatting issue found in file '%s': '=' token not found. Skipping line %v.",
-				path,
-				line_number,
-			)
-			line_number += 1
-			continue
-		}
-
-		trimmed_var_name := k.string_trim(k.string_mid(trimmed, 0, equal_index))
-		trimmed_value := k.string_trim(k.string_mid(trimmed, equal_index + 1, -1))
-
-		// Process the variable.
-		if k.strings_eqali(trimmed_var_name, "version") {
-			// TODO: version
-		} else if k.strings_eqali(trimmed_var_name, "name") {
-			out_config.name = k.string_ncopy(trimmed_value, r.MATERIAL_NAME_MAX_LENGTH)
-		} else if k.strings_eqali(trimmed_var_name, "diffuse_map_name") {
-			out_config.diffuse_map_name = k.string_ncopy(trimmed_value, r.TEXTURE_NAME_MAX_LENGTH)
-		} else if k.strings_eqali(trimmed_var_name, "diffuse_colour") {
-			if !k.string_to_vec4(trimmed_value, &out_config.diffuse_colour) {
-				l.log_warning(
-					"Error parsing diffuse_colour in file '%s'. Using default of white instead.",
-					path,
-				)
-				out_config.diffuse_colour = okmath.vec4_one()
-			}
-		}
-
-		// TODO: more fields.
-		line_number += 1
-	}
-
-	return true
+	l.log_fatal("material_system_get_default called before system was initialized. Returning nil.")
+	return nil
 }
 
 material_system_acquire :: proc(name: string) -> ^r.material {
-	config: material_config = {}
-	filepath := fmt.aprintf("assets/materials/%s.%s", name, "okmt")
-	defer delete(filepath)
-	if !material_config_load_from_file(filepath, &config) {
-		l.log_error("Failed to load material file")
+	// Load material configuration from resource system.
+	material_resource: r.resource
+	if !resource_system_load(name, .MATERIAL, &material_resource) {
+		l.log_error("Failed to load material resource, returning nil.")
 		return nil
 	}
 
-	return material_system_acquire_from_config(config)
+	m: ^r.material = nil
+	if config, ok := material_resource.data.(r.material_config); ok {
+		m = material_system_acquire_from_config(config)
+	}
+
+	// Clean up the resource.
+	resource_system_unload(&material_resource)
+
+	if m == nil {
+		l.log_error("Failed to load material resource, returning nil.")
+	}
+
+	return m
 }
