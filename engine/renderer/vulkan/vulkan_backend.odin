@@ -58,9 +58,7 @@ vulkan_renderer_backend_initialize :: proc(
 	framebuffer_height: u32,
 	allocator := context.allocator,
 ) -> bool {
-	vulkan_proc_addr := p.platform_initialize_vulkan()
-	vk.load_proc_addresses_global(vulkan_proc_addr)
-	vk.load_proc_addresses(vulkan_proc_addr)
+	vk.load_proc_addresses_global(p.platform_initialize_vulkan())
 
 	// Function pointers
 	v_context.find_memory_index_proc = find_memory_index_proc
@@ -175,6 +173,9 @@ vulkan_renderer_backend_initialize :: proc(
 		return false
 	}
 
+	// Load instance-level proc addresses (replaces manual per-proc loading)
+	vk.load_proc_addresses_instance(v_context.instance)
+
 	when ODIN_DEBUG == true {
 		create_debugger :: proc() -> Error {
 			l.log_debug("Creating Vulkan debugger...")
@@ -194,11 +195,6 @@ vulkan_renderer_backend_initialize :: proc(
 					pfnUserCallback = cast(vk.ProcDebugUtilsMessengerCallbackEXT)rawptr(vulkan_debug_callback),
 					pUserData       = nil,
 				}
-			vk.CreateDebugUtilsMessengerEXT =
-			auto_cast vk.GetInstanceProcAddr(
-				v_context.instance,
-				cstring("vkCreateDebugUtilsMessengerEXT"),
-			)
 			if vk.CreateDebugUtilsMessengerEXT == nil {
 				return Error.Create_Debugger_Fail
 			}

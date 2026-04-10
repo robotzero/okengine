@@ -128,7 +128,7 @@ vulkan_device_create :: proc(v_context: ^vulkan_context) -> bool {
 		) ==
 		vk.Result.SUCCESS,
 	)
-	// vk.load_proc_addresses_device(v_context.device.logical_device)
+	vk.load_proc_addresses_device(v_context.device.logical_device)
 	l.log_info("Logical device created.")
 
 	// Get queues.

@@ -6,7 +6,6 @@ import arr "../../containers"
 import ev "../../core/event"
 import idef "../../core/input"
 import l "../../logger"
-import "core:dynlib"
 import "core:fmt"
 import "core:log"
 import "core:mem"
@@ -20,6 +19,7 @@ import xlib "vendor:x11/xlib"
 
 foreign import X11XCB "system:X11-xcb"
 foreign import XCBUTIL "system:xcb-util"
+foreign import VULKAN "system:vulkan"
 
 @(default_calling_convention = "c", private)
 foreign X11XCB {
@@ -27,6 +27,10 @@ foreign X11XCB {
 }
 foreign XCBUTIL {
 	xcb_aux_get_screen :: proc(connection: ^Connection, screen: i32) -> ^Screen ---
+}
+@(default_calling_convention = "c", private)
+foreign VULKAN {
+	vkGetInstanceProcAddr :: proc(instance: vk.Instance, name: cstring) -> rawptr ---
 }
 
 @(private = "file")
@@ -332,12 +336,7 @@ platform_copy_memory :: proc(dest: rawptr, src: rawptr, size: int) -> rawptr {
 }
 
 platform_initialize_vulkan :: proc() -> rawptr {
-	lib := dynlib.load_library("libvulkan.so") or_else panic("Can't load vulkan library")
-	get_instance_proc_address :=
-		dynlib.symbol_address(lib, "vkGetInstanceProcAddr") or_else panic(
-			"Can't find vkGetInstanceProcAddr",
-		)
-	return get_instance_proc_address
+	return rawptr(vkGetInstanceProcAddr)
 }
 
 platform_create_vulkan_surface :: proc(
@@ -345,16 +344,13 @@ platform_create_vulkan_surface :: proc(
 	vk_allocator: ^vk.AllocationCallbacks,
 	out_surface: ^vk.SurfaceKHR,
 ) -> bool {
-	// Simply cold-cast to the known type.
-	load_proc_addresses(instance)
-
-	create_info: XcbSurfaceCreateInfoKHR = {
-		sType      = vk.StructureType.XCB_SURFACE_CREATE_INFO_KHR,
-		connection = state_ptr.connection,
-		window     = state_ptr.window,
+	create_info := vk.XcbSurfaceCreateInfoKHR {
+		sType      = .XCB_SURFACE_CREATE_INFO_KHR,
+		connection = cast(^vk.xcb_connection_t)state_ptr.connection,
+		window     = vk.xcb_window_t(state_ptr.window),
 	}
 
-	result: vk.Result = CreateXcbSurfaceKHR(
+	result := vk.CreateXcbSurfaceKHR(
 		instance,
 		&create_info,
 		vk_allocator,
