@@ -1,5 +1,6 @@
 package vulkan_renderer
 
+import c "../../containers"
 import l "../../logger"
 import "core:mem"
 import vk "vendor:vulkan"
@@ -17,6 +18,11 @@ vulkan_buffer_create :: proc(
 	out_buffer.total_size = u64(size)
 	out_buffer.usage = usage
 	out_buffer.memory_property_flags = memory_property_flags
+
+	// Create a freelist to track sub-allocations within this buffer.
+	node_count := c.freelist_node_count(u64(size))
+	freelist_data := make([]c.freelist_node, node_count)
+	c.freelist_create(u64(size), freelist_data, &out_buffer.buffer_freelist)
 
 	buffer_info := vk.BufferCreateInfo {
 		sType       = .BUFFER_CREATE_INFO,
@@ -52,6 +58,7 @@ vulkan_buffer_create :: proc(
 		l.log_error(
 			"Unable to create vulkan buffer because the required memory type index was not found.",
 		)
+		c.freelist_destroy(&out_buffer.buffer_freelist)
 		return false
 	}
 
@@ -72,6 +79,7 @@ vulkan_buffer_create :: proc(
 			"Unable to create vulkan buffer because the required memory allocation failed. Error: %d",
 			int(res),
 		)
+		c.freelist_destroy(&out_buffer.buffer_freelist)
 		return false
 	}
 
@@ -83,6 +91,7 @@ vulkan_buffer_create :: proc(
 }
 
 vulkan_buffer_destroy :: proc(v_context: ^vulkan_context, buffer: ^vulkan_buffer) {
+	c.freelist_destroy(&buffer.buffer_freelist)
 	if buffer.memory != 0 {
 		vk.FreeMemory(v_context.device.logical_device, buffer.memory, v_context.allocator)
 		buffer.memory = 0
@@ -104,6 +113,18 @@ vulkan_buffer_resize :: proc(
 	queue: vk.Queue,
 	pool: vk.CommandPool,
 ) -> b8 {
+	if new_size < buffer.total_size {
+		l.log_error(
+			"vulkan_buffer_resize requires that new size be larger than the old. Not doing this could lead to data loss.",
+		)
+		return false
+	}
+
+	if !c.freelist_resize(&buffer.buffer_freelist, new_size) {
+		l.log_error("vulkan_buffer_resize failed to resize internal free list.")
+		return false
+	}
+
 	buffer_info := vk.BufferCreateInfo {
 		sType       = .BUFFER_CREATE_INFO,
 		size        = vk.DeviceSize(new_size),
@@ -248,6 +269,22 @@ vulkan_buffer_load_data :: proc(
 	}
 	mem.copy(data_ptr, data, int(size))
 	vk.UnmapMemory(v_context.device.logical_device, buffer.memory)
+}
+
+vulkan_buffer_allocate :: proc(buffer: ^vulkan_buffer, size: u64, out_offset: ^u64) -> bool {
+	if buffer == nil || size == 0 || out_offset == nil {
+		l.log_error("vulkan_buffer_allocate requires a valid buffer, nonzero size, and valid out_offset.")
+		return false
+	}
+	return c.freelist_allocate_block(&buffer.buffer_freelist, size, out_offset)
+}
+
+vulkan_buffer_free :: proc(buffer: ^vulkan_buffer, size: u64, offset: u64) -> bool {
+	if buffer == nil || size == 0 {
+		l.log_error("vulkan_buffer_free requires a valid buffer and nonzero size.")
+		return false
+	}
+	return c.freelist_free_block(&buffer.buffer_freelist, size, offset)
 }
 
 vulkan_buffer_copy_to :: proc(

@@ -885,8 +885,6 @@ create_buffers :: proc(v_context: ^vulkan_context) -> bool {
 		return false
 	}
 
-	v_context.geometry_vertex_offset = 0
-
 	index_buffer_size :: size_of(u32) * 1024 * 1024
 
 	if !vulkan_buffer_create(
@@ -905,21 +903,27 @@ create_buffers :: proc(v_context: ^vulkan_context) -> bool {
 		return false
 	}
 
-	v_context.geometry_index_offset = 0
 	return true
 }
 
+// Allocates space in the buffer via the freelist, uploads data via a staging buffer,
+// and writes the allocated offset into out_offset. Returns false on failure.
 upload_data_range :: proc(
 	v_context: ^vulkan_context,
 	pool: vk.CommandPool,
 	fence: vk.Fence,
 	queue: vk.Queue,
 	buffer: ^vulkan_buffer,
-	offset: u64,
+	out_offset: ^u64,
 	size: u64,
 	data: rawptr,
-) {
-	// Create a host-visible staging buffer to upload to. Mark it as the source of the transfer.
+) -> bool {
+	if !vulkan_buffer_allocate(buffer, size, out_offset) {
+		l.log_error("upload_data_range failed to allocate from the given buffer!")
+		return false
+	}
+
+	// Create a host-visible staging buffer to upload to.
 	flags: vk.MemoryPropertyFlags = {
 		vk.MemoryPropertyFlag.HOST_VISIBLE,
 		vk.MemoryPropertyFlag.HOST_COHERENT,
@@ -935,10 +939,8 @@ upload_data_range :: proc(
 		&staging,
 	)
 
-	// Load the data into the staging buffer.
 	vulkan_buffer_load_data(v_context, &staging, 0, size, {}, data)
 
-	// Perform the copy from staging to the device local buffer.
 	vulkan_buffer_copy_to(
 		v_context,
 		pool,
@@ -947,12 +949,12 @@ upload_data_range :: proc(
 		staging.handle,
 		0,
 		buffer.handle,
-		offset,
+		out_offset^,
 		size,
 	)
 
-	// Clean up the staging buffer
 	vulkan_buffer_destroy(v_context, &staging)
+	return true
 }
 
 vulkan_renderer_update_global_world_state :: proc(
@@ -1042,7 +1044,9 @@ vulkan_renderer_end_renderpass :: proc(backend: ^rv.renderer_backend, renderpass
 }
 
 free_data_range :: proc(buffer: ^vulkan_buffer, offset: u64, size: u64) {
-	// TODO: implement a proper free list; for now this is a stub
+	if buffer != nil {
+		vulkan_buffer_free(buffer, size, offset)
+	}
 }
 
 vulkan_renderer_create_geometry :: proc(
@@ -1091,39 +1095,39 @@ vulkan_renderer_create_geometry :: proc(
 	queue := v_context.device.graphics_queue
 
 	// Vertex data.
-	internal_data.vertex_buffer_offset = v_context.geometry_vertex_offset
 	internal_data.vertex_count = vertex_count
 	internal_data.vertex_element_size = u64(vertex_size) * u64(vertex_count)
-	upload_data_range(
+	if !upload_data_range(
 		&v_context,
 		pool,
 		0,
 		queue,
 		&v_context.object_vertex_buffer,
-		internal_data.vertex_buffer_offset,
+		&internal_data.vertex_buffer_offset,
 		internal_data.vertex_element_size,
 		vertices,
-	)
-	// TODO: should maintain a free list instead of this.
-	v_context.geometry_vertex_offset += internal_data.vertex_element_size
+	) {
+		l.log_error("vulkan_renderer_create_geometry failed to upload to the vertex buffer!")
+		return false
+	}
 
 	// Index data, if applicable.
 	if index_count > 0 && index_size > 0 && indices != nil {
-		internal_data.index_buffer_offset = v_context.geometry_index_offset
 		internal_data.index_count = index_count
 		internal_data.index_element_size = u64(index_size) * u64(index_count)
-		upload_data_range(
+		if !upload_data_range(
 			&v_context,
 			pool,
 			0,
 			queue,
 			&v_context.object_index_buffer,
-			internal_data.index_buffer_offset,
+			&internal_data.index_buffer_offset,
 			internal_data.index_element_size,
 			indices,
-		)
-		// TODO: should maintain a free list instead of this.
-		v_context.geometry_index_offset += internal_data.index_element_size
+		) {
+			l.log_error("vulkan_renderer_create_geometry failed to upload to the index buffer!")
+			return false
+		}
 	}
 
 	if internal_data.generation == INVALID_ID {

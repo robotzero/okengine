@@ -39,13 +39,17 @@ dynamic_allocator_create :: proc(total_size: u64, out: ^dynamic_allocator) -> bo
 	raw, err := mem.alloc(int(total_size), DYNAMIC_ALLOCATOR_ALIGNMENT)
 	if err != nil || raw == nil {
 		l.log_error("dynamic_allocator_create: failed to allocate aligned memory block.")
+		// freelist_create hasn't been called yet so list.nodes is unset;
+		// delete freelist_data directly here.
 		delete(out.freelist_data)
+		out.freelist_data = nil
 		return false
 	}
 	mem.set(raw, 0, int(total_size))
 	out.memory_block = ([^]u8)(raw)[:total_size]
 
 	c.freelist_create(total_size, out.freelist_data, &out.list)
+	out.freelist_data = nil // ownership transferred to list.nodes; freelist_destroy will free it
 	return true
 }
 
@@ -54,7 +58,6 @@ dynamic_allocator_destroy :: proc(a: ^dynamic_allocator) {
 		return
 	}
 	c.freelist_destroy(&a.list)
-	delete(a.freelist_data)
 	mem.free(raw_data(a.memory_block))
 	a.memory_block = nil
 	a.total_size = 0
@@ -86,7 +89,7 @@ dynamic_allocator_allocate :: proc(a: ^dynamic_allocator, size: u64) -> []u8 {
 // allocator's range (e.g. a pre-init platform allocation that should be freed
 // through the platform layer instead).
 dynamic_allocator_free :: proc(a: ^dynamic_allocator, block: []u8) -> bool {
-	if a == nil || block == nil {
+	if a == nil || block == nil || len(block) == 0 {
 		l.log_error("dynamic_allocator_free: requires valid allocator and block.")
 		return false
 	}

@@ -57,11 +57,8 @@ freelist_destroy :: proc(list: ^freelist) {
 	if list == nil {
 		return
 	}
-	for i in 0 ..< list.max_entries {
-		list.nodes[i].offset = FREELIST_INVALID
-		list.nodes[i].size = FREELIST_INVALID
-		list.nodes[i].next = nil
-	}
+	delete(list.nodes)
+	list.nodes = nil
 	list.head = nil
 	list.total_size = 0
 	list.max_entries = 0
@@ -181,6 +178,73 @@ freelist_free_block :: proc(list: ^freelist, size: u64, offset: u64) -> bool {
 
 	l.log_warning("freelist_free_block: could not find block at offset %d. Possible corruption.", offset)
 	return false
+}
+
+// Grows the freelist to track a larger buffer. new_size must be > current total_size.
+// The old node slice is deleted and replaced with a new allocation.
+freelist_resize :: proc(list: ^freelist, new_size: u64) -> bool {
+	if list == nil || new_size <= list.total_size {
+		l.log_error("freelist_resize: new_size must be greater than current size.")
+		return false
+	}
+
+	size_diff := new_size - list.total_size
+	old_total := list.total_size
+
+	new_node_count := freelist_node_count(new_size)
+	new_nodes := make([]freelist_node, new_node_count)
+
+	// Invalidate all new slots.
+	for i in 0 ..< new_node_count {
+		new_nodes[i].offset = FREELIST_INVALID
+		new_nodes[i].size = FREELIST_INVALID
+		new_nodes[i].next = nil
+	}
+
+	// Walk the old list and copy each free node into the new storage.
+	new_head: ^freelist_node = nil
+	new_tail: ^freelist_node = nil
+	new_slot: u64 = 0
+
+	old_node := list.head
+	for old_node != nil {
+		new_nodes[new_slot].offset = old_node.offset
+		new_nodes[new_slot].size = old_node.size
+		new_nodes[new_slot].next = nil
+		if new_tail != nil {
+			new_tail.next = &new_nodes[new_slot]
+		}
+		new_tail = &new_nodes[new_slot]
+		if new_head == nil {
+			new_head = new_tail
+		}
+		new_slot += 1
+		old_node = old_node.next
+	}
+
+	// Attach the extra space at the end of the buffer.
+	if new_tail != nil && new_tail.offset + new_tail.size == old_total {
+		// Last free node reaches exactly the old end — extend it.
+		new_tail.size += size_diff
+	} else {
+		// Either the tail doesn't touch the old end (that range is allocated),
+		// or the list was completely full. Either way, add a new node.
+		new_nodes[new_slot].offset = old_total
+		new_nodes[new_slot].size = size_diff
+		new_nodes[new_slot].next = nil
+		if new_tail != nil {
+			new_tail.next = &new_nodes[new_slot]
+		} else {
+			new_head = &new_nodes[new_slot]
+		}
+	}
+
+	delete(list.nodes)
+	list.nodes = new_nodes
+	list.max_entries = new_node_count
+	list.total_size = new_size
+	list.head = new_head
+	return true
 }
 
 // Reset to fully-free without reallocating the node storage.

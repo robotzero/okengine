@@ -1,5 +1,6 @@
 package vulkan_renderer
 
+import c "../../containers"
 import "../../okmath"
 import rv "../../renderer"
 import res "../../resources"
@@ -162,8 +163,6 @@ vulkan_context :: struct {
 	material_shader:                  vulkan_material_shader,
 	ui_shader:                        vulkan_ui_shader,
 	find_memory_index_proc:           find_memory_index,
-	geometry_vertex_offset:           u64,
-	geometry_index_offset:            u64,
 	geometries:                       [VULKAN_MAX_GEOMETRY_COUNT]vulkan_geometry_data,
 }
 
@@ -275,6 +274,7 @@ vulkan_buffer :: struct {
 	memory:                vk.DeviceMemory,
 	memory_index:          i32,
 	memory_property_flags: vk.MemoryPropertyFlags,
+	buffer_freelist:       c.freelist,
 }
 
 must :: proc(result: vk.Result, loc := #caller_location) {
