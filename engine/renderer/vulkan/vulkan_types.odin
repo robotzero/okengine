@@ -155,8 +155,8 @@ vulkan_context :: struct {
 	// In-flight fences, one per frame-in-flight (raw handles).
 	in_flight_fences:                 [2]vk.Fence,
 
-	// Holds pointers to fences which exist and are owned elsewhere (nil = not in use).
-	images_in_flight:                 []^vk.Fence,
+	// Holds fence handles which exist and are owned elsewhere (0 = not in use).
+	images_in_flight:                 []vk.Fence,
 	image_index:                      u32,
 	current_frame:                    u32,
 	recreating_swapchain:             bool,

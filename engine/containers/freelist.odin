@@ -22,7 +22,8 @@ freelist :: struct {
 
 // Number of freelist_node slots needed to track a buffer of `total_size` bytes.
 freelist_node_count :: proc(total_size: u64) -> u64 {
-	return total_size / size_of(rawptr)
+	count := total_size / (size_of(rawptr) * size_of(freelist_node))
+	return max(count, 1)
 }
 
 // Initialises the freelist over `nodes_storage`.

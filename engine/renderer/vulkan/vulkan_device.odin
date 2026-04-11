@@ -437,16 +437,34 @@ physical_device_meets_requirements :: proc(
 	for queue_family, index in queue_families {
 		current_transfer_score: u8 = 0
 
-		// Graphics queue?
-		if vk.QueueFlag.GRAPHICS in queue_family.queueFlags {
+		// Graphics queue? Only assign if not yet found, and prefer one that
+		// also supports present so both queues share the same family index.
+		if out_queue_info.graphics_family_index == -1 &&
+		   vk.QueueFlag.GRAPHICS in queue_family.queueFlags {
 			out_queue_info.graphics_family_index = i32(index)
-			current_transfer_score += current_transfer_score
+			current_transfer_score += 1
+
+			// If this queue also supports present, prefer pairing them.
+			supports_present: b32 = false
+			assert(
+				vk.GetPhysicalDeviceSurfaceSupportKHR(
+					device,
+					u32(index),
+					surface,
+					&supports_present,
+				) ==
+				vk.Result.SUCCESS,
+			)
+			if supports_present {
+				out_queue_info.present_family_index = i32(index)
+				current_transfer_score += 1
+			}
 		}
 
 		// Compute queue
 		if vk.QueueFlag.COMPUTE in queue_family.queueFlags {
 			out_queue_info.compute_family_index = i32(index)
-			current_transfer_score += current_transfer_score
+			current_transfer_score += 1
 		}
 
 		// Transfer queue
@@ -458,21 +476,33 @@ physical_device_meets_requirements :: proc(
 				out_queue_info.transfer_family_index = i32(index)
 			}
 		}
+	}
 
-		// Present queue
-		supports_present: b32 = false
-		assert(
-			vk.GetPhysicalDeviceSurfaceSupportKHR(
-				device,
-				u32(index),
-				surface,
-				&supports_present,
-			) ==
-			vk.Result.SUCCESS,
-		)
-
-		if supports_present {
-			out_queue_info.present_family_index = i32(index)
+	// If no present queue was paired with graphics, do a second pass and take
+	// the first queue that supports present. This handles exotic hardware where
+	// graphics and present live on separate queue families.
+	if out_queue_info.present_family_index == -1 {
+		for queue_family, index in queue_families {
+			supports_present: b32 = false
+			assert(
+				vk.GetPhysicalDeviceSurfaceSupportKHR(
+					device,
+					u32(index),
+					surface,
+					&supports_present,
+				) ==
+				vk.Result.SUCCESS,
+			)
+			if supports_present {
+				out_queue_info.present_family_index = i32(index)
+				if out_queue_info.present_family_index != out_queue_info.graphics_family_index {
+					l.log_warning(
+						"Different queue index used for present vs graphics: %d.",
+						index,
+					)
+				}
+				break
+			}
 		}
 	}
 

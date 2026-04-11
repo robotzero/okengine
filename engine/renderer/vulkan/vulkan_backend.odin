@@ -323,8 +323,8 @@ vulkan_renderer_backend_initialize :: proc(
 		)
 	}
 
-	// images_in_flight tracks per-image fence pointers (nil = not in use).
-	v_context.images_in_flight = make([]^vk.Fence, v_context.swapchain.image_count)
+	// images_in_flight tracks per-image fence handles (0 = not in use).
+	v_context.images_in_flight = make([]vk.Fence, v_context.swapchain.image_count)
 
 	// Create built-in shaders
 	if !vulkan_material_shader_create(&v_context, &v_context.material_shader) {
@@ -596,11 +596,11 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^rv.renderer_backend, delta_t
 	vulkan_command_buffer_end(command_buffer)
 
 	// Make sure the previous frame is not using this image (i.e. its fence is being waited on).
-	if v_context.images_in_flight[v_context.image_index] != nil {
+	if v_context.images_in_flight[v_context.image_index] != 0 {
 		vk.WaitForFences(
 			v_context.device.logical_device,
 			1,
-			v_context.images_in_flight[v_context.image_index],
+			&v_context.images_in_flight[v_context.image_index],
 			true,
 			c.UINT64_MAX,
 		)
@@ -608,7 +608,7 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^rv.renderer_backend, delta_t
 
 	// Mark the image fence as in-use by this frame.
 	v_context.images_in_flight[v_context.image_index] =
-		&v_context.in_flight_fences[v_context.current_frame]
+		v_context.in_flight_fences[v_context.current_frame]
 
 	// Reset the fence for use on the next frame.
 	vk.ResetFences(v_context.device.logical_device, 1, &v_context.in_flight_fences[v_context.current_frame])
@@ -685,7 +685,7 @@ recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 
 	// Clear these out just in case.
 	for i in 0 ..< v_context.swapchain.image_count {
-		v_context.images_in_flight[i] = nil
+		v_context.images_in_flight[i] = 0
 	}
 
 	// Requery support
