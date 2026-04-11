@@ -47,9 +47,11 @@ destroy_material_proc :: #type proc(material: ^res.material)
 create_geometry_proc :: #type proc(
 	geometry: ^res.geometry,
 	vertex_count: u32,
-	vertices: []okmath.vertex_3d,
+	vertex_size: u32,
+	vertices: rawptr,
 	index_count: u32,
-	indices: []u32,
+	index_size: u32,
+	indices: rawptr,
 ) -> bool
 destroy_geometry_proc :: #type proc(geometry: ^res.geometry)
 

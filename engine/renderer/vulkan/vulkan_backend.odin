@@ -1007,6 +1007,16 @@ vulkan_renderer_begin_renderpass :: proc(backend: ^rv.renderer_backend, renderpa
 			&v_context.ui_renderpass,
 			v_context.swapchain.framebuffers[v_context.image_index],
 		)
+		// UI uses a non-flipped viewport to match the orthographic projection (y-down, origin top-left).
+		ui_viewport := vk.Viewport {
+			x        = 0.0,
+			y        = 0.0,
+			width    = f32(v_context.framebuffer_width),
+			height   = f32(v_context.framebuffer_height),
+			minDepth = 0.0,
+			maxDepth = 1.0,
+		}
+		vk.CmdSetViewport(command_buffer.handle, 0, 1, &ui_viewport)
 	case:
 		l.log_error("vulkan_renderer_begin_renderpass: unknown renderpass id %v", renderpass_id)
 		return false
@@ -1038,11 +1048,13 @@ free_data_range :: proc(buffer: ^vulkan_buffer, offset: u64, size: u64) {
 vulkan_renderer_create_geometry :: proc(
 	geom: ^res.geometry,
 	vertex_count: u32,
-	vertices: []okmath.vertex_3d,
+	vertex_size: u32,
+	vertices: rawptr,
 	index_count: u32,
-	indices: []u32,
+	index_size: u32,
+	indices: rawptr,
 ) -> bool {
-	if vertex_count == 0 || len(vertices) == 0 {
+	if vertex_count == 0 || vertex_size == 0 || vertices == nil {
 		l.log_error(
 			"vulkan_renderer_create_geometry requires vertex data, and none was supplied.",
 		)
@@ -1081,7 +1093,7 @@ vulkan_renderer_create_geometry :: proc(
 	// Vertex data.
 	internal_data.vertex_buffer_offset = v_context.geometry_vertex_offset
 	internal_data.vertex_count = vertex_count
-	internal_data.vertex_size = u64(size_of(okmath.vertex_3d)) * u64(vertex_count)
+	internal_data.vertex_element_size = u64(vertex_size) * u64(vertex_count)
 	upload_data_range(
 		&v_context,
 		pool,
@@ -1089,17 +1101,17 @@ vulkan_renderer_create_geometry :: proc(
 		queue,
 		&v_context.object_vertex_buffer,
 		internal_data.vertex_buffer_offset,
-		internal_data.vertex_size,
-		raw_data(vertices),
+		internal_data.vertex_element_size,
+		vertices,
 	)
 	// TODO: should maintain a free list instead of this.
-	v_context.geometry_vertex_offset += internal_data.vertex_size
+	v_context.geometry_vertex_offset += internal_data.vertex_element_size
 
 	// Index data, if applicable.
-	if index_count > 0 && len(indices) > 0 {
+	if index_count > 0 && index_size > 0 && indices != nil {
 		internal_data.index_buffer_offset = v_context.geometry_index_offset
 		internal_data.index_count = index_count
-		internal_data.index_size = u64(size_of(u32)) * u64(index_count)
+		internal_data.index_element_size = u64(index_size) * u64(index_count)
 		upload_data_range(
 			&v_context,
 			pool,
@@ -1107,11 +1119,11 @@ vulkan_renderer_create_geometry :: proc(
 			queue,
 			&v_context.object_index_buffer,
 			internal_data.index_buffer_offset,
-			internal_data.index_size,
-			raw_data(indices),
+			internal_data.index_element_size,
+			indices,
 		)
 		// TODO: should maintain a free list instead of this.
-		v_context.geometry_index_offset += internal_data.index_size
+		v_context.geometry_index_offset += internal_data.index_element_size
 	}
 
 	if internal_data.generation == INVALID_ID {
@@ -1122,13 +1134,13 @@ vulkan_renderer_create_geometry :: proc(
 
 	if is_reupload {
 		// Free vertex data.
-		free_data_range(&v_context.object_vertex_buffer, old_range.vertex_buffer_offset, old_range.vertex_size)
+		free_data_range(&v_context.object_vertex_buffer, old_range.vertex_buffer_offset, old_range.vertex_element_size)
 		// Free index data, if applicable.
-		if old_range.index_size > 0 {
+		if old_range.index_element_size > 0 {
 			free_data_range(
 				&v_context.object_index_buffer,
 				old_range.index_buffer_offset,
-				old_range.index_size,
+				old_range.index_element_size,
 			)
 		}
 	}
@@ -1145,15 +1157,15 @@ vulkan_renderer_destroy_geometry :: proc(geom: ^res.geometry) {
 		free_data_range(
 			&v_context.object_vertex_buffer,
 			internal_data.vertex_buffer_offset,
-			internal_data.vertex_size,
+			internal_data.vertex_element_size,
 		)
 
 		// Free index data, if applicable.
-		if internal_data.index_size > 0 {
+		if internal_data.index_element_size > 0 {
 			free_data_range(
 				&v_context.object_index_buffer,
 				internal_data.index_buffer_offset,
-				internal_data.index_size,
+				internal_data.index_element_size,
 			)
 		}
 
@@ -1173,17 +1185,23 @@ vulkan_renderer_draw_geometry :: proc(data: geometry_render_data) {
 	buffer_data := &v_context.geometries[data.geometry.internal_id]
 	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
 
-	vulkan_material_shader_use(&v_context, &v_context.material_shader)
-
-	vulkan_material_shader_set_model(&v_context, &v_context.material_shader, data.model)
-
 	m: ^material = nil
 	if data.geometry.material != nil {
 		m = data.geometry.material
 	} else {
 		m = sys.material_system_get_default()
 	}
-	vulkan_material_shader_apply_material(&v_context, &v_context.material_shader, m)
+
+	switch m.type {
+	case .MATERIAL_TYPE_UI:
+		vulkan_ui_shader_use(&v_context, &v_context.ui_shader)
+		vulkan_ui_shader_set_model(&v_context, &v_context.ui_shader, data.model)
+		vulkan_ui_shader_apply_material(&v_context, &v_context.ui_shader, m)
+	case .MATERIAL_TYPE_WORLD:
+		vulkan_material_shader_use(&v_context, &v_context.material_shader)
+		vulkan_material_shader_set_model(&v_context, &v_context.material_shader, data.model)
+		vulkan_material_shader_apply_material(&v_context, &v_context.material_shader, m)
+	}
 
 	// Bind vertex buffer at offset.
 	offsets: [1]vk.DeviceSize = {vk.DeviceSize(buffer_data.vertex_buffer_offset)}
@@ -1348,13 +1366,21 @@ vulkan_renderer_destroy_texture :: proc(texture: ^res.texture) {
 
 vulkan_renderer_create_material :: proc(material: ^res.material) -> bool {
 	if material != nil {
-		if !vulkan_material_shader_acquire_resources(
-			&v_context,
-			&v_context.material_shader,
-			material,
-		) {
-			l.log_error("Failed to aqcuire shader resources")
-			return false
+		switch material.type {
+		case .MATERIAL_TYPE_UI:
+			if !vulkan_ui_shader_acquire_resources(&v_context, &v_context.ui_shader, material) {
+				l.log_error("Failed to acquire UI shader resources")
+				return false
+			}
+		case .MATERIAL_TYPE_WORLD:
+			if !vulkan_material_shader_acquire_resources(
+				&v_context,
+				&v_context.material_shader,
+				material,
+			) {
+				l.log_error("Failed to acquire shader resources")
+				return false
+			}
 		}
 		l.log_debug("Material created")
 		return true
@@ -1366,11 +1392,16 @@ vulkan_renderer_create_material :: proc(material: ^res.material) -> bool {
 vulkan_renderer_destroy_material :: proc(material: ^res.material) {
 	if material != nil {
 		if material.internal_id != INVALID_ID {
-			vulkan_material_shader_release_resources(
-				&v_context,
-				&v_context.material_shader,
-				material,
-			)
+			switch material.type {
+			case .MATERIAL_TYPE_UI:
+				vulkan_ui_shader_release_resources(&v_context, &v_context.ui_shader, material)
+			case .MATERIAL_TYPE_WORLD:
+				vulkan_material_shader_release_resources(
+					&v_context,
+					&v_context.material_shader,
+					material,
+				)
+			}
 		} else {
 			l.log_warning("material destroy invalid")
 		}

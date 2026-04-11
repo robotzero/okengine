@@ -18,10 +18,11 @@ geometry_reference :: struct {
 }
 
 geometry_system_state :: struct {
-	config:               geometry_system_config,
-	default_geometry:     r.geometry,
+	config:                geometry_system_config,
+	default_geometry:      r.geometry,
+	default_2d_geometry:   r.geometry,
 	registered_geometries: []r.geometry,
-	geometry_references:  []geometry_reference,
+	geometry_references:   []geometry_reference,
 }
 
 @(private = "file")
@@ -57,6 +58,11 @@ geometry_system_initialize :: proc(
 		return false
 	}
 
+	if !create_default_2d_geometry(geo_state_ptr) {
+		l.log_fatal("Failed to create default 2D geometry. Application cannot continue.")
+		return false
+	}
+
 	return true
 }
 
@@ -70,6 +76,7 @@ geometry_system_shutdown :: proc() {
 			}
 		}
 		destroy_geometry(&geo_state_ptr.default_geometry)
+		destroy_geometry(&geo_state_ptr.default_2d_geometry)
 		delete(geo_state_ptr.registered_geometries)
 		delete(geo_state_ptr.geometry_references)
 		geo_state_ptr = nil
@@ -78,9 +85,11 @@ geometry_system_shutdown :: proc() {
 
 geometry_system_acquire_from_config :: proc(
 	vertex_count: u32,
-	vertices: []okmath.vertex_3d,
+	vertex_size: u32,
+	vertices: rawptr,
 	index_count: u32,
-	indices: []u32,
+	index_size: u32,
+	indices: rawptr,
 	name: string,
 	material_name: string,
 	auto_release: bool,
@@ -104,7 +113,7 @@ geometry_system_acquire_from_config :: proc(
 		return nil
 	}
 
-	if !create_geometry(g, vertex_count, vertices, index_count, indices, name, material_name) {
+	if !create_geometry(g, vertex_count, vertex_size, vertices, index_count, index_size, indices, name, material_name) {
 		l.log_error("Failed to create geometry. Returning nil.")
 		return nil
 	}
@@ -147,6 +156,14 @@ geometry_system_get_default :: proc() -> ^r.geometry {
 		return &geo_state_ptr.default_geometry
 	}
 	l.log_fatal("geometry_system_get_default called before system was initialized. Returning nil.")
+	return nil
+}
+
+geometry_system_get_default_2d :: proc() -> ^r.geometry {
+	if geo_state_ptr != nil {
+		return &geo_state_ptr.default_2d_geometry
+	}
+	l.log_fatal("geometry_system_get_default_2d called before system was initialized. Returning nil.")
 	return nil
 }
 
@@ -250,13 +267,15 @@ geometry_system_generate_plane_config :: proc(
 create_geometry :: proc(
 	g: ^r.geometry,
 	vertex_count: u32,
-	vertices: []okmath.vertex_3d,
+	vertex_size: u32,
+	vertices: rawptr,
 	index_count: u32,
-	indices: []u32,
+	index_size: u32,
+	indices: rawptr,
 	name: string,
 	material_name: string,
 ) -> bool {
-	if !ren.renderer_create_geometry(g, vertex_count, vertices, index_count, indices) {
+	if !ren.renderer_create_geometry(g, vertex_count, vertex_size, vertices, index_count, index_size, indices) {
 		// Invalidate the entry.
 		if g.id != r.INVALID_ID {
 			geo_state_ptr.geometry_references[g.id].reference_count = 0
@@ -328,9 +347,11 @@ create_default_geometry :: proc(state: ^geometry_system_state) -> bool {
 	if !ren.renderer_create_geometry(
 		&state.default_geometry,
 		4,
-		verts[:],
+		size_of(okmath.vertex_3d),
+		raw_data(verts[:]),
 		6,
-		indices[:],
+		size_of(u32),
+		raw_data(indices[:]),
 	) {
 		l.log_fatal("Failed to create default geometry. Application cannot continue.")
 		return false
@@ -338,6 +359,52 @@ create_default_geometry :: proc(state: ^geometry_system_state) -> bool {
 
 	// Acquire the default material.
 	state.default_geometry.material = material_system_get_default()
+
+	return true
+}
+
+@(private = "file")
+create_default_2d_geometry :: proc(state: ^geometry_system_state) -> bool {
+	verts: [4]okmath.vertex_2d
+	f :: 512.0
+
+	verts[0].position.x = 0.0
+	verts[0].position.y = 0.0
+	verts[0].texcoord.x = 0.0
+	verts[0].texcoord.y = 0.0
+
+	verts[1].position.x = f
+	verts[1].position.y = f
+	verts[1].texcoord.x = 1.0
+	verts[1].texcoord.y = 1.0
+
+	verts[2].position.x = 0.0
+	verts[2].position.y = f
+	verts[2].texcoord.x = 0.0
+	verts[2].texcoord.y = 1.0
+
+	verts[3].position.x = f
+	verts[3].position.y = 0.0
+	verts[3].texcoord.x = 1.0
+	verts[3].texcoord.y = 0.0
+
+	indices: [6]u32 = {0, 1, 2, 0, 3, 1}
+
+	if !ren.renderer_create_geometry(
+		&state.default_2d_geometry,
+		4,
+		size_of(okmath.vertex_2d),
+		raw_data(verts[:]),
+		6,
+		size_of(u32),
+		raw_data(indices[:]),
+	) {
+		l.log_fatal("Failed to create default 2D geometry. Application cannot continue.")
+		return false
+	}
+
+	// Acquire the default material.
+	state.default_2d_geometry.material = material_system_get_default()
 
 	return true
 }

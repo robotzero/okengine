@@ -36,6 +36,7 @@ application_state :: struct {
 	material_system_state:             ^sys.material_system_state,
 	geometry_system_state:             ^sys.geometry_system_state,
 	test_geometry:                     ^res.geometry,
+	test_ui_geometry:                  ^res.geometry,
 }
 
 application_config :: struct {
@@ -463,9 +464,11 @@ application_run :: proc() -> bool {
 				)
 				app_state.test_geometry = sys.geometry_system_acquire_from_config(
 					u32(len(vertices)),
-					vertices,
+					size_of(okmath.vertex_3d),
+					raw_data(vertices),
 					u32(len(indices)),
-					indices,
+					size_of(u32),
+					raw_data(indices),
 					"test_geometry",
 					"test_material",
 					false,
@@ -480,6 +483,36 @@ application_run :: proc() -> bool {
 				}
 			}
 
+			if app_state.test_ui_geometry == nil {
+				ui_verts: [4]okmath.vertex_2d
+				ui_verts[0].position = {0.0, 0.0}
+				ui_verts[0].texcoord = {0.0, 0.0}
+				ui_verts[1].position = {512.0, 512.0}
+				ui_verts[1].texcoord = {1.0, 1.0}
+				ui_verts[2].position = {0.0, 512.0}
+				ui_verts[2].texcoord = {0.0, 1.0}
+				ui_verts[3].position = {512.0, 0.0}
+				ui_verts[3].texcoord = {1.0, 0.0}
+				ui_indices: [6]u32 = {0, 1, 2, 0, 3, 1}
+				app_state.test_ui_geometry = sys.geometry_system_acquire_from_config(
+					4,
+					size_of(okmath.vertex_2d),
+					raw_data(ui_verts[:]),
+					6,
+					size_of(u32),
+					raw_data(ui_indices[:]),
+					"test_ui_geometry",
+					"test_ui_material",
+					false,
+				)
+				if app_state.test_ui_geometry == nil {
+					l.log_warning(
+						"UI Geometry creation failed, using default 2D geometry.",
+					)
+					app_state.test_ui_geometry = sys.geometry_system_get_default_2d()
+				}
+			}
+
 			// TODO: refactor packet creation
 			packet: ren.render_packet
 			packet.delta_time = f32(delta)
@@ -491,6 +524,16 @@ application_run :: proc() -> bool {
 			objects := [1]ren.geometry_render_data{geo_data}
 			packet.geometry_count = 1
 			packet.geometries = objects[:]
+
+			ui_model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+			ui_geo_data := ren.geometry_render_data {
+				model    = ui_model,
+				geometry = app_state.test_ui_geometry,
+			}
+			ui_objects := [1]ren.geometry_render_data{ui_geo_data}
+			packet.ui_geometry_count = 1
+			packet.ui_geometries = ui_objects[:]
+
 			ren.renderer_draw_frame(&packet)
 
 			// Figure out how long the frame took and, if below

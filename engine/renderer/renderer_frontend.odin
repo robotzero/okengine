@@ -190,11 +190,13 @@ renderer_destroy_material :: proc(material: ^res.material) {
 renderer_create_geometry :: proc(
 	geometry: ^res.geometry,
 	vertex_count: u32,
-	vertices: []okmath.vertex_3d,
+	vertex_size: u32,
+	vertices: rawptr,
 	index_count: u32,
-	indices: []u32,
+	index_size: u32,
+	indices: rawptr,
 ) -> bool {
-	return state_ptr.backend.create_geometry(geometry, vertex_count, vertices, index_count, indices)
+	return state_ptr.backend.create_geometry(geometry, vertex_count, vertex_size, vertices, index_count, index_size, indices)
 }
 
 renderer_destroy_geometry :: proc(geometry: ^res.geometry) {

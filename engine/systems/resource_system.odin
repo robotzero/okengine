@@ -480,6 +480,12 @@ material_loader_load :: proc(
 					full_path,
 				)
 			}
+		} else if k.strings_eqali(trimmed_var_name, "type") {
+			if k.strings_eqali(trimmed_value, "ui") {
+				config.type = r.material_type.MATERIAL_TYPE_UI
+			} else {
+				config.type = r.material_type.MATERIAL_TYPE_WORLD
+			}
 		}
 
 		// TODO: more fields.

@@ -171,10 +171,10 @@ vulkan_geometry_data :: struct {
 	id:                   u32,
 	generation:           u32,
 	vertex_count:         u32,
-	vertex_size:          u64,
+	vertex_element_size:  u64,
 	vertex_buffer_offset: u64,
 	index_count:          u32,
-	index_size:           u64,
+	index_element_size:   u64,
 	index_buffer_offset:  u64,
 }
 

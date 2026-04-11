@@ -219,6 +219,7 @@ material_system_release :: proc(name: string) {
 
 load_material :: proc(config: material_config, m: ^r.material) -> bool {
 	m.name = k.string_ncopy(config.name, r.MATERIAL_NAME_MAX_LENGTH)
+	m.type = config.type
 	m.diffuse_colour = config.diffuse_colour
 
 	if len(config.diffuse_map_name) > 0 {
