@@ -6,12 +6,9 @@ import arr "../../containers"
 import ev "../../core/event"
 import idef "../../core/input"
 import l "../../logger"
-import "core:fmt"
 import "core:log"
 import "core:mem"
-import "core:path/filepath"
 import "core:strings"
-import "core:sys/unix"
 import "core:time"
 
 import vk "vendor:vulkan"
@@ -37,17 +34,17 @@ foreign VULKAN {
 state_ptr: ^platform_system_state
 
 platform_system_state :: struct {
-	display:              ^xlib.Display,
-	connection:           ^Connection,
-	window:               Window,
-	screen:               ^Screen,
-	wm_protocols:         Atom,
-	wm_delete_win:        Atom,
-	surface:              vk.SurfaceKHR,
+	display:       ^xlib.Display,
+	connection:    ^Connection,
+	window:        Window,
+	screen:        ^Screen,
+	wm_protocols:  Atom,
+	wm_delete_win: Atom,
+	surface:       vk.SurfaceKHR,
 	// Input callbacks (set by core to avoid circular dependency)
-	on_key:               proc(key: idef.keys, pressed: bool),
-	on_button:            proc(button: idef.buttons, pressed: bool),
-	on_mouse_move:        proc(x, y: i16),
+	on_key:        proc(key: idef.keys, pressed: bool),
+	on_button:     proc(button: idef.buttons, pressed: bool),
+	on_mouse_move: proc(x, y: i16),
 }
 
 platform_system_startup :: proc(
@@ -92,7 +89,7 @@ platform_system_startup :: proc(
 		EventMask.PointerMotion |
 		EventMask.StructureNotify)
 	value_list: [3]u32 = {state_ptr.screen.blackPixel, event_values, 0}
-	cookie: VoidCookie = create_window(
+	_ = create_window(
 		state_ptr.connection,
 		cast(u8)WindowClass.CopyFromParent,
 		state_ptr.window,
@@ -163,12 +160,10 @@ platform_system_startup :: proc(
 platform_pump_messages :: proc() -> bool {
 	quit_flagged := false
 	e: GenericEvent = {}
-	c: ClientMessageEvent = {}
 
 	event := &e
-	cm := &c
 
-	for event != nil {
+	for {
 		event = poll_for_event(state_ptr.connection)
 		if event == nil {
 			break
@@ -179,11 +174,7 @@ platform_pump_messages :: proc() -> bool {
 				keyPressEvent := cast(^KeyPressEvent)event
 				pressed := event.responseType == KEY_PRESS
 				code: Keycode = keyPressEvent.detail
-				key_sym: xlib.KeySym = xlib.KeycodeToKeysym(
-					state_ptr.display,
-					cast(xlib.KeyCode)code,
-					0,
-				)
+				key_sym: xlib.KeySym = xlib.KeycodeToKeysym(state_ptr.display, code, 0)
 				key: idef.keys = translate_keycode(key_sym)
 
 				// Pass to the input subsystem for processing
@@ -350,12 +341,7 @@ platform_create_vulkan_surface :: proc(
 		window     = vk.xcb_window_t(state_ptr.window),
 	}
 
-	result := vk.CreateXcbSurfaceKHR(
-		instance,
-		&create_info,
-		vk_allocator,
-		&state_ptr.surface,
-	)
+	result := vk.CreateXcbSurfaceKHR(instance, &create_info, vk_allocator, &state_ptr.surface)
 
 	if result != vk.Result.SUCCESS {
 		l.log_fatal("Vulkan surface creation failed.")

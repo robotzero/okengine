@@ -9,11 +9,13 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend:    renderer_backend,
-	projection: okmath.mat4,
-	view:       okmath.mat4,
-	near_clip:  f32,
-	far_clip:   f32,
+	backend:       renderer_backend,
+	projection:    okmath.mat4,
+	view:          okmath.mat4,
+	near_clip:     f32,
+	far_clip:      f32,
+	ui_projection: okmath.mat4,
+	ui_view:       okmath.mat4,
 }
 
 @(private = "file")
@@ -45,6 +47,17 @@ renderer_system_initialize :: proc(
 	state_ptr.view = okmath.mat4_translation(okmath.vec3{0, 0, -30.0})
 	state_ptr.view = okmath.mat4_inverse(state_ptr.view)
 
+	// UI projection: orthographic, y-down (top-left origin).
+	state_ptr.ui_projection = okmath.mat4_orthographic(
+		0,
+		f32(framebuffer_width),
+		f32(framebuffer_height),
+		0,
+		-100.0,
+		100.0,
+	)
+	state_ptr.ui_view = okmath.mat4_inverse(okmath.mat4_identity())
+
 	return true
 }
 
@@ -73,21 +86,52 @@ renderer_end_frame :: proc(delta_time: f32) -> bool {
 }
 
 renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
-	// If the begin frame returned successfully, mid-frame operation may continue.
 	if renderer_begin_frame(packet.delta_time) {
-		state_ptr.backend.update_global_state(
+		// World renderpass
+		if !state_ptr.backend.begin_renderpass(&state_ptr.backend, u8(builtin_renderpass.WORLD)) {
+			l.log_error("renderer_draw_frame: begin_renderpass(WORLD) failed.")
+			return false
+		}
+
+		state_ptr.backend.update_global_world_state(
 			state_ptr.projection,
 			state_ptr.view,
 			okmath.vec3_zero(),
 			okmath.vec4_one(),
 			0,
 		)
+
 		for i in 0 ..< packet.geometry_count {
 			state_ptr.backend.draw_geometry(packet.geometries[i])
 		}
-		// End the frame. If this fails, it is likely unrecoverable.
-		result: bool = renderer_end_frame(packet.delta_time)
 
+		if !state_ptr.backend.end_renderpass(&state_ptr.backend, u8(builtin_renderpass.WORLD)) {
+			l.log_error("renderer_draw_frame: end_renderpass(WORLD) failed.")
+			return false
+		}
+
+		// UI renderpass
+		if !state_ptr.backend.begin_renderpass(&state_ptr.backend, u8(builtin_renderpass.UI)) {
+			l.log_error("renderer_draw_frame: begin_renderpass(UI) failed.")
+			return false
+		}
+
+		state_ptr.backend.update_global_ui_state(
+			state_ptr.ui_projection,
+			state_ptr.ui_view,
+			0,
+		)
+
+		for i in 0 ..< packet.ui_geometry_count {
+			state_ptr.backend.draw_geometry(packet.ui_geometries[i])
+		}
+
+		if !state_ptr.backend.end_renderpass(&state_ptr.backend, u8(builtin_renderpass.UI)) {
+			l.log_error("renderer_draw_frame: end_renderpass(UI) failed.")
+			return false
+		}
+
+		result := renderer_end_frame(packet.delta_time)
 		if !result {
 			l.log_error("renderer_end_frame failed. Application shutting down...")
 			return false
@@ -105,6 +149,14 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 			state_ptr.near_clip,
 			state_ptr.far_clip,
 		)
+		state_ptr.ui_projection = okmath.mat4_orthographic(
+			0,
+			f32(width),
+			f32(height),
+			0,
+			-100.0,
+			100.0,
+		)
 		state_ptr.backend.resized(&state_ptr.backend, width, height)
 	} else {
 		l.log_warning("renderer backend does not exist to accept resize: %i %i", width, height)
@@ -113,6 +165,10 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 
 renderer_set_view :: proc(view: okmath.mat4) {
 	state_ptr.view = view
+}
+
+renderer_set_ui_view :: proc(view: okmath.mat4) {
+	state_ptr.ui_view = view
 }
 
 renderer_create_texture :: proc(pixels: []u8, out_texture: ^res.texture) {

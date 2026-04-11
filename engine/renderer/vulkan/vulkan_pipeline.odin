@@ -17,6 +17,8 @@ vulkan_graphics_pipeline_create :: proc(
 	viewport: ^vk.Viewport,
 	scissor: ^vk.Rect2D,
 	is_wireframe: bool,
+	depth_test_enabled: bool,
+	stride: u32,
 	out_pipeline: ^vulkan_pipeline,
 ) -> bool {
 	// Viewport state
@@ -54,7 +56,7 @@ vulkan_graphics_pipeline_create :: proc(
 		alphaToOneEnable      = false,
 	}
 
-	// Depth and stencil testing
+	// Depth and stencil testing (only when depth_test_enabled)
 	depth_stencil := vk.PipelineDepthStencilStateCreateInfo {
 		sType                 = .PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		depthTestEnable       = true,
@@ -97,10 +99,10 @@ vulkan_graphics_pipeline_create :: proc(
 		pDynamicStates    = &dynamic_states[0],
 	}
 
-	// Vertex input
+	// Vertex input — use the provided stride
 	binding_description := vk.VertexInputBindingDescription {
 		binding   = 0,
-		stride    = u32(size_of(okmath.vertex_3d)),
+		stride    = stride,
 		inputRate = .VERTEX,
 	}
 
@@ -157,7 +159,7 @@ vulkan_graphics_pipeline_create :: proc(
 		pViewportState      = &viewport_state,
 		pRasterizationState = &rasterizer_create_info,
 		pMultisampleState   = &multisampling_create_info,
-		pDepthStencilState  = &depth_stencil,
+		pDepthStencilState  = depth_test_enabled ? &depth_stencil : nil,
 		pColorBlendState    = &color_blend_state_create_info,
 		pDynamicState       = &dynamic_state_create_info,
 		pTessellationState  = nil,
@@ -217,4 +219,3 @@ vulkan_pipeline_destroy :: proc(v_context: ^vulkan_context, pipeline: ^vulkan_pi
 		}
 	}
 }
-

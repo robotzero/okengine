@@ -2,6 +2,7 @@ package vulkan_renderer
 
 import rv "../../renderer"
 import res "../../resources"
+import "../../okmath"
 import vk "vendor:vulkan"
 
 MATERIAL_SHADER_STAGE_COUNT :: 2
@@ -11,12 +12,48 @@ VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 1
 VULKAN_MAX_MATERIAL_COUNT :: 1024
 VULKAN_MAX_GEOMETRY_COUNT :: 4096
 INVALID_ID :: res.INVALID_ID
+
+UI_SHADER_STAGE_COUNT :: 2
+VULKAN_UI_SHADER_DESCRIPTOR_COUNT :: 2
+VULKAN_UI_SHADER_SAMPLER_COUNT :: 1
+VULKAN_MAX_UI_COUNT :: 1024
+
 global_uniform_object :: rv.global_uniform_object
 material_uniform_object :: rv.material_uniform_object
 geometry_render_data :: rv.geometry_render_data
 texture_use :: res.texture_use
 texture :: res.texture
 material :: res.material
+
+// Renamed UBO types for material shader (vulkan-specific)
+vulkan_material_shader_global_ubo :: struct {
+	projection:  okmath.mat4,
+	view:        okmath.mat4,
+	m_reserved0: okmath.mat4,
+	m_reserved1: okmath.mat4,
+}
+
+vulkan_material_shader_instance_ubo :: struct {
+	diffuse_color: okmath.vec4,
+	v_reserved_0:  okmath.vec4,
+	v_reserved_1:  okmath.vec4,
+	v_reserved_2:  okmath.vec4,
+}
+
+// UI shader UBO types
+vulkan_ui_shader_global_ubo :: struct {
+	projection:  okmath.mat4,
+	view:        okmath.mat4,
+	m_reserved0: okmath.mat4,
+	m_reserved1: okmath.mat4,
+}
+
+vulkan_ui_shader_instance_ubo :: struct {
+	diffuse_color: okmath.vec4,
+	v_reserved_0:  okmath.vec4,
+	v_reserved_1:  okmath.vec4,
+	v_reserved_2:  okmath.vec4,
+}
 
 vulkan_command_buffer_state :: enum {
 	COMMAND_BUFFER_STATE_READY,
@@ -59,6 +96,22 @@ vulkan_material_shader_instance_state :: struct {
 	descriptor_states: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
 }
 
+vulkan_ui_shader_instance_state :: struct {
+	// Per swapchain image
+	descriptor_sets:   []vk.DescriptorSet,
+
+	// per descriptor
+	descriptor_states: [VULKAN_UI_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
+}
+
+// renderpass_clear_flag controls which buffers are cleared and whether depth is included.
+renderpass_clear_flag :: enum u8 {
+	NONE    = 0x0,
+	COLOUR  = 0x1,
+	DEPTH   = 0x2,
+	STENCIL = 0x4,
+}
+
 vulkan_context :: struct {
 	instance:                         vk.Instance,
 	allocator:                        ^vk.AllocationCallbacks,
@@ -82,20 +135,28 @@ vulkan_context :: struct {
 	framebuffer_size_last_generation: u64,
 	swapchain:                        vulkan_swapchain,
 	main_renderpass:                  vulkan_renderpass,
+	ui_renderpass:                    vulkan_renderpass,
+
+	// World framebuffers (color + depth), one per swapchain image.
+	world_framebuffers:               []vk.Framebuffer,
+
 	object_vertex_buffer:             vulkan_buffer,
 	object_index_buffer:              vulkan_buffer,
 	graphics_command_buffers:         [dynamic]vulkan_command_buffer,
 	image_available_semaphores:       [dynamic]vk.Semaphore,
 	queue_complete_semaphores:        [dynamic]vk.Semaphore,
-	in_flight_fence_count:            u32,
-	in_flight_fences:                 [dynamic]vulkan_fence,
 
-	// Holds pointers to fences which exist and are owned elsewere
-	images_in_flight:                 [dynamic]^vulkan_fence,
+	// In-flight fences, one per frame-in-flight (raw handles).
+	in_flight_fences:                 [2]vk.Fence,
+
+	// Holds pointers to fences which exist and are owned elsewhere (nil = not in use).
+	images_in_flight:                 []^vk.Fence,
+
 	image_index:                      u32,
 	current_frame:                    u32,
 	recreating_swapchain:             bool,
 	material_shader:                  vulkan_material_shader,
+	ui_shader:                        vulkan_ui_shader,
 	find_memory_index_proc:           find_memory_index,
 	geometry_vertex_offset:           u64,
 	geometry_index_offset:            u64,
@@ -137,8 +198,8 @@ vulkan_swapchain :: struct {
 	views:                []vk.ImageView,
 	depth_attachment:     vulkan_image,
 
-	// framebuffers used for on-screen rendering.
-	framebuffers:         [dynamic]vulkan_framebuffer,
+	// UI framebuffers used for on-screen rendering (color only).
+	framebuffers:         []vk.Framebuffer,
 }
 
 vulkan_command_buffer :: struct {
@@ -147,23 +208,14 @@ vulkan_command_buffer :: struct {
 }
 
 vulkan_renderpass :: struct {
-	handle:     vk.RenderPass,
-	x, y, w, h: f32,
-	r, g, b, a: f32,
-	depth:      f32,
-	stencil:    u32,
-}
-
-vulkan_framebuffer :: struct {
-	handle:           vk.Framebuffer,
-	attachment_count: u32,
-	attachments:      [dynamic]vk.ImageView,
-	renderpass:       ^vulkan_renderpass,
-}
-
-vulkan_fence :: struct {
-	handle:      vk.Fence,
-	is_signaled: bool,
+	handle:        vk.RenderPass,
+	render_area:   okmath.vec4, // x, y, w, h
+	clear_colour:  okmath.vec4, // r, g, b, a
+	depth:         f32,
+	stencil:       u32,
+	clear_flags:   u8,
+	has_prev_pass: bool,
+	has_next_pass: bool,
 }
 
 vulkan_shader_stage :: struct {
@@ -184,7 +236,7 @@ vulkan_material_shader :: struct {
 	global_descriptor_set_layout: vk.DescriptorSetLayout,
 	// One descriptor set per swapchain image
 	global_descriptor_sets:       []vk.DescriptorSet,
-	global_ubo:                   global_uniform_object,
+	global_ubo:                   vulkan_material_shader_global_ubo,
 	global_uniform_buffer:        vulkan_buffer,
 	object_descriptor_pool:       vk.DescriptorPool,
 	object_descriptor_set_layout: vk.DescriptorSetLayout,
@@ -192,6 +244,23 @@ vulkan_material_shader :: struct {
 	object_uniform_buffer_index:  u32,
 	sampler_uses:                 [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]texture_use,
 	instance_states:              [VULKAN_MATERIAL_MAX_OBJECT_COUNT]vulkan_material_shader_instance_state,
+}
+
+vulkan_ui_shader :: struct {
+	pipeline:                     vulkan_pipeline,
+	stages:                       [UI_SHADER_STAGE_COUNT]vulkan_shader_stage,
+	global_descriptor_pool:       vk.DescriptorPool,
+	global_descriptor_set_layout: vk.DescriptorSetLayout,
+	// One descriptor set per swapchain image
+	global_descriptor_sets:       []vk.DescriptorSet,
+	global_ubo:                   vulkan_ui_shader_global_ubo,
+	global_uniform_buffer:        vulkan_buffer,
+	object_descriptor_pool:       vk.DescriptorPool,
+	object_descriptor_set_layout: vk.DescriptorSetLayout,
+	object_uniform_buffer:        vulkan_buffer,
+	object_uniform_buffer_index:  u32,
+	sampler_uses:                 [VULKAN_UI_SHADER_SAMPLER_COUNT]texture_use,
+	instance_states:              [VULKAN_MAX_UI_COUNT]vulkan_ui_shader_instance_state,
 }
 
 vulkan_buffer :: struct {
@@ -209,4 +278,3 @@ must :: proc(result: vk.Result, loc := #caller_location) {
 		panic("AAAAAAAAAAAAAAAAAA")
 	}
 }
-

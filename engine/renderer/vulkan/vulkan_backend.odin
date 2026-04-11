@@ -248,32 +248,39 @@ vulkan_renderer_backend_initialize :: proc(
 		&v_context.swapchain,
 	)
 
+	// World renderpass: clears colour+depth, no prev pass, has next pass (UI follows).
 	vulkan_renderpass_create(
 		&v_context,
 		&v_context.main_renderpass,
-		0,
-		0,
-		f32(v_context.framebuffer_width),
-		f32(v_context.framebuffer_height),
-		0.0,
-		0.0,
-		0.2,
-		1.0,
+		okmath.vec4{0, 0, f32(v_context.framebuffer_width), f32(v_context.framebuffer_height)},
+		okmath.vec4{0.0, 0.0, 0.2, 1.0},
 		1.0,
 		0,
+		u8(renderpass_clear_flag.COLOUR) | u8(renderpass_clear_flag.DEPTH) | u8(renderpass_clear_flag.STENCIL),
+		false,
+		true,
 	)
 
-	// Swapchain framebuffers.
-	v_context.swapchain.framebuffers = arr.darray_create(
-		u64(v_context.swapchain.image_count),
-		vulkan_framebuffer,
+	// UI renderpass: no clear (reads from world pass output), has prev pass, no next pass.
+	vulkan_renderpass_create(
+		&v_context,
+		&v_context.ui_renderpass,
+		okmath.vec4{0, 0, f32(v_context.framebuffer_width), f32(v_context.framebuffer_height)},
+		okmath.vec4{0.0, 0.0, 0.0, 0.0},
+		1.0,
+		0,
+		u8(renderpass_clear_flag.NONE),
+		true,
+		false,
 	)
-	regenerate_framebuffers(backend, &v_context.swapchain, &v_context.main_renderpass)
+
+	// Create framebuffers for both world (color+depth) and UI (color only) passes.
+	regenerate_framebuffers()
 
 	// Create command buffers.
 	create_command_buffers(backend)
 
-	// Create sync object.
+	// Create sync objects.
 	v_context.image_available_semaphores = arr.darray_create(
 		u64(v_context.swapchain.max_frames_in_flight),
 		vk.Semaphore,
@@ -281,10 +288,6 @@ vulkan_renderer_backend_initialize :: proc(
 	v_context.queue_complete_semaphores = arr.darray_create(
 		u64(v_context.swapchain.max_frames_in_flight),
 		vk.Semaphore,
-	)
-	v_context.in_flight_fences = arr.darray_create(
-		u64(v_context.swapchain.max_frames_in_flight),
-		vulkan_fence,
 	)
 
 	for i in 0 ..< v_context.swapchain.max_frames_in_flight {
@@ -305,26 +308,32 @@ vulkan_renderer_backend_initialize :: proc(
 			&v_context.queue_complete_semaphores[i],
 		)
 
-		// Crete the fence in signaled state, indicating that the first frame has already been "rendered".
-		// This will prevent the application from waiting indefinitely for the first frame to render since
-		// it cannot be rendered until a frame is "rendered" before it.
-		vulkan_fence_create(&v_context, true, &v_context.in_flight_fences[i])
+		// Create fence in signaled state so the first frame doesn't wait forever.
+		fence_create_info := vk.FenceCreateInfo {
+			sType = .FENCE_CREATE_INFO,
+			flags = {.SIGNALED},
+		}
+		assert(
+			vk.CreateFence(
+				v_context.device.logical_device,
+				&fence_create_info,
+				v_context.allocator,
+				&v_context.in_flight_fences[i],
+			) == vk.Result.SUCCESS,
+		)
 	}
 
-	// In flight fences should not yet exist at this point, so clear the list. These are stored in pointers
-	// because the initial state should be 0, and will be 0 when not in use. Actual fences are not owned
-	// by this list.
-	v_context.images_in_flight = arr.darray_create(
-		u64(v_context.swapchain.image_count),
-		^vulkan_fence,
-	)
-	for i in 0 ..< v_context.swapchain.image_count {
-		v_context.images_in_flight[i] = nil
-	}
+	// images_in_flight tracks per-image fence pointers (nil = not in use).
+	v_context.images_in_flight = make([]^vk.Fence, v_context.swapchain.image_count)
 
-	// Create buildin shaders
+	// Create built-in shaders
 	if !vulkan_material_shader_create(&v_context, &v_context.material_shader) {
 		l.log_error("Error loading built-in basic_lighting shader")
+		return false
+	}
+
+	if !vulkan_ui_shader_create(&v_context, &v_context.ui_shader) {
+		l.log_error("Error loading built-in UI shader")
 		return false
 	}
 
@@ -343,9 +352,10 @@ vulkan_renderer_backend_initialize :: proc(
 
 vulkan_renderer_backend_shutdown :: proc(backend: ^rv.renderer_backend) {
 	vk.DeviceWaitIdle(v_context.device.logical_device)
-	// Destroy is the opposide order of creation.
+	// Destroy is the opposite order of creation.
 	vulkan_buffer_destroy(&v_context, &v_context.object_vertex_buffer)
 	vulkan_buffer_destroy(&v_context, &v_context.object_index_buffer)
+	vulkan_ui_shader_destroy(&v_context, &v_context.ui_shader)
 	vulkan_material_shader_destroy(&v_context, &v_context.material_shader)
 
 	// Sync objects
@@ -366,19 +376,20 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^rv.renderer_backend) {
 			)
 			v_context.queue_complete_semaphores[i] = 0
 		}
-		vulkan_fence_destroy(&v_context, &v_context.in_flight_fences[i])
+		if v_context.in_flight_fences[i] != 0 {
+			vk.DestroyFence(
+				v_context.device.logical_device,
+				v_context.in_flight_fences[i],
+				v_context.allocator,
+			)
+			v_context.in_flight_fences[i] = 0
+		}
 	}
 	arr.darray_destroy(v_context.image_available_semaphores)
 	v_context.image_available_semaphores = nil
 
 	arr.darray_destroy(v_context.queue_complete_semaphores)
 	v_context.queue_complete_semaphores = nil
-
-	arr.darray_destroy(v_context.in_flight_fences)
-	v_context.in_flight_fences = nil
-
-	arr.darray_destroy(v_context.images_in_flight)
-	v_context.images_in_flight = nil
 
 	// Command buffers
 	for i in 0 ..< v_context.swapchain.image_count {
@@ -394,14 +405,32 @@ vulkan_renderer_backend_shutdown :: proc(backend: ^rv.renderer_backend) {
 	arr.darray_destroy(v_context.graphics_command_buffers)
 	v_context.graphics_command_buffers = nil
 
-	for i in 0 ..< v_context.swapchain.image_count {
-		vulkan_framebuffer_destroy(&v_context, &v_context.swapchain.framebuffers[i])
+	// Destroy world framebuffers (color+depth).
+	for fb in v_context.world_framebuffers {
+		if fb != 0 {
+			vk.DestroyFramebuffer(v_context.device.logical_device, fb, v_context.allocator)
+		}
 	}
-	arr.darray_destroy(v_context.swapchain.framebuffers)
+	delete(v_context.world_framebuffers)
+	v_context.world_framebuffers = nil
+
+	// Destroy UI framebuffers (color only).
+	for fb in v_context.swapchain.framebuffers {
+		if fb != 0 {
+			vk.DestroyFramebuffer(v_context.device.logical_device, fb, v_context.allocator)
+		}
+	}
+	delete(v_context.swapchain.framebuffers)
+	v_context.swapchain.framebuffers = nil
+
+	delete(v_context.images_in_flight)
+	v_context.images_in_flight = nil
+
 	delete(v_context.swapchain.images)
 	delete(v_context.swapchain.views)
 
-	// Renderpass
+	// Renderpasses
+	vulkan_renderpass_destroy(&v_context, &v_context.ui_renderpass)
 	vulkan_renderpass_destroy(&v_context, &v_context.main_renderpass)
 
 	// Swapchain
@@ -504,13 +533,15 @@ vulkan_renderer_backend_begin_frame :: proc(
 		return false
 	}
 
-	// Wait for the execution of the current frame to complete. The fence being free will allow this one to move on.
-	if vulkan_fence_wait(
-		   &v_context,
-		   &v_context.in_flight_fences[v_context.current_frame],
-		   max(u64),
-	   ) ==
-	   false {
+	// Wait for the execution of the current frame to complete.
+	result := vk.WaitForFences(
+		device.logical_device,
+		1,
+		&v_context.in_flight_fences[v_context.current_frame],
+		true,
+		max(u64),
+	)
+	if result != vk.Result.SUCCESS {
 		l.log_warning("In-flight fence wait failure!")
 		return false
 	}
@@ -551,41 +582,36 @@ vulkan_renderer_backend_begin_frame :: proc(
 	vk.CmdSetViewport(command_buffer.handle, 0, 1, &viewport)
 	vk.CmdSetScissor(command_buffer.handle, 0, 1, &scissor)
 
-	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
-	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
+	v_context.main_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.render_area.w = f32(v_context.framebuffer_height)
+	v_context.ui_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.ui_renderpass.render_area.w = f32(v_context.framebuffer_height)
 
-	// Begin the render pass.
-	vulkan_renderpass_begin(
-		command_buffer,
-		&v_context.main_renderpass,
-		v_context.swapchain.framebuffers[v_context.image_index].handle,
-	)
 	return true
 }
 
 vulkan_renderer_backend_end_frame :: proc(backend: ^rv.renderer_backend, delta_time: f32) -> bool {
 	command_buffer: ^vulkan_command_buffer = &v_context.graphics_command_buffers[v_context.image_index]
 
-	// End renderpass
-	vulkan_renderpass_end(command_buffer, &v_context.main_renderpass)
-
 	vulkan_command_buffer_end(command_buffer)
 
-	// Make sure the previous frame is not using this image (i.e. its fence is being waited on)
-	if (v_context.images_in_flight[v_context.image_index] != nil) { 	// was frame
-		vulkan_fence_wait(
-			&v_context,
+	// Make sure the previous frame is not using this image (i.e. its fence is being waited on).
+	if v_context.images_in_flight[v_context.image_index] != nil {
+		vk.WaitForFences(
+			v_context.device.logical_device,
+			1,
 			v_context.images_in_flight[v_context.image_index],
+			true,
 			c.UINT64_MAX,
 		)
 	}
 
 	// Mark the image fence as in-use by this frame.
 	v_context.images_in_flight[v_context.image_index] =
-	&v_context.in_flight_fences[v_context.current_frame]
+		&v_context.in_flight_fences[v_context.current_frame]
 
-	// Reset the fence for use on the next frame
-	vulkan_fence_reset(&v_context, &v_context.in_flight_fences[v_context.current_frame])
+	// Reset the fence for use on the next frame.
+	vk.ResetFences(v_context.device.logical_device, 1, &v_context.in_flight_fences[v_context.current_frame])
 
 	// Submit the queue and wait for the operation to complete.
 	// Begin queue submission
@@ -615,7 +641,7 @@ vulkan_renderer_backend_end_frame :: proc(backend: ^rv.renderer_backend, delta_t
 		v_context.device.graphics_queue,
 		1,
 		&submit_info,
-		v_context.in_flight_fences[v_context.current_frame].handle,
+		v_context.in_flight_fences[v_context.current_frame],
 	)
 	if result != vk.Result.SUCCESS {
 		l.log_error("vkQueueSubmit failed with result: %s", vulkan_result_string(result, true))
@@ -680,8 +706,10 @@ recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 	// Sync the framebuffer size with the cached sizes.
 	v_context.framebuffer_width = cached_framebuffer_width
 	v_context.framebuffer_height = cached_framebuffer_height
-	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
-	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
+	v_context.main_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.render_area.w = f32(v_context.framebuffer_height)
+	v_context.ui_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.ui_renderpass.render_area.w = f32(v_context.framebuffer_height)
 	cached_framebuffer_width = 0
 	cached_framebuffer_height = 0
 
@@ -697,17 +725,34 @@ recreate_swapchain :: proc(backend: ^rv.renderer_backend) -> bool {
 		)
 	}
 
-	// Framebuffers.
-	for i in 0 ..< v_context.swapchain.image_count {
-		vulkan_framebuffer_destroy(&v_context, &v_context.swapchain.framebuffers[i])
+	// Destroy world framebuffers.
+	for fb in v_context.world_framebuffers {
+		if fb != 0 {
+			vk.DestroyFramebuffer(v_context.device.logical_device, fb, v_context.allocator)
+		}
 	}
+	delete(v_context.world_framebuffers)
+	v_context.world_framebuffers = nil
 
-	v_context.main_renderpass.x = 0
-	v_context.main_renderpass.y = 0
-	v_context.main_renderpass.w = f32(v_context.framebuffer_width)
-	v_context.main_renderpass.h = f32(v_context.framebuffer_height)
+	// Destroy UI framebuffers.
+	for fb in v_context.swapchain.framebuffers {
+		if fb != 0 {
+			vk.DestroyFramebuffer(v_context.device.logical_device, fb, v_context.allocator)
+		}
+	}
+	delete(v_context.swapchain.framebuffers)
+	v_context.swapchain.framebuffers = nil
 
-	regenerate_framebuffers(backend, &v_context.swapchain, &v_context.main_renderpass)
+	v_context.main_renderpass.render_area.x = 0
+	v_context.main_renderpass.render_area.y = 0
+	v_context.main_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.main_renderpass.render_area.w = f32(v_context.framebuffer_height)
+	v_context.ui_renderpass.render_area.x = 0
+	v_context.ui_renderpass.render_area.y = 0
+	v_context.ui_renderpass.render_area.z = f32(v_context.framebuffer_width)
+	v_context.ui_renderpass.render_area.w = f32(v_context.framebuffer_height)
+
+	regenerate_framebuffers()
 
 	create_command_buffers(backend)
 
@@ -763,26 +808,59 @@ create_command_buffers :: proc(backend: ^rv.renderer_backend) {
 	l.log_debug("Vulkan command buffers created.")
 }
 
-regenerate_framebuffers :: proc(
-	backend: ^rv.renderer_backend,
-	swapchain: ^vulkan_swapchain,
-	renderpass: ^vulkan_renderpass,
-) {
-	for i in 0 ..< swapchain.image_count {
-		// TODO: make this dynamic based on the ucrrently configured attachments
-		attachment_count: u32 = 2
-		attachments: [dynamic]vk.ImageView = {swapchain.views[i], swapchain.depth_attachment.view}
+regenerate_framebuffers :: proc() {
+	count := v_context.swapchain.image_count
 
-		vulkan_framebuffer_create(
-			&v_context,
-			renderpass,
-			v_context.framebuffer_width,
-			v_context.framebuffer_height,
-			attachment_count,
-			attachments,
-			&v_context.swapchain.framebuffers[i],
+	// Allocate slices if not already done.
+	if v_context.world_framebuffers == nil {
+		v_context.world_framebuffers = make([]vk.Framebuffer, count)
+	}
+	if v_context.swapchain.framebuffers == nil {
+		v_context.swapchain.framebuffers = make([]vk.Framebuffer, count)
+	}
+
+	for i in 0 ..< count {
+		// World framebuffer: color + depth attachments.
+		world_attachments: [2]vk.ImageView = {
+			v_context.swapchain.views[i],
+			v_context.swapchain.depth_attachment.view,
+		}
+		world_fb_info := vk.FramebufferCreateInfo {
+			sType           = .FRAMEBUFFER_CREATE_INFO,
+			renderPass      = v_context.main_renderpass.handle,
+			attachmentCount = 2,
+			pAttachments    = &world_attachments[0],
+			width           = v_context.framebuffer_width,
+			height          = v_context.framebuffer_height,
+			layers          = 1,
+		}
+		assert(
+			vk.CreateFramebuffer(
+				v_context.device.logical_device,
+				&world_fb_info,
+				v_context.allocator,
+				&v_context.world_framebuffers[i],
+			) == vk.Result.SUCCESS,
 		)
-		defer arr.darray_destroy(attachments)
+
+		// UI framebuffer: color only (no depth).
+		ui_fb_info := vk.FramebufferCreateInfo {
+			sType           = .FRAMEBUFFER_CREATE_INFO,
+			renderPass      = v_context.ui_renderpass.handle,
+			attachmentCount = 1,
+			pAttachments    = &v_context.swapchain.views[i],
+			width           = v_context.framebuffer_width,
+			height          = v_context.framebuffer_height,
+			layers          = 1,
+		}
+		assert(
+			vk.CreateFramebuffer(
+				v_context.device.logical_device,
+				&ui_fb_info,
+				v_context.allocator,
+				&v_context.swapchain.framebuffers[i],
+			) == vk.Result.SUCCESS,
+		)
 	}
 }
 
@@ -877,15 +955,13 @@ upload_data_range :: proc(
 	vulkan_buffer_destroy(v_context, &staging)
 }
 
-vulkan_renderer_update_global_state :: proc(
+vulkan_renderer_update_global_world_state :: proc(
 	projection: okmath.mat4,
 	view: okmath.mat4,
 	view_position: okmath.vec3,
 	ambient_colour: okmath.vec4,
 	mode: i32,
 ) {
-	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
-
 	vulkan_material_shader_use(&v_context, &v_context.material_shader)
 
 	v_context.material_shader.global_ubo.projection = projection
@@ -896,6 +972,63 @@ vulkan_renderer_update_global_state :: proc(
 		&v_context.material_shader,
 		v_context.frame_delta_time,
 	)
+}
+
+vulkan_renderer_update_global_ui_state :: proc(
+	projection: okmath.mat4,
+	view: okmath.mat4,
+	mode: i32,
+) {
+	vulkan_ui_shader_use(&v_context, &v_context.ui_shader)
+
+	v_context.ui_shader.global_ubo.projection = projection
+	v_context.ui_shader.global_ubo.view = view
+
+	vulkan_ui_shader_update_global_state(
+		&v_context,
+		&v_context.ui_shader,
+		v_context.frame_delta_time,
+	)
+}
+
+vulkan_renderer_begin_renderpass :: proc(backend: ^rv.renderer_backend, renderpass_id: u8) -> bool {
+	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
+
+	switch rv.builtin_renderpass(renderpass_id) {
+	case .WORLD:
+		vulkan_renderpass_begin(
+			command_buffer,
+			&v_context.main_renderpass,
+			v_context.world_framebuffers[v_context.image_index],
+		)
+	case .UI:
+		vulkan_renderpass_begin(
+			command_buffer,
+			&v_context.ui_renderpass,
+			v_context.swapchain.framebuffers[v_context.image_index],
+		)
+	case:
+		l.log_error("vulkan_renderer_begin_renderpass: unknown renderpass id %v", renderpass_id)
+		return false
+	}
+
+	return true
+}
+
+vulkan_renderer_end_renderpass :: proc(backend: ^rv.renderer_backend, renderpass_id: u8) -> bool {
+	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
+
+	switch rv.builtin_renderpass(renderpass_id) {
+	case .WORLD:
+		vulkan_renderpass_end(command_buffer, &v_context.main_renderpass)
+	case .UI:
+		vulkan_renderpass_end(command_buffer, &v_context.ui_renderpass)
+	case:
+		l.log_error("vulkan_renderer_end_renderpass: unknown renderpass id %v", renderpass_id)
+		return false
+	}
+
+	return true
 }
 
 free_data_range :: proc(buffer: ^vulkan_buffer, offset: u64, size: u64) {

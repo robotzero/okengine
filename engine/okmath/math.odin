@@ -43,6 +43,11 @@ vertex_3d :: struct {
 	texcoord: vec2,
 }
 
+vertex_2d :: struct {
+	position: vec2,
+	texcoord: vec2,
+}
+
 @(private = "file")
 rand_seeded: bool = false
 
