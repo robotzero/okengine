@@ -134,7 +134,7 @@ geometry_system_release :: proc(geom: ^r.geometry) {
 	if geom != nil && geom.id != r.INVALID_ID {
 		ref := &geo_state_ptr.geometry_references[geom.id]
 		id := geom.id
-		if geo_state_ptr.registered_geometries[id].id == geom.id {
+		if geo_state_ptr.registered_geometries[id].id == id {
 			if ref.reference_count > 0 {
 				ref.reference_count -= 1
 			}
