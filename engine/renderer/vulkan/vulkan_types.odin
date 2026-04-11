@@ -1,8 +1,8 @@
 package vulkan_renderer
 
+import "../../okmath"
 import rv "../../renderer"
 import res "../../resources"
-import "../../okmath"
 import vk "vendor:vulkan"
 
 MATERIAL_SHADER_STAGE_COUNT :: 2
@@ -38,6 +38,9 @@ vulkan_material_shader_instance_ubo :: struct {
 	v_reserved_0:  okmath.vec4,
 	v_reserved_1:  okmath.vec4,
 	v_reserved_2:  okmath.vec4,
+	m_reserved0:   okmath.mat4,
+	m_reserved1:   okmath.mat4,
+	m_reserved2:   okmath.mat4,
 }
 
 // UI shader UBO types
@@ -53,6 +56,9 @@ vulkan_ui_shader_instance_ubo :: struct {
 	v_reserved_0:  okmath.vec4,
 	v_reserved_1:  okmath.vec4,
 	v_reserved_2:  okmath.vec4,
+	m_reserved0:   okmath.mat4,
+	m_reserved1:   okmath.mat4,
+	m_reserved2:   okmath.mat4,
 }
 
 vulkan_command_buffer_state :: enum {
@@ -139,7 +145,6 @@ vulkan_context :: struct {
 
 	// World framebuffers (color + depth), one per swapchain image.
 	world_framebuffers:               []vk.Framebuffer,
-
 	object_vertex_buffer:             vulkan_buffer,
 	object_index_buffer:              vulkan_buffer,
 	graphics_command_buffers:         [dynamic]vulkan_command_buffer,
@@ -151,7 +156,6 @@ vulkan_context :: struct {
 
 	// Holds pointers to fences which exist and are owned elsewhere (nil = not in use).
 	images_in_flight:                 []^vk.Fence,
-
 	image_index:                      u32,
 	current_frame:                    u32,
 	recreating_swapchain:             bool,
@@ -278,3 +282,4 @@ must :: proc(result: vk.Result, loc := #caller_location) {
 		panic("AAAAAAAAAAAAAAAAAA")
 	}
 }
+

@@ -80,7 +80,7 @@ vulkan_ui_shader_create :: proc(
 
 	// Local/Object Descriptors
 	descriptor_types: [VULKAN_UI_SHADER_DESCRIPTOR_COUNT]vk.DescriptorType = {
-		.UNIFORM_BUFFER,       // Binding 0 - uniform buffer
+		.UNIFORM_BUFFER, // Binding 0 - uniform buffer
 		.COMBINED_IMAGE_SAMPLER, // Binding 1 - Diffuse sampler layout.
 	}
 	bindings: [VULKAN_UI_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding
@@ -111,7 +111,10 @@ vulkan_ui_shader_create :: proc(
 	// Object descriptor pool
 	object_pool_sizes := [2]vk.DescriptorPoolSize {
 		{type = .UNIFORM_BUFFER, descriptorCount = VULKAN_MAX_UI_COUNT},
-		{type = .COMBINED_IMAGE_SAMPLER, descriptorCount = VULKAN_UI_SHADER_SAMPLER_COUNT * VULKAN_MAX_UI_COUNT},
+		{
+			type = .COMBINED_IMAGE_SAMPLER,
+			descriptorCount = VULKAN_UI_SHADER_SAMPLER_COUNT * VULKAN_MAX_UI_COUNT,
+		},
 	}
 
 	object_pool_info := vk.DescriptorPoolCreateInfo {
@@ -298,17 +301,6 @@ vulkan_ui_shader_update_global_state :: proc(
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
 	global_descriptor := shader.global_descriptor_sets[image_index]
 
-	vk.CmdBindDescriptorSets(
-		command_buffer,
-		vk.PipelineBindPoint.GRAPHICS,
-		shader.pipeline.pipeline_layout,
-		0,
-		1,
-		&global_descriptor,
-		0,
-		nil,
-	)
-
 	range: vk.DeviceSize = vk.DeviceSize(size_of(vulkan_ui_shader_global_ubo))
 	offset: vk.DeviceSize = 0
 
@@ -338,6 +330,17 @@ vulkan_ui_shader_update_global_state :: proc(
 	}
 
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
+
+	vk.CmdBindDescriptorSets(
+		command_buffer,
+		vk.PipelineBindPoint.GRAPHICS,
+		shader.pipeline.pipeline_layout,
+		0,
+		1,
+		&global_descriptor,
+		0,
+		nil,
+	)
 }
 
 vulkan_ui_shader_set_model :: proc(
@@ -552,3 +555,4 @@ vulkan_ui_shader_release_resources :: proc(
 	}
 	mat.internal_id = INVALID_ID
 }
+

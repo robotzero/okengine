@@ -116,7 +116,10 @@ vulkan_material_shader_create :: proc(
 		// The first section will be used for uniform buffers
 		{type = .UNIFORM_BUFFER, descriptorCount = VULKAN_MAX_MATERIAL_COUNT},
 		// The second section will be used for image samplers.
-		{type = .COMBINED_IMAGE_SAMPLER, descriptorCount = VULKAN_MATERIAL_SHADER_SAMPLER_COUNT * VULKAN_MAX_MATERIAL_COUNT},
+		{
+			type = .COMBINED_IMAGE_SAMPLER,
+			descriptorCount = VULKAN_MATERIAL_SHADER_SAMPLER_COUNT * VULKAN_MAX_MATERIAL_COUNT,
+		},
 	}
 
 	object_pool_info := vk.DescriptorPoolCreateInfo {
@@ -513,18 +516,6 @@ vulkan_material_shader_update_global_state :: proc(
 	command_buffer := v_context.graphics_command_buffers[image_index].handle
 	global_descriptor := shader.global_descriptor_sets[image_index]
 
-	// Bind the global descriptor set to be updated.
-	vk.CmdBindDescriptorSets(
-		command_buffer,
-		vk.PipelineBindPoint.GRAPHICS,
-		shader.pipeline.pipeline_layout,
-		0,
-		1,
-		&global_descriptor,
-		0,
-		nil,
-	)
-
 	// Configure the descriptors for the given index.
 	range: vk.DeviceSize = vk.DeviceSize(size_of(vulkan_material_shader_global_ubo))
 	offset: vk.DeviceSize = 0
@@ -557,6 +548,18 @@ vulkan_material_shader_update_global_state :: proc(
 	}
 
 	vk.UpdateDescriptorSets(v_context.device.logical_device, 1, &descriptor_write, 0, nil)
+
+	// Bind the global descriptor set to be updated.
+	vk.CmdBindDescriptorSets(
+		command_buffer,
+		vk.PipelineBindPoint.GRAPHICS,
+		shader.pipeline.pipeline_layout,
+		0,
+		1,
+		&global_descriptor,
+		0,
+		nil,
+	)
 }
 vulkan_material_shader_acquire_resources :: proc(
 	v_context: ^vulkan_context,
