@@ -9,13 +9,15 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend:       renderer_backend,
-	projection:    okmath.mat4,
-	view:          okmath.mat4,
-	near_clip:     f32,
-	far_clip:      f32,
-	ui_projection: okmath.mat4,
-	ui_view:       okmath.mat4,
+	backend:           renderer_backend,
+	projection:        okmath.mat4,
+	view:              okmath.mat4,
+	near_clip:         f32,
+	far_clip:          f32,
+	ui_projection:     okmath.mat4,
+	ui_view:           okmath.mat4,
+	material_shader_id: u32,
+	ui_shader_id:       u32,
 }
 
 @(private = "file")
@@ -30,6 +32,8 @@ renderer_system_initialize :: proc(
 ) -> bool {
 	state_ptr = state
 	state_ptr.backend.frame_number = 0
+	state_ptr.material_shader_id = res.INVALID_ID
+	state_ptr.ui_shader_id = res.INVALID_ID
 
 	if !state_ptr.backend.initialize(&state_ptr.backend, application_name, framebuffer_width, framebuffer_height, allocator) {
 		l.log_fatal("Renderer backend failed to initialize. Shutting down")
@@ -85,7 +89,43 @@ renderer_end_frame :: proc(delta_time: f32) -> bool {
 	return result
 }
 
-renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
+// Called by the material system to register shader IDs so draw_frame can route by them.
+renderer_set_material_shader_id :: proc(id: u32) {
+	if state_ptr != nil {
+		state_ptr.material_shader_id = id
+	}
+}
+
+renderer_set_ui_shader_id :: proc(id: u32) {
+	if state_ptr != nil {
+		state_ptr.ui_shader_id = id
+	}
+}
+
+renderer_get_projection :: proc() -> okmath.mat4 {
+	return state_ptr.projection
+}
+
+renderer_get_view :: proc() -> okmath.mat4 {
+	return state_ptr.view
+}
+
+renderer_get_ui_projection :: proc() -> okmath.mat4 {
+	return state_ptr.ui_projection
+}
+
+renderer_get_ui_view :: proc() -> okmath.mat4 {
+	return state_ptr.ui_view
+}
+
+renderer_draw_frame :: proc(
+	packet: ^render_packet,
+	apply_material_globals: proc(shader_id: u32, proj, view: ^okmath.mat4) -> bool,
+	apply_material_instance: proc(m: ^res.material) -> bool,
+	apply_material_local: proc(m: ^res.material, model: ^okmath.mat4) -> bool,
+	use_shader_by_id: proc(id: u32) -> bool,
+	get_default_material: proc() -> ^res.material,
+) -> bool {
 	if renderer_begin_frame(packet.delta_time) {
 		// World renderpass
 		if !state_ptr.backend.begin_renderpass(&state_ptr.backend, u8(builtin_renderpass.WORLD)) {
@@ -93,15 +133,34 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 			return false
 		}
 
-		state_ptr.backend.update_global_world_state(
-			state_ptr.projection,
-			state_ptr.view,
-			okmath.vec3_zero(),
-			okmath.vec4_one(),
-			0,
-		)
+		if !use_shader_by_id(state_ptr.material_shader_id) {
+			l.log_error("renderer_draw_frame: failed to use material shader.")
+			return false
+		}
+
+		proj := state_ptr.projection
+		view := state_ptr.view
+		if !apply_material_globals(state_ptr.material_shader_id, &proj, &view) {
+			l.log_error("renderer_draw_frame: failed to apply material shader globals.")
+			return false
+		}
 
 		for i in 0 ..< packet.geometry_count {
+			m: ^res.material
+			if packet.geometries[i].geometry.material != nil {
+				m = packet.geometries[i].geometry.material
+			} else {
+				m = get_default_material()
+			}
+
+			if !apply_material_instance(m) {
+				l.log_warning("renderer_draw_frame: failed to apply material '%s'. Skipping draw.", m.name)
+				continue
+			}
+
+			model := packet.geometries[i].model
+			apply_material_local(m, &model)
+
 			state_ptr.backend.draw_geometry(packet.geometries[i])
 		}
 
@@ -116,13 +175,34 @@ renderer_draw_frame :: proc(packet: ^render_packet) -> bool {
 			return false
 		}
 
-		state_ptr.backend.update_global_ui_state(
-			state_ptr.ui_projection,
-			state_ptr.ui_view,
-			0,
-		)
+		if !use_shader_by_id(state_ptr.ui_shader_id) {
+			l.log_error("renderer_draw_frame: failed to use UI shader.")
+			return false
+		}
+
+		ui_proj := state_ptr.ui_projection
+		ui_view := state_ptr.ui_view
+		if !apply_material_globals(state_ptr.ui_shader_id, &ui_proj, &ui_view) {
+			l.log_error("renderer_draw_frame: failed to apply UI shader globals.")
+			return false
+		}
 
 		for i in 0 ..< packet.ui_geometry_count {
+			m: ^res.material
+			if packet.ui_geometries[i].geometry.material != nil {
+				m = packet.ui_geometries[i].geometry.material
+			} else {
+				m = get_default_material()
+			}
+
+			if !apply_material_instance(m) {
+				l.log_warning("renderer_draw_frame: failed to apply UI material '%s'. Skipping draw.", m.name)
+				continue
+			}
+
+			model := packet.ui_geometries[i].model
+			apply_material_local(m, &model)
+
 			state_ptr.backend.draw_geometry(packet.ui_geometries[i])
 		}
 
@@ -179,14 +259,6 @@ renderer_destroy_texture :: proc(texture: ^res.texture) {
 	state_ptr.backend.destroy_texture(texture)
 }
 
-renderer_create_material :: proc(material: ^res.material) -> bool {
-	return state_ptr.backend.create_material(material)
-}
-
-renderer_destroy_material :: proc(material: ^res.material) {
-	state_ptr.backend.destroy_material(material)
-}
-
 renderer_create_geometry :: proc(
 	geometry: ^res.geometry,
 	vertex_count: u32,
@@ -201,4 +273,56 @@ renderer_create_geometry :: proc(
 
 renderer_destroy_geometry :: proc(geometry: ^res.geometry) {
 	state_ptr.backend.destroy_geometry(geometry)
+}
+
+// ── Shader forwarding ─────────────────────────────────────────────────────────
+
+renderer_shader_create :: proc(
+	s: ^res.shader,
+	renderpass_id: u8,
+	stage_count: u8,
+	stage_filenames: []string,
+	stages: []res.shader_stage,
+) -> bool {
+	return state_ptr.backend.shader_create(s, renderpass_id, stage_count, stage_filenames, stages)
+}
+
+renderer_shader_destroy :: proc(s: ^res.shader) {
+	state_ptr.backend.shader_destroy(s)
+}
+
+renderer_shader_initialize :: proc(s: ^res.shader) -> bool {
+	return state_ptr.backend.shader_initialize(s)
+}
+
+renderer_shader_use :: proc(s: ^res.shader) -> bool {
+	return state_ptr.backend.shader_use(s)
+}
+
+renderer_shader_bind_globals :: proc(s: ^res.shader) -> bool {
+	return state_ptr.backend.shader_bind_globals(s)
+}
+
+renderer_shader_bind_instance :: proc(s: ^res.shader, instance_id: u32) -> bool {
+	return state_ptr.backend.shader_bind_instance(s, instance_id)
+}
+
+renderer_shader_apply_globals :: proc(s: ^res.shader) -> bool {
+	return state_ptr.backend.shader_apply_globals(s)
+}
+
+renderer_shader_apply_instance :: proc(s: ^res.shader) -> bool {
+	return state_ptr.backend.shader_apply_instance(s)
+}
+
+renderer_shader_acquire_instance_resources :: proc(s: ^res.shader, out_instance_id: ^u32) -> bool {
+	return state_ptr.backend.shader_acquire_instance_resources(s, out_instance_id)
+}
+
+renderer_shader_release_instance_resources :: proc(s: ^res.shader, instance_id: u32) -> bool {
+	return state_ptr.backend.shader_release_instance_resources(s, instance_id)
+}
+
+renderer_set_uniform :: proc(s: ^res.shader, uniform: ^res.shader_uniform, value: rawptr) -> bool {
+	return state_ptr.backend.shader_set_uniform(s, uniform, value)
 }

@@ -1189,24 +1189,6 @@ vulkan_renderer_draw_geometry :: proc(data: geometry_render_data) {
 	buffer_data := &v_context.geometries[data.geometry.internal_id]
 	command_buffer := &v_context.graphics_command_buffers[v_context.image_index]
 
-	m: ^material = nil
-	if data.geometry.material != nil {
-		m = data.geometry.material
-	} else {
-		m = sys.material_system_get_default()
-	}
-
-	switch m.type {
-	case .MATERIAL_TYPE_UI:
-		vulkan_ui_shader_use(&v_context, &v_context.ui_shader)
-		vulkan_ui_shader_set_model(&v_context, &v_context.ui_shader, data.model)
-		vulkan_ui_shader_apply_material(&v_context, &v_context.ui_shader, m)
-	case .MATERIAL_TYPE_WORLD:
-		vulkan_material_shader_use(&v_context, &v_context.material_shader)
-		vulkan_material_shader_set_model(&v_context, &v_context.material_shader, data.model)
-		vulkan_material_shader_apply_material(&v_context, &v_context.material_shader, m)
-	}
-
 	// Bind vertex buffer at offset.
 	offsets: [1]vk.DeviceSize = {vk.DeviceSize(buffer_data.vertex_buffer_offset)}
 	vk.CmdBindVertexBuffers(
@@ -1368,49 +1350,215 @@ vulkan_renderer_destroy_texture :: proc(texture: ^res.texture) {
 	texture^ = {}
 }
 
-vulkan_renderer_create_material :: proc(material: ^res.material) -> bool {
-	if material != nil {
-		switch material.type {
-		case .MATERIAL_TYPE_UI:
-			if !vulkan_ui_shader_acquire_resources(&v_context, &v_context.ui_shader, material) {
-				l.log_error("Failed to acquire UI shader resources")
-				return false
-			}
-		case .MATERIAL_TYPE_WORLD:
-			if !vulkan_material_shader_acquire_resources(
-				&v_context,
-				&v_context.material_shader,
-				material,
-			) {
-				l.log_error("Failed to acquire shader resources")
-				return false
-			}
-		}
-		l.log_debug("Material created")
-		return true
+// ── Generic shader backend procs ──────────────────────────────────────────────
+
+vulkan_renderer_shader_create :: proc(
+	s: ^res.shader,
+	renderpass_id: u8,
+	stage_count: u8,
+	stage_filenames: []string,
+	stages: []res.shader_stage,
+) -> bool {
+	switch rv.builtin_renderpass(renderpass_id) {
+	case .WORLD:
+		s.internal_data = &v_context.material_shader
+	case .UI:
+		s.internal_data = &v_context.ui_shader
 	}
-	l.log_error("vulkan renderer create material called with nullptr. Creation failed.")
-	return false
+	return true
 }
 
-vulkan_renderer_destroy_material :: proc(material: ^res.material) {
-	if material != nil {
-		if material.internal_id != INVALID_ID {
-			switch material.type {
-			case .MATERIAL_TYPE_UI:
-				vulkan_ui_shader_release_resources(&v_context, &v_context.ui_shader, material)
-			case .MATERIAL_TYPE_WORLD:
-				vulkan_material_shader_release_resources(
-					&v_context,
-					&v_context.material_shader,
-					material,
+vulkan_renderer_shader_destroy :: proc(s: ^res.shader) {
+	s.internal_data = nil
+}
+
+vulkan_renderer_shader_initialize :: proc(s: ^res.shader) -> bool {
+	return true
+}
+
+vulkan_renderer_shader_use :: proc(s: ^res.shader) -> bool {
+	if s.internal_data == nil {
+		return false
+	}
+	// Determine which hardcoded shader this is by internal_data pointer.
+	if s.internal_data == &v_context.material_shader {
+		vulkan_material_shader_use(&v_context, &v_context.material_shader)
+	} else if s.internal_data == &v_context.ui_shader {
+		vulkan_ui_shader_use(&v_context, &v_context.ui_shader)
+	}
+	return true
+}
+
+vulkan_renderer_shader_bind_globals :: proc(s: ^res.shader) -> bool {
+	return true
+}
+
+vulkan_renderer_shader_bind_instance :: proc(s: ^res.shader, instance_id: u32) -> bool {
+	s.bound_instance_id = instance_id
+	return true
+}
+
+vulkan_renderer_shader_apply_globals :: proc(s: ^res.shader) -> bool {
+	if s.internal_data == nil {
+		return false
+	}
+	if s.internal_data == &v_context.material_shader {
+		vulkan_material_shader_update_global_state(
+			&v_context,
+			&v_context.material_shader,
+			v_context.frame_delta_time,
+		)
+	} else if s.internal_data == &v_context.ui_shader {
+		vulkan_ui_shader_update_global_state(
+			&v_context,
+			&v_context.ui_shader,
+			v_context.frame_delta_time,
+		)
+	}
+	return true
+}
+
+vulkan_renderer_shader_apply_instance :: proc(s: ^res.shader) -> bool {
+	if s.internal_data == nil {
+		return false
+	}
+	// Build a proxy material from the staged instance uniforms and flush to GPU.
+	// Use INVALID_ID as generation to force descriptor re-upload every frame
+	// (we don't track real material generations through the generic shader path yet).
+	if s.internal_data == &v_context.material_shader {
+		ms := &v_context.material_shader
+		proxy: res.material
+		proxy.internal_id = s.bound_instance_id
+		proxy.diffuse_colour = ms.staged.diffuse_colour
+		proxy.diffuse_map.texture = ms.staged.diffuse_map
+		proxy.generation = INVALID_ID
+		vulkan_material_shader_apply_material(&v_context, ms, &proxy)
+	} else if s.internal_data == &v_context.ui_shader {
+		us := &v_context.ui_shader
+		proxy: res.material
+		proxy.internal_id = s.bound_instance_id
+		proxy.diffuse_colour = us.staged.diffuse_colour
+		proxy.diffuse_map.texture = us.staged.diffuse_map
+		proxy.generation = INVALID_ID
+		vulkan_ui_shader_apply_material(&v_context, us, &proxy)
+	}
+	return true
+}
+
+vulkan_renderer_shader_acquire_instance_resources :: proc(
+	s: ^res.shader,
+	out_instance_id: ^u32,
+) -> bool {
+	if s.internal_data == nil {
+		return false
+	}
+	// Create a temporary material proxy to use the acquire_resources procs.
+	proxy: res.material
+	proxy.internal_id = INVALID_ID
+	if s.internal_data == &v_context.material_shader {
+		if !vulkan_material_shader_acquire_resources(&v_context, &v_context.material_shader, &proxy) {
+			return false
+		}
+	} else if s.internal_data == &v_context.ui_shader {
+		if !vulkan_ui_shader_acquire_resources(&v_context, &v_context.ui_shader, &proxy) {
+			return false
+		}
+	}
+	out_instance_id^ = proxy.internal_id
+	return true
+}
+
+vulkan_renderer_shader_release_instance_resources :: proc(
+	s: ^res.shader,
+	instance_id: u32,
+) -> bool {
+	if s.internal_data == nil {
+		return false
+	}
+	proxy: res.material
+	proxy.internal_id = instance_id
+	if s.internal_data == &v_context.material_shader {
+		vulkan_material_shader_release_resources(&v_context, &v_context.material_shader, &proxy)
+	} else if s.internal_data == &v_context.ui_shader {
+		vulkan_ui_shader_release_resources(&v_context, &v_context.ui_shader, &proxy)
+	}
+	return true
+}
+
+vulkan_renderer_set_uniform :: proc(
+	s: ^res.shader,
+	uniform: ^res.shader_uniform,
+	value: rawptr,
+) -> bool {
+	if s.internal_data == nil || uniform == nil {
+		return false
+	}
+	// Route uniform sets to the appropriate hardcoded shader structs.
+	if s.internal_data == &v_context.material_shader {
+		ms := &v_context.material_shader
+		switch uniform.scope {
+		case .GLOBAL:
+			// Projection = uniform index 0, view = index 1 (by convention from shader config).
+			if uniform.index == 0 {
+				ms.global_ubo.projection = (^okmath.mat4)(value)^
+			} else if uniform.index == 1 {
+				ms.global_ubo.view = (^okmath.mat4)(value)^
+			}
+		case .INSTANCE:
+			// index 2 = diffuse_colour (vec4), index 3 = diffuse_texture (sampler / ^texture)
+			if uniform.index == 2 {
+				ms.staged.diffuse_colour = (^okmath.vec4)(value)^
+			} else if uniform.index == 3 {
+				ms.staged.diffuse_map = (^^res.texture)(value)^
+			}
+		case .LOCAL:
+			// model matrix push constant — push immediately
+			if uniform.index == 4 {
+				image_index := int(v_context.image_index)
+				command_buffer := v_context.graphics_command_buffers[image_index].handle
+				model := (^okmath.mat4)(value)^
+				vk.CmdPushConstants(
+					command_buffer,
+					ms.pipeline.pipeline_layout,
+					{.VERTEX},
+					0,
+					size_of(okmath.mat4),
+					&model,
 				)
 			}
-		} else {
-			l.log_warning("material destroy invalid")
 		}
-	} else {
-		l.log_warning("material null ptr")
+	} else if s.internal_data == &v_context.ui_shader {
+		us := &v_context.ui_shader
+		switch uniform.scope {
+		case .GLOBAL:
+			if uniform.index == 0 {
+				us.global_ubo.projection = (^okmath.mat4)(value)^
+			} else if uniform.index == 1 {
+				us.global_ubo.view = (^okmath.mat4)(value)^
+			}
+		case .INSTANCE:
+			// index 2 = diffuse_colour (vec4), index 3 = diffuse_texture (sampler / ^texture)
+			if uniform.index == 2 {
+				us.staged.diffuse_colour = (^okmath.vec4)(value)^
+			} else if uniform.index == 3 {
+				us.staged.diffuse_map = (^^res.texture)(value)^
+			}
+		case .LOCAL:
+			if uniform.index == 4 {
+				image_index := int(v_context.image_index)
+				command_buffer := v_context.graphics_command_buffers[image_index].handle
+				model := (^okmath.mat4)(value)^
+				vk.CmdPushConstants(
+					command_buffer,
+					us.pipeline.pipeline_layout,
+					{.VERTEX},
+					0,
+					size_of(okmath.mat4),
+					&model,
+				)
+			}
+		}
 	}
+	return true
 }
 

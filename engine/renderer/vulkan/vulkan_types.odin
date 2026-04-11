@@ -19,8 +19,6 @@ VULKAN_UI_SHADER_DESCRIPTOR_COUNT :: 2
 VULKAN_UI_SHADER_SAMPLER_COUNT :: 1
 VULKAN_MAX_UI_COUNT :: 1024
 
-global_uniform_object :: rv.global_uniform_object
-material_uniform_object :: rv.material_uniform_object
 geometry_render_data :: rv.geometry_render_data
 texture_use :: res.texture_use
 texture :: res.texture
@@ -232,6 +230,15 @@ vulkan_pipeline :: struct {
 	pipeline_layout: vk.PipelineLayout,
 }
 
+// Staging area for per-instance uniform values collected via set_uniform
+// before apply_instance flushes them to the GPU.
+vulkan_instance_uniform_staging :: struct {
+	diffuse_colour: okmath.vec4,
+	diffuse_map:    ^texture, // nil = use default
+	generation:     u32,
+	id:             u32,
+}
+
 vulkan_material_shader :: struct {
 	pipeline:                     vulkan_pipeline,
 	stages:                       [MATERIAL_SHADER_STAGE_COUNT]vulkan_shader_stage,
@@ -247,6 +254,8 @@ vulkan_material_shader :: struct {
 	object_uniform_buffer_index:  u32,
 	sampler_uses:                 [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]texture_use,
 	instance_states:              [VULKAN_MATERIAL_MAX_OBJECT_COUNT]vulkan_material_shader_instance_state,
+	// Staged instance data collected between bind_instance and apply_instance.
+	staged:                       vulkan_instance_uniform_staging,
 }
 
 vulkan_ui_shader :: struct {
@@ -264,6 +273,8 @@ vulkan_ui_shader :: struct {
 	object_uniform_buffer_index:  u32,
 	sampler_uses:                 [VULKAN_UI_SHADER_SAMPLER_COUNT]texture_use,
 	instance_states:              [VULKAN_MAX_UI_COUNT]vulkan_ui_shader_instance_state,
+	// Staged instance data collected between bind_instance and apply_instance.
+	staged:                       vulkan_instance_uniform_staging,
 }
 
 vulkan_buffer :: struct {

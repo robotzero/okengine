@@ -67,6 +67,7 @@ resource_system_initialize :: proc(
 	resource_system_register_loader(binary_loader_create())
 	resource_system_register_loader(image_loader_create())
 	resource_system_register_loader(material_loader_create())
+	resource_system_register_loader(shader_loader_create())
 
 	l.log_info("Resource system initialized with base path '%s'.", config.asset_base_path)
 
@@ -480,12 +481,8 @@ material_loader_load :: proc(
 					full_path,
 				)
 			}
-		} else if k.strings_eqali(trimmed_var_name, "type") {
-			if k.strings_eqali(trimmed_value, "ui") {
-				config.type = r.material_type.MATERIAL_TYPE_UI
-			} else {
-				config.type = r.material_type.MATERIAL_TYPE_WORLD
-			}
+		} else if k.strings_eqali(trimmed_var_name, "shader") {
+			config.shader_name = k.string_ncopy(trimmed_value, r.MATERIAL_NAME_MAX_LENGTH)
 		}
 
 		// TODO: more fields.
@@ -516,5 +513,257 @@ material_loader_create :: proc() -> resource_loader {
 		load      = material_loader_load,
 		unload    = material_loader_unload,
 		type_path = "materials",
+	}
+}
+
+// --- Shader loader ---
+
+@(private = "file")
+shader_loader_load :: proc(
+	self: ^resource_loader,
+	name: string,
+	out_resource: ^r.resource,
+) -> bool {
+	full_path := fmt.aprintf(
+		"%s/%s/%s.shadercfg",
+		resource_system_base_path(),
+		self.type_path,
+		name,
+	)
+	defer delete(full_path)
+
+	fh, ok := f.filesystem_open(full_path)
+	if !ok {
+		l.log_error("shader_loader_load - unable to open file: '%s'.", full_path)
+		return false
+	}
+	defer f.filesystem_close(fh)
+
+	config := r.shader_config {
+		stages          = make([dynamic]r.shader_stage),
+		stage_names     = make([dynamic]string),
+		stage_filenames = make([dynamic]string),
+		attributes      = make([dynamic]r.shader_attribute_config),
+		uniforms        = make([dynamic]r.shader_uniform_config),
+	}
+
+	line_buf: [512]u8
+	line_length: u64 = 0
+	line_number: u32 = 1
+	for f.filesystem_read_line(fh, line_buf[:511], &line_length) {
+		line := string(line_buf[:line_length])
+		trimmed := k.string_trim(line)
+		line_length = u64(k.string_length(trimmed))
+
+		if line_length < 1 || trimmed[0] == '#' {
+			line_number += 1
+			continue
+		}
+
+		equal_index := k.string_index_of(trimmed, '=')
+		if equal_index == -1 {
+			line_number += 1
+			continue
+		}
+
+		var_name := k.string_trim(k.string_mid(trimmed, 0, equal_index))
+		value := k.string_trim(k.string_mid(trimmed, equal_index + 1, -1))
+
+		if k.strings_eqali(var_name, "version") {
+			// TODO
+		} else if k.strings_eqali(var_name, "name") {
+			config.name = strings.clone(value)
+		} else if k.strings_eqali(var_name, "renderpass") {
+			config.renderpass_name = strings.clone(value)
+		} else if k.strings_eqali(var_name, "stages") {
+			// comma-separated list e.g. "vertex,fragment"
+			parts := strings.split(value, ",")
+			defer delete(parts)
+			for part in parts {
+				p := k.string_trim(part)
+				if k.strings_eqali(p, "vert") || k.strings_eqali(p, "vertex") {
+					append(&config.stages, r.shader_stage.VERTEX)
+					append(&config.stage_names, strings.clone(p))
+				} else if k.strings_eqali(p, "frag") || k.strings_eqali(p, "fragment") {
+					append(&config.stages, r.shader_stage.FRAGMENT)
+					append(&config.stage_names, strings.clone(p))
+				} else if k.strings_eqali(p, "geom") || k.strings_eqali(p, "geometry") {
+					append(&config.stages, r.shader_stage.GEOMETRY)
+					append(&config.stage_names, strings.clone(p))
+				} else if k.strings_eqali(p, "comp") || k.strings_eqali(p, "compute") {
+					append(&config.stages, r.shader_stage.COMPUTE)
+					append(&config.stage_names, strings.clone(p))
+				}
+				config.stage_count += 1
+			}
+		} else if k.strings_eqali(var_name, "stagefiles") {
+			parts := strings.split(value, ",")
+			defer delete(parts)
+			for part in parts {
+				append(&config.stage_filenames, strings.clone(k.string_trim(part)))
+			}
+		} else if k.strings_eqali(var_name, "use_instance") {
+			config.use_instances = value == "1" || k.strings_eqali(value, "true")
+		} else if k.strings_eqali(var_name, "use_local") {
+			config.use_local = value == "1" || k.strings_eqali(value, "true")
+		} else if k.strings_eqali(var_name, "attribute") {
+			// format: type,name
+			comma := k.string_index_of(value, ',')
+			if comma != -1 {
+				type_str := k.string_trim(k.string_mid(value, 0, comma))
+				attr_name := k.string_trim(k.string_mid(value, comma + 1, -1))
+				attr := r.shader_attribute_config {
+					name = strings.clone(attr_name),
+				}
+				if k.strings_eqali(type_str, "f32") || k.strings_eqali(type_str, "float") {
+					attr.type = .FLOAT32
+					attr.size = 4
+				} else if k.strings_eqali(type_str, "vec2") {
+					attr.type = .FLOAT32_2
+					attr.size = 8
+				} else if k.strings_eqali(type_str, "vec3") {
+					attr.type = .FLOAT32_3
+					attr.size = 12
+				} else if k.strings_eqali(type_str, "vec4") {
+					attr.type = .FLOAT32_4
+					attr.size = 16
+				} else if k.strings_eqali(type_str, "mat4") {
+					attr.type = .MATRIX_4
+					attr.size = 64
+				} else if k.strings_eqali(type_str, "i8") {
+					attr.type = .INT8
+					attr.size = 1
+				} else if k.strings_eqali(type_str, "u8") {
+					attr.type = .UINT8
+					attr.size = 1
+				} else if k.strings_eqali(type_str, "i16") {
+					attr.type = .INT16
+					attr.size = 2
+				} else if k.strings_eqali(type_str, "u16") {
+					attr.type = .UINT16
+					attr.size = 2
+				} else if k.strings_eqali(type_str, "i32") {
+					attr.type = .INT32
+					attr.size = 4
+				} else if k.strings_eqali(type_str, "u32") {
+					attr.type = .UINT32
+					attr.size = 4
+				}
+				append(&config.attributes, attr)
+				config.attribute_count += 1
+			}
+		} else if k.strings_eqali(var_name, "uniform") {
+			// format: type,scope,name
+			first_comma := k.string_index_of(value, ',')
+			if first_comma != -1 {
+				type_str := k.string_trim(k.string_mid(value, 0, first_comma))
+				rest := k.string_mid(value, first_comma + 1, -1)
+				second_comma := k.string_index_of(rest, ',')
+				if second_comma != -1 {
+					scope_str := k.string_trim(k.string_mid(rest, 0, second_comma))
+					uni_name := k.string_trim(k.string_mid(rest, second_comma + 1, -1))
+					uni := r.shader_uniform_config {
+						name = strings.clone(uni_name),
+					}
+					// Scope
+					if scope_str == "0" {
+						uni.scope = .GLOBAL
+					} else if scope_str == "1" {
+						uni.scope = .INSTANCE
+					} else if scope_str == "2" {
+						uni.scope = .LOCAL
+					}
+					// Type + size
+					if k.strings_eqali(type_str, "f32") {
+						uni.type = .FLOAT32
+						uni.size = 4
+					} else if k.strings_eqali(type_str, "vec2") {
+						uni.type = .FLOAT32_2
+						uni.size = 8
+					} else if k.strings_eqali(type_str, "vec3") {
+						uni.type = .FLOAT32_3
+						uni.size = 12
+					} else if k.strings_eqali(type_str, "vec4") {
+						uni.type = .FLOAT32_4
+						uni.size = 16
+					} else if k.strings_eqali(type_str, "mat4") {
+						uni.type = .MATRIX_4
+						uni.size = 64
+					} else if k.strings_eqali(type_str, "i8") {
+						uni.type = .INT8
+						uni.size = 1
+					} else if k.strings_eqali(type_str, "u8") {
+						uni.type = .UINT8
+						uni.size = 1
+					} else if k.strings_eqali(type_str, "i16") {
+						uni.type = .INT16
+						uni.size = 2
+					} else if k.strings_eqali(type_str, "u16") {
+						uni.type = .UINT16
+						uni.size = 2
+					} else if k.strings_eqali(type_str, "i32") {
+						uni.type = .INT32
+						uni.size = 4
+					} else if k.strings_eqali(type_str, "u32") {
+						uni.type = .UINT32
+						uni.size = 4
+					} else if k.strings_eqali(type_str, "samp") || k.strings_eqali(type_str, "sampler") {
+						uni.type = .SAMPLER
+						uni.size = 0
+					}
+					append(&config.uniforms, uni)
+					config.uniform_count += 1
+				}
+			}
+		}
+
+		line_number += 1
+	}
+
+	out_resource.full_path = strings.clone(full_path)
+	out_resource.data = config
+	out_resource.name = name
+	return true
+}
+
+@(private = "file")
+shader_loader_unload :: proc(self: ^resource_loader, resource: ^r.resource) {
+	if resource != nil {
+		if sc, ok := resource.data.(r.shader_config); ok {
+			delete(sc.stages)
+			for s in sc.stage_names {
+				delete(s)
+			}
+			delete(sc.stage_names)
+			for s in sc.stage_filenames {
+				delete(s)
+			}
+			delete(sc.stage_filenames)
+			for a in sc.attributes {
+				delete(a.name)
+			}
+			delete(sc.attributes)
+			for u in sc.uniforms {
+				delete(u.name)
+			}
+			delete(sc.uniforms)
+			delete(sc.name)
+			delete(sc.renderpass_name)
+		}
+		if len(resource.full_path) > 0 {
+			delete(resource.full_path)
+		}
+		resource.data = nil
+		resource.loader_id = r.INVALID_ID
+	}
+}
+
+@(private = "file")
+shader_loader_create :: proc() -> resource_loader {
+	return resource_loader {
+		type      = .SHADER,
+		load      = shader_loader_load,
+		unload    = shader_loader_unload,
+		type_path = "shaders",
 	}
 }

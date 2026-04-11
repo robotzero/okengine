@@ -219,7 +219,6 @@ material_system_release :: proc(name: string) {
 
 load_material :: proc(config: material_config, m: ^r.material) -> bool {
 	m.name = k.string_ncopy(config.name, r.MATERIAL_NAME_MAX_LENGTH)
-	m.type = config.type
 	m.diffuse_colour = config.diffuse_colour
 
 	if len(config.diffuse_map_name) > 0 {
@@ -234,8 +233,16 @@ load_material :: proc(config: material_config, m: ^r.material) -> bool {
 		m.diffuse_map.texture = nil
 	}
 
-	// Send it off to the renderer to acquire resources
-	if !ren.renderer_create_material(m) {
+	// Acquire instance resources from the named shader.
+	shader_name := len(config.shader_name) > 0 ? config.shader_name : ren.BUILTIN_SHADER_NAME_MATERIAL
+	m.shader_id = shader_system_get_id(shader_name)
+	if m.shader_id == r.INVALID_ID {
+		l.log_error("load_material: shader '%s' not found. Material '%s' will not load.", shader_name, m.name)
+		return false
+	}
+
+	s := shader_system_get_by_id(m.shader_id)
+	if !ren.renderer_shader_acquire_instance_resources(s, &m.internal_id) {
 		l.log_error("Failed to acquire renderer resources for material '%s'", m.name)
 		return false
 	}
@@ -251,9 +258,15 @@ destroy_material :: proc(m: ^r.material) {
 		texture_system_release(m.diffuse_map.texture.name)
 	}
 
-	// Release renderer resources
-	ren.renderer_destroy_material(m)
+	// Release renderer resources via shader system.
+	if m.shader_id != r.INVALID_ID && m.internal_id != r.INVALID_ID {
+		s := shader_system_get_by_id(m.shader_id)
+		if s != nil {
+			ren.renderer_shader_release_instance_resources(s, m.internal_id)
+		}
+	}
 
+	m.shader_id = r.INVALID_ID
 	m.id = r.INVALID_ID
 	m.generation = r.INVALID_ID
 	m.internal_id = r.INVALID_ID
@@ -262,17 +275,87 @@ destroy_material :: proc(m: ^r.material) {
 create_default_material :: proc(state: ^material_system_state) -> bool {
 	state.default_material.id = r.INVALID_ID
 	state.default_material.generation = r.INVALID_ID
+	state.default_material.shader_id = r.INVALID_ID
+	state.default_material.internal_id = r.INVALID_ID
 	state.default_material.name = k.string_ncopy(DEFAULT_MATERIAL_NAME, r.MATERIAL_NAME_MAX_LENGTH)
 	state.default_material.diffuse_colour = okmath.vec4_one()
 	state.default_material.diffuse_map.use = r.texture_use.TEXTURE_USE_MAP_DIFFUSE
 	state.default_material.diffuse_map.texture = texture_system_get_default_texture()
 
-	if !ren.renderer_create_material(&state.default_material) {
-		l.log_fatal("Failed to acquire renderer resources for default texture.")
+	// Default material uses the builtin material shader.
+	state.default_material.shader_id = shader_system_get_id(ren.BUILTIN_SHADER_NAME_MATERIAL)
+	if state.default_material.shader_id == r.INVALID_ID {
+		l.log_fatal("create_default_material: builtin material shader not found.")
+		return false
+	}
+	s := shader_system_get_by_id(state.default_material.shader_id)
+	if !ren.renderer_shader_acquire_instance_resources(s, &state.default_material.internal_id) {
+		l.log_fatal("Failed to acquire renderer resources for default material.")
 		return false
 	}
 
 	return true
+}
+
+// ── Shader application helpers (called from renderer_draw_frame callbacks) ────
+
+material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4) -> bool {
+	s := shader_system_get_by_id(shader_id)
+	if s == nil {
+		return false
+	}
+
+	// Set projection and view uniforms by name.
+	proj_idx := shader_system_uniform_index(s, "projection")
+	view_idx := shader_system_uniform_index(s, "view")
+	if proj_idx == r.INVALID_ID_U16 || view_idx == r.INVALID_ID_U16 {
+		l.log_error("material_system_apply_global: projection/view uniform not found.")
+		return false
+	}
+
+	shader_system_bind_globals()
+	shader_system_uniform_set_by_index(proj_idx, proj)
+	shader_system_uniform_set_by_index(view_idx, view)
+	return shader_system_apply_global()
+}
+
+material_system_apply_instance :: proc(m: ^r.material) -> bool {
+	s := shader_system_get_by_id(m.shader_id)
+	if s == nil {
+		return false
+	}
+
+	shader_system_bind_instance(m.internal_id)
+
+	// Diffuse colour
+	colour_idx := shader_system_uniform_index(s, "diffuse_colour")
+	if colour_idx != r.INVALID_ID_U16 {
+		shader_system_uniform_set_by_index(colour_idx, &m.diffuse_colour)
+	}
+
+	// Diffuse texture sampler
+	tex_idx := shader_system_uniform_index(s, "diffuse_texture")
+	if tex_idx != r.INVALID_ID_U16 {
+		t := m.diffuse_map.texture
+		if t == nil {
+			t = texture_system_get_default_texture()
+		}
+		shader_system_uniform_set_by_index(tex_idx, &t)
+	}
+
+	return shader_system_apply_instance()
+}
+
+material_system_apply_local :: proc(m: ^r.material, model: ^okmath.mat4) -> bool {
+	s := shader_system_get_by_id(m.shader_id)
+	if s == nil {
+		return false
+	}
+	model_idx := shader_system_uniform_index(s, "model")
+	if model_idx == r.INVALID_ID_U16 {
+		return false
+	}
+	return shader_system_uniform_set_by_index(model_idx, model)
 }
 
 material_system_get_default :: proc() -> ^r.material {

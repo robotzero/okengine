@@ -29,6 +29,7 @@ application_state :: struct {
 	input_system_state:                ^input_system_state,
 	event_system_state:                ^e.event_system_state,
 	resource_system_state:             ^sys.resource_system_state,
+	shader_system_state:               ^sys.shader_system_state,
 	renderer_system_state:             ^ren.renderer_system_state,
 	texture_system_state:              ^sys.texture_system_state,
 	material_system_state:             ^sys.material_system_state,
@@ -177,6 +178,59 @@ application_create :: proc(
 		nil,
 		application_on_debug_event,
 	)
+
+	// Shader system (must be before material system which needs builtin shader IDs)
+	shader_sys_config := sys.shader_system_config {
+		max_shader_count      = 1024,
+		max_uniform_count     = 128,
+		max_global_textures   = 31,
+		max_instance_textures = 31,
+	}
+	shstate, sherror := linear_allocator_allocate(
+		&app_state.systems_allocator,
+		sys.shader_system_state,
+		sys_alloc,
+	)
+	_ = sherror
+	app_state.shader_system_state = shstate
+	if !sys.shader_system_initialize(app_state.shader_system_state, shader_sys_config) {
+		l.log_fatal("Failed to initialize shader system. Aborting application.")
+		return false
+	}
+
+	// Load and register builtin shaders.
+	{
+		shader_resource: res.resource
+		if !sys.resource_system_load(ren.BUILTIN_SHADER_NAME_MATERIAL, .SHADER, &shader_resource) {
+			l.log_fatal("Failed to load builtin material shader config.")
+			return false
+		}
+		if sc, ok := shader_resource.data.(res.shader_config); ok {
+			sc_copy := sc
+			if !sys.shader_system_create(&sc_copy) {
+				l.log_fatal("Failed to create builtin material shader.")
+				return false
+			}
+		}
+		sys.resource_system_unload(&shader_resource)
+		ren.renderer_set_material_shader_id(sys.shader_system_get_id(ren.BUILTIN_SHADER_NAME_MATERIAL))
+	}
+	{
+		shader_resource: res.resource
+		if !sys.resource_system_load(ren.BUILTIN_SHADER_NAME_UI, .SHADER, &shader_resource) {
+			l.log_fatal("Failed to load builtin UI shader config.")
+			return false
+		}
+		if sc, ok := shader_resource.data.(res.shader_config); ok {
+			sc_copy := sc
+			if !sys.shader_system_create(&sc_copy) {
+				l.log_fatal("Failed to create builtin UI shader.")
+				return false
+			}
+		}
+		sys.resource_system_unload(&shader_resource)
+		ren.renderer_set_ui_shader_id(sys.shader_system_get_id(ren.BUILTIN_SHADER_NAME_UI))
+	}
 
 	// Texture system
 	texture_sys_config: sys.texture_system_config
@@ -376,6 +430,7 @@ application_run :: proc() -> bool {
 	defer p.platform_system_shutdown(app_state.platform_system_state)
 	defer ren.renderer_system_shutdown(app_state.renderer_system_state)
 	defer sys.texture_system_shutdown()
+	defer sys.shader_system_shutdown()
 	defer sys.material_system_shutdown()
 	defer sys.geometry_system_shutdown()
 	defer sys.resource_system_shutdown()
@@ -522,7 +577,14 @@ application_run :: proc() -> bool {
 			packet.ui_geometry_count = 1
 			packet.ui_geometries = ui_objects[:]
 
-			ren.renderer_draw_frame(&packet)
+			ren.renderer_draw_frame(
+				&packet,
+				sys.material_system_apply_global,
+				sys.material_system_apply_instance,
+				sys.material_system_apply_local,
+				sys.shader_system_use_by_id,
+				sys.material_system_get_default,
+			)
 
 			// Figure out how long the frame took and, if below
 			frame_end_time: f64 = p.platform_get_absolute_time()

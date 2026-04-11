@@ -14,15 +14,23 @@ renderer_backend_create :: proc(
 		out_renderer_backend.resized = vulkan_renderer_backend_on_resized
 		out_renderer_backend.begin_renderpass = vulkan_renderer_begin_renderpass
 		out_renderer_backend.end_renderpass = vulkan_renderer_end_renderpass
-		out_renderer_backend.update_global_world_state = vulkan_renderer_update_global_world_state
-		out_renderer_backend.update_global_ui_state = vulkan_renderer_update_global_ui_state
 		out_renderer_backend.draw_geometry = vulkan_renderer_draw_geometry
 		out_renderer_backend.create_texture = vulkan_renderer_create_texture
 		out_renderer_backend.destroy_texture = vulkan_renderer_destroy_texture
-		out_renderer_backend.create_material = vulkan_renderer_create_material
-		out_renderer_backend.destroy_material = vulkan_renderer_destroy_material
 		out_renderer_backend.create_geometry = vulkan_renderer_create_geometry
 		out_renderer_backend.destroy_geometry = vulkan_renderer_destroy_geometry
+
+		out_renderer_backend.shader_create                     = vulkan_renderer_shader_create
+		out_renderer_backend.shader_destroy                    = vulkan_renderer_shader_destroy
+		out_renderer_backend.shader_initialize                 = vulkan_renderer_shader_initialize
+		out_renderer_backend.shader_use                        = vulkan_renderer_shader_use
+		out_renderer_backend.shader_bind_globals               = vulkan_renderer_shader_bind_globals
+		out_renderer_backend.shader_bind_instance              = vulkan_renderer_shader_bind_instance
+		out_renderer_backend.shader_apply_globals              = vulkan_renderer_shader_apply_globals
+		out_renderer_backend.shader_apply_instance             = vulkan_renderer_shader_apply_instance
+		out_renderer_backend.shader_acquire_instance_resources = vulkan_renderer_shader_acquire_instance_resources
+		out_renderer_backend.shader_release_instance_resources = vulkan_renderer_shader_release_instance_resources
+		out_renderer_backend.shader_set_uniform                = vulkan_renderer_set_uniform
 
 		return true
 	}
@@ -31,20 +39,5 @@ renderer_backend_create :: proc(
 }
 
 renderer_backend_destroy :: proc(r_back: ^rv.renderer_backend) {
-	r_back.initialize = nil
-	r_back.shutdown = nil
-	r_back.begin_frame = nil
-	r_back.end_frame = nil
-	r_back.resized = nil
-	r_back.begin_renderpass = nil
-	r_back.end_renderpass = nil
-	r_back.update_global_world_state = nil
-	r_back.update_global_ui_state = nil
-	r_back.draw_geometry = nil
-	r_back.create_texture = nil
-	r_back.destroy_texture = nil
-	r_back.create_material = nil
-	r_back.destroy_material = nil
-	r_back.create_geometry = nil
-	r_back.destroy_geometry = nil
+	r_back^ = {}
 }
