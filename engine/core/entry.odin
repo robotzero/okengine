@@ -100,6 +100,14 @@ main :: proc() {
 		os.exit(-2)
 	}
 
+	mem_config := memory_system_configuration {
+		total_alloc_size = 1 * 1024 * 1024 * 1024, // 1 GiB
+	}
+	if !memory_system_initialize(mem_config) {
+		l.log_fatal("Failed to initialize memory system; shutting down.")
+		os.exit(-3)
+	}
+
 	if !application_create(&game_inst, &sys_alloc, uint(systems_allocator_total_size)) {
 		l.log_info("application failed to create!")
 		os.exit(1)

@@ -4,6 +4,10 @@ import c "../containers"
 import l "../logger"
 import "core:mem"
 
+// Minimum alignment enforced on every allocation. Must be a power of two.
+// 16 bytes covers all SIMD types (vec4, mat4) on x86-64.
+DYNAMIC_ALLOCATOR_ALIGNMENT :: 16
+
 // A general-purpose dynamic allocator backed by a freelist.
 // Owns a single contiguous block of memory and sub-allocates from it.
 // Implements mem.Allocator so it integrates with Odin's context.allocator.
@@ -29,7 +33,17 @@ dynamic_allocator_create :: proc(total_size: u64, out: ^dynamic_allocator) -> bo
 	node_count := c.freelist_node_count(total_size)
 	out.total_size = total_size
 	out.freelist_data = make([]c.freelist_node, node_count)
-	out.memory_block = make([]u8, total_size)
+	// Allocate the memory block with SIMD-safe alignment so that offset-0
+	// (and every subsequent DYNAMIC_ALLOCATOR_ALIGNMENT-aligned offset) is
+	// suitable for mat4 / vec4 / SSE operands.
+	raw, err := mem.alloc(int(total_size), DYNAMIC_ALLOCATOR_ALIGNMENT)
+	if err != nil || raw == nil {
+		l.log_error("dynamic_allocator_create: failed to allocate aligned memory block.")
+		delete(out.freelist_data)
+		return false
+	}
+	mem.set(raw, 0, int(total_size))
+	out.memory_block = ([^]u8)(raw)[:total_size]
 
 	c.freelist_create(total_size, out.freelist_data, &out.list)
 	return true
@@ -41,7 +55,8 @@ dynamic_allocator_destroy :: proc(a: ^dynamic_allocator) {
 	}
 	c.freelist_destroy(&a.list)
 	delete(a.freelist_data)
-	delete(a.memory_block)
+	mem.free(raw_data(a.memory_block))
+	a.memory_block = nil
 	a.total_size = 0
 }
 
@@ -50,8 +65,11 @@ dynamic_allocator_allocate :: proc(a: ^dynamic_allocator, size: u64) -> []u8 {
 		l.log_error("dynamic_allocator_allocate: requires valid allocator and size > 0.")
 		return nil
 	}
+	// Round up to alignment so every returned pointer is SIMD-safe and
+	// the next allocation also starts on an aligned boundary.
+	aligned_size := (size + DYNAMIC_ALLOCATOR_ALIGNMENT - 1) & ~u64(DYNAMIC_ALLOCATOR_ALIGNMENT - 1)
 	offset: u64
-	if !c.freelist_allocate_block(&a.list, size, &offset) {
+	if !c.freelist_allocate_block(&a.list, aligned_size, &offset) {
 		l.log_error(
 			"dynamic_allocator_allocate: no block large enough. Requested: %d, free: %d.",
 			size,
@@ -59,13 +77,18 @@ dynamic_allocator_allocate :: proc(a: ^dynamic_allocator, size: u64) -> []u8 {
 		)
 		return nil
 	}
-	return a.memory_block[offset:offset + size]
+	// Return the full aligned slice so that dynamic_allocator_free receives
+	// the same length that was registered with the freelist.
+	return a.memory_block[offset:offset + aligned_size]
 }
 
-dynamic_allocator_free :: proc(a: ^dynamic_allocator, block: []u8) {
+// Returns true if the block was freed, false if the pointer is outside this
+// allocator's range (e.g. a pre-init platform allocation that should be freed
+// through the platform layer instead).
+dynamic_allocator_free :: proc(a: ^dynamic_allocator, block: []u8) -> bool {
 	if a == nil || block == nil {
 		l.log_error("dynamic_allocator_free: requires valid allocator and block.")
-		return
+		return false
 	}
 	// Recover the offset from the pointer difference.
 	block_start := uintptr(raw_data(block))
@@ -73,19 +96,16 @@ dynamic_allocator_free :: proc(a: ^dynamic_allocator, block: []u8) {
 	mem_end := mem_start + uintptr(a.total_size)
 
 	if block_start < mem_start || block_start >= mem_end {
-		l.log_error(
-			"dynamic_allocator_free: block at 0x%x is outside allocator range [0x%x, 0x%x).",
-			block_start,
-			mem_start,
-			mem_end,
-		)
-		return
+		// Not our pointer — caller should fall back to platform free.
+		return false
 	}
 
 	offset := u64(block_start - mem_start)
 	if !c.freelist_free_block(&a.list, u64(len(block)), offset) {
 		l.log_error("dynamic_allocator_free: freelist_free_block failed.")
+		return false
 	}
+	return true
 }
 
 dynamic_allocator_free_space :: proc(a: ^dynamic_allocator) -> u64 {
@@ -129,9 +149,14 @@ dynamic_allocator_proc :: proc(
 		if old_memory == nil {
 			return nil, nil
 		}
-		// Reconstruct the slice from the raw pointer and old_size.
-		block := mem.byte_slice(old_memory, old_size)
-		dynamic_allocator_free(a, block)
+		// Reconstruct the slice using the aligned size to match what was registered
+		// with the freelist in dynamic_allocator_allocate.
+		aligned_old := (old_size + DYNAMIC_ALLOCATOR_ALIGNMENT - 1) &
+			~int(DYNAMIC_ALLOCATOR_ALIGNMENT - 1)
+		block := mem.byte_slice(old_memory, aligned_old)
+		if !dynamic_allocator_free(a, block) {
+			return nil, .Invalid_Pointer
+		}
 		return nil, nil
 
 	case .Free_All:
@@ -147,8 +172,10 @@ dynamic_allocator_proc :: proc(
 		if old_memory != nil && old_size > 0 {
 			copy_amount := min(old_size, size)
 			mem.copy(raw_data(new_block), old_memory, copy_amount)
-			old_block := mem.byte_slice(old_memory, old_size)
-			dynamic_allocator_free(a, old_block)
+			aligned_old := (old_size + DYNAMIC_ALLOCATOR_ALIGNMENT - 1) &
+				~int(DYNAMIC_ALLOCATOR_ALIGNMENT - 1)
+			old_block := mem.byte_slice(old_memory, aligned_old)
+			_ = dynamic_allocator_free(a, old_block)
 		}
 		if mode == .Resize {
 			// Zero the newly added region if growing.

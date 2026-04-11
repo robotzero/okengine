@@ -65,7 +65,6 @@ linear_allocator_allocate :: proc(
 	linear_alloc: ^linear_allocator,
 	$T: typeid,
 	sys_alloc: ^mem.Allocator,
-	allocator := context.allocator,
 ) -> (
 	^T,
 	mem.Allocator_Error,
@@ -85,12 +84,9 @@ linear_allocator_allocate :: proc(
 		return nil, mem.Allocator_Error.Out_Of_Memory
 	}
 
-	// data, err := virtual.arena_alloc(allocator.arena, cast(uint) size, 0); if err != nil {
-	// 	panic("AAAAAAAAAAAAAAAAAAA2")
-	// }
-
 	linear_alloc.allocated += size_of(T)
-	obj := kallocate(memory_tag.MEMORY_TAG_LINEAR_ALLOCATOR, T, sys_alloc^)
-	return obj, nil
+	// Allocate directly from the systems arena allocator, not via kallocate.
+	obj, err := mem.new(T, sys_alloc^)
+	return obj, err
 }
 

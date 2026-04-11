@@ -4,7 +4,6 @@ import l "../logger"
 
 FREELIST_INVALID :: max(u64)
 
-@(private = "file")
 freelist_node :: struct {
 	offset: u64,
 	size:   u64,

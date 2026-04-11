@@ -164,6 +164,10 @@ platform_pump_messages :: proc() -> bool {
 	event := &e
 
 	for {
+		if connection_has_error(state_ptr.connection) != 0 {
+			quit_flagged = true
+			break
+		}
 		event = poll_for_event(state_ptr.connection)
 		if event == nil {
 			break
@@ -240,6 +244,15 @@ platform_pump_messages :: proc() -> bool {
 				}
 				ev.event_fire(u16(ev.system_event_code.EVENT_CODE_RESIZED), nil, c)
 			}
+
+		case CLIENT_MESSAGE:
+			{
+				// WM_DELETE_WINDOW: user clicked the close button.
+				cm := cast(^ClientMessageEvent)event
+				if cm.data.data32[0] == state_ptr.wm_delete_win {
+					quit_flagged = true
+				}
+			}
 		}
 		flush(state_ptr.connection)
 	}
@@ -251,7 +264,6 @@ platform_system_shutdown :: proc(plat_state: ^platform_system_state) {
 	platform_console_write(log.Level.Info, "Platform Shutdown")
 	xlib.AutoRepeatOn(state_ptr.display)
 	destroy_window(state_ptr.connection, state_ptr.window)
-	// defer free(plat_state.internal_state)
 }
 
 platform_console_write :: proc(
@@ -307,7 +319,6 @@ platform_allocate :: proc(
 }
 
 platform_free :: proc(object: ^$T, location := #caller_location, allocator := context.allocator) {
-	log.log(log.Level.Info, "object %v, location %s, ob %s", object, location, typeid_of(T))
 	err := mem.free(object, allocator)
 	ensure(err == nil)
 }

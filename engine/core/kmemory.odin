@@ -1,6 +1,7 @@
 package core
 
 import l "../logger"
+import m "../memory"
 import p "../platform/linux"
 import "core:fmt"
 import "core:strings"
@@ -8,9 +9,15 @@ import "core:strings"
 @(private = "file")
 memory_state_ptr: ^memory_system_state
 
+memory_system_configuration :: struct {
+	total_alloc_size: u64,
+}
+
 memory_system_state :: struct {
-	stats:       memory_stats,
+	config:    memory_system_configuration,
+	stats:     memory_stats,
 	alloc_count: u64,
+	allocator: m.dynamic_allocator,
 }
 
 memory_stats :: struct {
@@ -63,45 +70,68 @@ memory_tag_strings: [memory_tag.MEMORY_TAG_MAX_TAGS]string = {
 	"SCENE      ",
 }
 
-memory_system_initialize :: proc(
-	state: ^memory_system_state,
-	allocator := context.allocator,
-	location := #caller_location,
-) -> ^memory_system_state {
+memory_system_initialize :: proc(config: memory_system_configuration) -> bool {
+	// Allocate the state itself from the platform allocator; we need it to
+	// exist before the dynamic allocator is up so early kallocate calls have
+	// somewhere to write statistics.
+	state, err := p.platform_allocate(false, memory_system_state)
+	if err != nil {
+		l.log_fatal("Memory system state allocation failed; system cannot continue.")
+		return false
+	}
+
+	state.config = config
+	state.alloc_count = 0
+	p.platform_zero_memory(&state.stats, size_of(memory_stats))
+
+	if !m.dynamic_allocator_create(config.total_alloc_size, &state.allocator) {
+		l.log_fatal("Memory system is unable to setup internal allocator. Application cannot continue.")
+		p.platform_free(state)
+		return false
+	}
+
 	memory_state_ptr = state
-	memory_state_ptr.alloc_count = 0
-	// TODO zero this crap
-	p.platform_zero_memory(&memory_state_ptr.stats, size_of(memory_stats))
-	return memory_state_ptr
+	l.log_debug("Memory system successfully allocated %d bytes.", config.total_alloc_size)
+	return true
 }
 
-memory_system_shutdown :: proc(state: ^memory_system_state, allocator := context.allocator) {
-	p.platform_free(app_state)
+memory_system_shutdown :: proc() {
+	if memory_state_ptr == nil {
+		return
+	}
+	m.dynamic_allocator_destroy(&memory_state_ptr.allocator)
+	p.platform_free(memory_state_ptr)
 	memory_state_ptr = nil
-	// linear_allocator_free_all(linear_allocator.allocator)
-	// linear_allocator_destroy(alloc)
 }
 
 kallocate :: proc(
 	tag: memory_tag,
 	$T: typeid,
-	allocator := context.allocator,
 	location := #caller_location,
 ) -> ^T {
 	if tag == .MEMORY_TAG_UNKNOWN {
 		l.log_warning("kallocate called using MEMORY_TAG_UNKNOWN. Re-class this allocation.")
 	}
 
+	sz :: u64(size_of(T))
+
 	if memory_state_ptr != nil {
-		memory_state_ptr.stats.total_allocated += size_of(T)
-		memory_state_ptr.stats.tagged_allocations[tag] += size_of(T)
-		memory_state_ptr.alloc_count = memory_state_ptr.alloc_count + 1
+		memory_state_ptr.stats.total_allocated += sz
+		memory_state_ptr.stats.tagged_allocations[tag] += sz
+		memory_state_ptr.alloc_count += 1
+
+		block := m.dynamic_allocator_allocate(&memory_state_ptr.allocator, sz)
+		if block == nil {
+			l.log_fatal("kallocate failed to allocate successfully.")
+			return nil
+		}
+		return (^T)(raw_data(block))
 	}
 
-	obj, err := p.platform_allocate(false, T, allocator, location)
-
+	// Memory system not yet up — fall back to platform allocator.
+	l.log_warning("kallocate called before the memory system is initialized.")
+	obj, err := p.platform_allocate(false, T)
 	ensure(err == nil)
-
 	return obj
 }
 
@@ -109,7 +139,6 @@ kfree :: proc(
 	object: ^$T,
 	size: u64,
 	tag: memory_tag,
-	allocator := context.allocator,
 	location := #caller_location,
 ) {
 	if tag == .MEMORY_TAG_UNKNOWN {
@@ -119,9 +148,22 @@ kfree :: proc(
 	if memory_state_ptr != nil {
 		memory_state_ptr.stats.total_allocated -= size
 		memory_state_ptr.stats.tagged_allocations[tag] -= size
+
+		// Reconstruct the aligned byte slice — must match what dynamic_allocator_allocate
+		// registered with the freelist (rounded up to DYNAMIC_ALLOCATOR_ALIGNMENT).
+		aligned_size :=
+			(size + m.DYNAMIC_ALLOCATOR_ALIGNMENT - 1) &
+			~u64(m.DYNAMIC_ALLOCATOR_ALIGNMENT - 1)
+		block := ([^]u8)(object)[:aligned_size]
+		if !m.dynamic_allocator_free(&memory_state_ptr.allocator, block) {
+			// Pointer is outside our arena — was allocated before the memory
+			// system came up, so fall back to platform free.
+			p.platform_free(object)
+		}
+		return
 	}
 
-	p.platform_free(object, location, allocator)
+	p.platform_free(object)
 }
 
 kzero_memory :: proc(block: rawptr, size: int) -> rawptr {

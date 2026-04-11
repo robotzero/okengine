@@ -23,8 +23,6 @@ application_state :: struct {
 	c:                                 clock,
 	last_time:                         f64,
 	systems_allocator:                 linear_allocator,
-	memory_system_memory_requirement:  u64,
-	memory_system_state:               ^memory_system_state,
 	logging_system_memory_requirement: u64,
 	logging_system_state:              ^l.logger_system_state,
 	platform_system_state:             ^p.platform_system_state,
@@ -77,16 +75,6 @@ application_create :: proc(
 	ensure(err == nil)
 	e.event_system_initialize(event_state)
 	app_state.event_system_state = event_state
-
-	// Memory
-	mem_state, mem_err := linear_allocator_allocate(
-		&app_state.systems_allocator,
-		memory_system_state,
-		sys_alloc,
-	)
-	ensure(mem_err == nil)
-	mem_state = memory_system_initialize(mem_state)
-	app_state.memory_system_state = mem_state
 
 	// Logging
 	log_state, log_err := linear_allocator_allocate(
@@ -384,7 +372,7 @@ application_on_debug_event :: proc(
 }
 
 application_run :: proc() -> bool {
-	defer memory_system_shutdown(app_state.memory_system_state)
+	defer memory_system_shutdown()
 	defer p.platform_system_shutdown(app_state.platform_system_state)
 	defer ren.renderer_system_shutdown(app_state.renderer_system_state)
 	defer sys.texture_system_shutdown()
