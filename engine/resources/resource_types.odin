@@ -53,6 +53,7 @@ material_config :: struct {
 	shininess:         f32,
 	diffuse_map_name:  string,
 	specular_map_name: string,
+	normal_map_name:   string,
 }
 
 resource :: struct {
@@ -66,6 +67,7 @@ texture_use :: enum {
 	TEXTURE_USE_UNKNOWN      = 0x00,
 	TEXTURE_USE_MAP_DIFFUSE  = 0x01,
 	TEXTURE_USE_MAP_SPECULAR = 0x02,
+	TEXTURE_USE_MAP_NORMAL   = 0x03,
 }
 
 texture_map :: struct {
@@ -83,6 +85,7 @@ material :: struct {
 	shininess:      f32,
 	diffuse_map:    texture_map,
 	specular_map:   texture_map,
+	normal_map:     texture_map,
 }
 
 geometry :: struct {

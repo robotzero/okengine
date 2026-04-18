@@ -239,11 +239,23 @@ load_material :: proc(config: material_config, m: ^r.material) -> bool {
 		m.specular_map.texture = texture_system_acquire(config.specular_map_name, true)
 		if m.specular_map.texture == nil {
 			l.log_warning("Unable to load specular texture '%s' for material '%s', using default.", config.specular_map_name, m.name)
-			m.specular_map.texture = texture_system_get_default_texture()
+			m.specular_map.texture = texture_system_get_default_specular_texture()
 		}
 	} else {
 		m.specular_map.use = r.texture_use.TEXTURE_USE_UNKNOWN
 		m.specular_map.texture = nil
+	}
+
+	if len(config.normal_map_name) > 0 {
+		m.normal_map.use = r.texture_use.TEXTURE_USE_MAP_NORMAL
+		m.normal_map.texture = texture_system_acquire(config.normal_map_name, true)
+		if m.normal_map.texture == nil {
+			l.log_warning("Unable to load normal texture '%s' for material '%s', using default.", config.normal_map_name, m.name)
+			m.normal_map.texture = texture_system_get_default_normal_texture()
+		}
+	} else {
+		m.normal_map.use = r.texture_use.TEXTURE_USE_MAP_NORMAL
+		m.normal_map.texture = texture_system_get_default_normal_texture()
 	}
 
 	// Acquire instance resources from the named shader.
@@ -273,6 +285,9 @@ destroy_material :: proc(m: ^r.material) {
 	if m.specular_map.texture != nil {
 		texture_system_release(m.specular_map.texture.name)
 	}
+	if m.normal_map.texture != nil {
+		texture_system_release(m.normal_map.texture.name)
+	}
 
 	// Release renderer resources via shader system.
 	if m.shader_id != r.INVALID_ID && m.internal_id != r.INVALID_ID {
@@ -301,6 +316,9 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 	state.default_material.specular_map.use = r.texture_use.TEXTURE_USE_MAP_SPECULAR
 	state.default_material.specular_map.texture = texture_system_get_default_specular_texture()
 
+	state.default_material.normal_map.use = r.texture_use.TEXTURE_USE_MAP_NORMAL
+	state.default_material.normal_map.texture = texture_system_get_default_normal_texture()
+
 	// Default material uses the builtin material shader.
 	state.default_material.shader_id = shader_system_get_id(ren.BUILTIN_SHADER_NAME_MATERIAL)
 	if state.default_material.shader_id == r.INVALID_ID {
@@ -318,7 +336,7 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 
 // ── Shader application helpers (called from renderer_draw_frame callbacks) ────
 
-material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3) -> bool {
+material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3, render_mode: u32) -> bool {
 	s := shader_system_get_by_id(shader_id)
 	if s == nil {
 		return false
@@ -347,6 +365,13 @@ material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4, v
 	view_pos_idx := shader_system_uniform_index(s, "view_position")
 	if view_pos_idx != r.INVALID_ID_U16 && view_position != nil {
 		shader_system_uniform_set_by_index(view_pos_idx, view_position)
+	}
+
+	// Set render mode if this shader has it.
+	mode_idx := shader_system_uniform_index(s, "mode")
+	if mode_idx != r.INVALID_ID_U16 {
+		mode := i32(render_mode)
+		shader_system_uniform_set_by_index(mode_idx, &mode)
 	}
 
 	return shader_system_apply_global()
@@ -381,9 +406,19 @@ material_system_apply_instance :: proc(m: ^r.material) -> bool {
 	if spec_idx != r.INVALID_ID_U16 {
 		st := m.specular_map.texture
 		if st == nil {
-			st = texture_system_get_default_texture()
+			st = texture_system_get_default_specular_texture()
 		}
 		shader_system_uniform_set_by_index(spec_idx, &st)
+	}
+
+	// Normal texture sampler
+	norm_idx := shader_system_uniform_index(s, "normal_texture")
+	if norm_idx != r.INVALID_ID_U16 {
+		nt := m.normal_map.texture
+		if nt == nil {
+			nt = texture_system_get_default_normal_texture()
+		}
+		shader_system_uniform_set_by_index(norm_idx, &nt)
 	}
 
 	// Shininess

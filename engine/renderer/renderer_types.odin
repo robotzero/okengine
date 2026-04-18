@@ -17,6 +17,12 @@ builtin_renderpass :: enum u8 {
 	UI    = 0x02,
 }
 
+renderer_debug_view_mode :: enum i32 {
+	DEFAULT  = 0,
+	LIGHTING = 1,
+	NORMALS  = 2,
+}
+
 renderer_initialize_proc :: #type proc(
 	backend: ^renderer_backend,
 	application_name: string,

@@ -317,6 +317,43 @@ geometry_system_generate_cube_config :: proc(
 	return vertices, indices
 }
 
+geometry_generate_tangents :: proc(vertices: []okmath.vertex_3d, indices: []u32) {
+	for i := 0; i < len(indices); i += 3 {
+		i0 := indices[i + 0]
+		i1 := indices[i + 1]
+		i2 := indices[i + 2]
+
+		edge1 := okmath.vec3_sub(vertices[i1].position, vertices[i0].position)
+		edge2 := okmath.vec3_sub(vertices[i2].position, vertices[i0].position)
+
+		delta_u1 := vertices[i1].texcoord.x - vertices[i0].texcoord.x
+		delta_v1 := vertices[i1].texcoord.y - vertices[i0].texcoord.y
+		delta_u2 := vertices[i2].texcoord.x - vertices[i0].texcoord.x
+		delta_v2 := vertices[i2].texcoord.y - vertices[i0].texcoord.y
+
+		dividend := delta_u1 * delta_v2 - delta_u2 * delta_v1
+		fc: f32 = 1.0 / dividend
+
+		tangent := okmath.vec3 {
+			fc * (delta_v2 * edge1.x - delta_v1 * edge2.x),
+			fc * (delta_v2 * edge1.y - delta_v1 * edge2.y),
+			fc * (delta_v2 * edge1.z - delta_v1 * edge2.z),
+		}
+		okmath.vec3_normalize(&tangent)
+
+		sx := delta_u1
+		sy := delta_u2
+		tx := delta_v1
+		ty := delta_v2
+		handedness: f32 = -1.0 if tx * sy - ty * sx < 0.0 else 1.0
+		t4 := okmath.vec4{tangent.x, tangent.y, tangent.z, handedness}
+
+		vertices[i0].tangent = t4
+		vertices[i1].tangent = t4
+		vertices[i2].tangent = t4
+	}
+}
+
 @(private = "file")
 create_geometry :: proc(
 	g: ^r.geometry,

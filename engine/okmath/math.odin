@@ -42,6 +42,8 @@ vertex_3d :: struct {
 	position: vec3,
 	normal:   vec3,
 	texcoord: vec2,
+	colour:   vec4,
+	tangent:  vec4,
 }
 
 vertex_2d :: struct {

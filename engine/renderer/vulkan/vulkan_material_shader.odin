@@ -82,7 +82,7 @@ vulkan_material_shader_create :: proc(
 	}
 
 	// Local/Object Descriptors
-	// Binding 0: uniform buffer; Binding 1: sampler array (diffuse + specular)
+	// Binding 0: uniform buffer; Binding 1: sampler array (diffuse + specular + normal)
 	bindings: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding = {
 		{
 			binding         = 0,
@@ -147,6 +147,8 @@ vulkan_material_shader_create :: proc(
 	out_shader.sampler_uses[0] = texture_use.TEXTURE_USE_MAP_DIFFUSE
 	// Sampler binding 1 is the material specular map.
 	out_shader.sampler_uses[1] = texture_use.TEXTURE_USE_MAP_SPECULAR
+	// Sampler binding 2 is the material normal map.
+	out_shader.sampler_uses[2] = texture_use.TEXTURE_USE_MAP_NORMAL
 
 	image_count := int(v_context.swapchain.image_count)
 	out_shader.global_descriptor_sets = make([]vk.DescriptorSet, image_count)
@@ -166,13 +168,25 @@ vulkan_material_shader_create :: proc(
 		extent = {width = v_context.framebuffer_width, height = v_context.framebuffer_height},
 	}
 
-	// Attributes: position (vec3), normal (vec3), texcoord (vec2)
+	// Attributes: position (vec3), normal (vec3), texcoord (vec2), colour (vec4), tangent (vec4)
 	offset: u32 = 0
-	ATTRIBUTE_COUNT :: 3
+	ATTRIBUTE_COUNT :: 5
 	attribute_descriptions: [ATTRIBUTE_COUNT]vk.VertexInputAttributeDescription
 
-	formats: [ATTRIBUTE_COUNT]vk.Format = {vk.Format.R32G32B32_SFLOAT, vk.Format.R32G32B32_SFLOAT, vk.Format.R32G32_SFLOAT}
-	sizes: [ATTRIBUTE_COUNT]u32 = {size_of(okmath.vec3), size_of(okmath.vec3), size_of(okmath.vec2)}
+	formats: [ATTRIBUTE_COUNT]vk.Format = {
+		vk.Format.R32G32B32_SFLOAT,    // position
+		vk.Format.R32G32B32_SFLOAT,    // normal
+		vk.Format.R32G32_SFLOAT,       // texcoord
+		vk.Format.R32G32B32A32_SFLOAT, // colour
+		vk.Format.R32G32B32A32_SFLOAT, // tangent
+	}
+	sizes: [ATTRIBUTE_COUNT]u32 = {
+		size_of(okmath.vec3),
+		size_of(okmath.vec3),
+		size_of(okmath.vec2),
+		size_of(okmath.vec4),
+		size_of(okmath.vec4),
+	}
 
 	for i in 0 ..< ATTRIBUTE_COUNT {
 		attribute_descriptions[i].binding = 0
@@ -447,6 +461,8 @@ vulkan_material_shader_apply_material :: proc(
 			t = mat.diffuse_map.texture
 		case texture_use.TEXTURE_USE_MAP_SPECULAR:
 			t = mat.specular_map.texture
+		case texture_use.TEXTURE_USE_MAP_NORMAL:
+			t = mat.normal_map.texture
 		case:
 			l.log_fatal("Unable to bind sampler to unknown use.")
 			return

@@ -19,10 +19,39 @@ renderer_system_state :: struct {
 	ui_view:            okmath.mat4,
 	material_shader_id: u32,
 	ui_shader_id:       u32,
+	render_mode:        renderer_debug_view_mode,
 }
 
 @(private = "file")
 state_ptr: ^renderer_system_state
+
+@(private = "file")
+renderer_on_event :: proc(
+	code: u16,
+	sender: rawptr,
+	listener_inst: rawptr,
+	data: e.event_context,
+) -> bool {
+	if code == u16(e.system_event_code.EVENT_CODE_SET_RENDER_MODE) {
+		s := (^renderer_system_state)(listener_inst)
+		if event_data, ok := data.data.([4]i32); ok {
+			mode := renderer_debug_view_mode(event_data[0])
+			switch mode {
+			case .DEFAULT:
+				l.log_debug("Renderer mode set to default.")
+				s.render_mode = .DEFAULT
+			case .LIGHTING:
+				l.log_debug("Renderer mode set to lighting.")
+				s.render_mode = .LIGHTING
+			case .NORMALS:
+				l.log_debug("Renderer mode set to normals.")
+				s.render_mode = .NORMALS
+			}
+		}
+		return true
+	}
+	return false
+}
 
 renderer_system_initialize :: proc(
 	application_name: string,
@@ -35,6 +64,9 @@ renderer_system_initialize :: proc(
 	state_ptr.backend.frame_number = 0
 	state_ptr.material_shader_id = res.INVALID_ID
 	state_ptr.ui_shader_id = res.INVALID_ID
+	state_ptr.render_mode = .DEFAULT
+
+	e.event_register(u16(e.system_event_code.EVENT_CODE_SET_RENDER_MODE), state_ptr, renderer_on_event)
 
 	if !state_ptr.backend.initialize(&state_ptr.backend, application_name, framebuffer_width, framebuffer_height, allocator) {
 		l.log_fatal("Renderer backend failed to initialize. Shutting down")
@@ -121,7 +153,7 @@ renderer_get_ui_view :: proc() -> okmath.mat4 {
 
 renderer_draw_frame :: proc(
 	packet: ^render_packet,
-	apply_material_globals: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3) -> bool,
+	apply_material_globals: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3, render_mode: u32) -> bool,
 	apply_material_instance: proc(m: ^res.material) -> bool,
 	apply_material_local: proc(m: ^res.material, model: ^okmath.mat4) -> bool,
 	use_shader_by_id: proc(id: u32) -> bool,
@@ -142,7 +174,7 @@ renderer_draw_frame :: proc(
 		proj := state_ptr.projection
 		view := state_ptr.view
 		view_pos := state_ptr.view_position
-		if !apply_material_globals(state_ptr.material_shader_id, &proj, &view, &view_pos) {
+		if !apply_material_globals(state_ptr.material_shader_id, &proj, &view, &view_pos, u32(state_ptr.render_mode)) {
 			l.log_error("renderer_draw_frame: failed to apply material shader globals.")
 			return false
 		}
@@ -184,7 +216,7 @@ renderer_draw_frame :: proc(
 
 		ui_proj := state_ptr.ui_projection
 		ui_view := state_ptr.ui_view
-		if !apply_material_globals(state_ptr.ui_shader_id, &ui_proj, &ui_view, nil) {
+		if !apply_material_globals(state_ptr.ui_shader_id, &ui_proj, &ui_view, nil, 0) {
 			l.log_error("renderer_draw_frame: failed to apply UI shader globals.")
 			return false
 		}

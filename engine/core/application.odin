@@ -401,10 +401,12 @@ application_on_debug_event :: proc(
 ) -> bool {
 	names      := [3]string{"cobblestone", "paving", "paving2"}
 	spec_names := [3]string{"cobblestone_SPEC", "paving_SPEC", "paving2_SPEC"}
+	norm_names := [3]string{"cobblestone_NRM", "paving_NRM", "paving2_NRM"}
 
 	// Save off the old names
 	old_name      := names[debug_choice]
 	old_spec_name := spec_names[debug_choice]
+	old_norm_name := norm_names[debug_choice]
 
 	debug_choice = debug_choice + 1
 	debug_choice %= 3
@@ -431,6 +433,15 @@ application_on_debug_event :: proc(
 		}
 		// Release the old specular texture
 		sys.texture_system_release(old_spec_name)
+
+		// Acquire the new normal texture
+		mat.normal_map.texture = sys.texture_system_acquire(norm_names[debug_choice], true)
+		if mat.normal_map.texture == nil {
+			l.log_info("application_on_debug_event no normal texture! using default")
+			mat.normal_map.texture = sys.texture_system_get_default_normal_texture()
+		}
+		// Release the old normal texture
+		sys.texture_system_release(old_norm_name)
 	}
 	return true
 }
@@ -514,6 +525,7 @@ application_run :: proc() -> bool {
 					1.0,
 					1.0,
 				)
+				sys.geometry_generate_tangents(vertices, indices)
 				app_state.test_geometry = sys.geometry_system_acquire_from_config(
 					u32(len(vertices)),
 					size_of(okmath.vertex_3d),

@@ -14,16 +14,47 @@ struct directional_light {
     vec4 colour;
 };
 
+struct point_light {
+    vec3 position;
+    vec4 colour;
+    // Usually 1, make sure denominator never gets smaller than 1
+    float constant;
+    // Reduces light intensity linearly
+    float linear;
+    // Makes the light fall off slower at longer distances.
+    float quadratic;
+    float padding;
+};
+
 // TODO: feed in from cpu side
 directional_light dir_light = {
     vec3(-0.57735, -0.57735, -0.57735),
     vec4(0.8, 0.8, 0.8, 1.0)
 };
 
-// Samplers, diffuse, spec
+point_light p_light_0 = {
+    vec3(-5.5, 0.0, -5.5),
+    vec4(0.0, 1.0, 0.0, 1.0),
+    1.0,   // constant
+    0.35,  // linear
+    0.44,  // quadratic
+    0.0
+};
+
+point_light p_light_1 = {
+    vec3(5.5, 0.0, -5.5),
+    vec4(1.0, 0.0, 0.0, 1.0),
+    1.0,   // constant
+    0.35,  // linear
+    0.44,  // quadratic
+    0.0
+};
+
+// Samplers, diffuse, spec, normal
 const int SAMP_DIFFUSE = 0;
 const int SAMP_SPECULAR = 1;
-layout(set = 1, binding = 1) uniform sampler2D samplers[2];
+const int SAMP_NORMAL = 2;
+layout(set = 1, binding = 1) uniform sampler2D samplers[3];
 
 // Data Transfer Object
 layout(location = 1) in struct dto {
@@ -32,13 +63,41 @@ layout(location = 1) in struct dto {
     vec3 normal;
     vec3 view_position;
     vec3 frag_position;
+    vec4 colour;
+    vec4 tangent;
 } in_dto;
 
+layout(location = 0) flat in int in_mode;
+
+mat3 TBN;
+
 vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction);
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction);
 
 void main() {
+    vec3 normal = in_dto.normal;
+    vec3 tangent = in_dto.tangent.xyz;
+    tangent = (tangent - dot(tangent, normal) * normal);
+    vec3 bitangent = cross(in_dto.normal, in_dto.tangent.xyz) * in_dto.tangent.w;
+    TBN = mat3(tangent, bitangent, normal);
+
+    // Update the normal to use a sample from the normal map.
+    vec3 localNormal = 2.0 * texture(samplers[SAMP_NORMAL], in_dto.tex_coord).rgb - 1.0;
+    normal = normalize(TBN * localNormal);
+
     vec3 view_direction = normalize(in_dto.view_position - in_dto.frag_position);
-    out_colour = calculate_directional_light(dir_light, in_dto.normal, view_direction);
+
+    if (in_mode == 0) {
+        out_colour = calculate_directional_light(dir_light, normal, view_direction);
+        out_colour += calculate_point_light(p_light_0, normal, in_dto.frag_position, view_direction);
+        out_colour += calculate_point_light(p_light_1, normal, in_dto.frag_position, view_direction);
+    } else if (in_mode == 1) {
+        out_colour = calculate_directional_light(dir_light, normal, view_direction);
+        out_colour += calculate_point_light(p_light_0, normal, in_dto.frag_position, view_direction);
+        out_colour += calculate_point_light(p_light_1, normal, in_dto.frag_position, view_direction);
+    } else if (in_mode == 2) {
+        out_colour = vec4(abs(normal), 1.0);
+    }
 }
 
 vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view_direction) {
@@ -52,9 +111,39 @@ vec4 calculate_directional_light(directional_light light, vec3 normal, vec3 view
     vec4 diffuse = vec4(vec3(light.colour * diffuse_factor), diff_samp.a);
     vec4 specular = vec4(vec3(light.colour * specular_factor), diff_samp.a);
 
-    diffuse *= diff_samp;
-    ambient *= diff_samp;
-    specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    if (in_mode == 0) {
+        diffuse *= diff_samp;
+        ambient *= diff_samp;
+        specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    }
 
+    return (ambient + diffuse + specular);
+}
+
+vec4 calculate_point_light(point_light light, vec3 normal, vec3 frag_position, vec3 view_direction) {
+    vec3 light_direction = normalize(light.position - frag_position);
+    float diff = max(dot(normal, light_direction), 0.0);
+
+    vec3 half_direction = normalize(view_direction + light_direction);
+    float spec = pow(max(dot(normal, half_direction), 0.0), object_ubo.shininess);
+
+    // Calculate attenuation, or light falloff over distance.
+    float dist = length(light.position - frag_position);
+    float attenuation = 1.0 / (light.constant + light.linear * dist + light.quadratic * (dist * dist));
+
+    vec4 diff_samp = texture(samplers[SAMP_DIFFUSE], in_dto.tex_coord);
+    vec4 ambient = vec4(vec3(in_dto.ambient * object_ubo.diffuse_colour), diff_samp.a);
+    vec4 diffuse = vec4(vec3(light.colour * diff), diff_samp.a);
+    vec4 specular = vec4(vec3(light.colour * spec), diff_samp.a);
+
+    if (in_mode == 0) {
+        diffuse *= diff_samp;
+        ambient *= diff_samp;
+        specular *= vec4(texture(samplers[SAMP_SPECULAR], in_dto.tex_coord).rgb, diffuse.a);
+    }
+
+    ambient *= attenuation;
+    diffuse *= attenuation;
+    specular *= attenuation;
     return (ambient + diffuse + specular);
 }

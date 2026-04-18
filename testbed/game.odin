@@ -44,6 +44,19 @@ game_update :: proc(game_inst: ^c.game, delta_time: f32) -> bool {
 		ev_context: ev.event_context = {}
 		ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_DEBUG0, game_inst, ev_context)
 	}
+
+	if c.input_is_key_up(idef.keys.KEY_0) && c.input_was_key_down(idef.keys.KEY_0) {
+		ev_context: ev.event_context = {data = [4]i32{0, 0, 0, 0}}
+		ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_SET_RENDER_MODE, game_inst, ev_context)
+	}
+	if c.input_is_key_up(idef.keys.KEY_1) && c.input_was_key_down(idef.keys.KEY_1) {
+		ev_context: ev.event_context = {data = [4]i32{1, 0, 0, 0}}
+		ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_SET_RENDER_MODE, game_inst, ev_context)
+	}
+	if c.input_is_key_up(idef.keys.KEY_2) && c.input_was_key_down(idef.keys.KEY_2) {
+		ev_context: ev.event_context = {data = [4]i32{2, 0, 0, 0}}
+		ev.event_fire(cast(u16)ev.system_event_code.EVENT_CODE_SET_RENDER_MODE, game_inst, ev_context)
+	}
 	state := game_inst.state
 	if c.input_is_key_down(idef.keys.KEY_A) || c.input_is_key_down(idef.keys.KEY_LEFT) {
 		camera_yaw(state, 1.0 * delta_time)

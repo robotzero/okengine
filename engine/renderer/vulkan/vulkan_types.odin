@@ -12,7 +12,7 @@ VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT :: 2
 // Number of generation-tracking slots per instance (1 UBO + 1 per sampler).
 VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT :: 1 + VULKAN_MATERIAL_SHADER_SAMPLER_COUNT
 VULKAN_MATERIAL_MAX_OBJECT_COUNT :: 1024
-VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 2
+VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 3
 VULKAN_MAX_MATERIAL_COUNT :: 1024
 VULKAN_MAX_GEOMETRY_COUNT :: 4096
 INVALID_ID :: res.INVALID_ID
@@ -33,7 +33,7 @@ vulkan_material_shader_global_ubo :: struct {
 	view:           okmath.mat4,
 	ambient_colour: okmath.vec4,
 	view_position:  okmath.vec3,
-	v_reserved0:    f32, // pad vec3 to vec4
+	mode:           i32, // replaces padding; matches GLSL int after vec3
 	v_reserved1:    okmath.vec4,
 	v_reserved2:    okmath.vec4,
 	m_reserved0:    okmath.mat4,
@@ -247,6 +247,7 @@ vulkan_instance_uniform_staging :: struct {
 	diffuse_colour: okmath.vec4,
 	diffuse_map:    ^texture, // nil = use default
 	specular_map:   ^texture, // nil = use default specular
+	normal_map:     ^texture, // nil = use default normal
 	generation:     u32,
 	id:             u32,
 }

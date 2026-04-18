@@ -480,6 +480,11 @@ material_loader_load :: proc(
 				trimmed_value,
 				r.TEXTURE_NAME_MAX_LENGTH,
 			)
+		} else if k.strings_eqali(trimmed_var_name, "normal_map_name") {
+			config.normal_map_name = k.string_ncopy(
+				trimmed_value,
+				r.TEXTURE_NAME_MAX_LENGTH,
+			)
 		} else if k.strings_eqali(trimmed_var_name, "diffuse_colour") {
 			if !k.string_to_vec4(trimmed_value, &config.diffuse_colour) {
 				l.log_warning(

@@ -12,11 +12,12 @@ texture_system_config :: struct {
 }
 
 texture_system_state :: struct {
-	config:                    texture_system_config,
-	default_texture:           r.texture,
-	default_specular_texture:  r.texture,
-	registered_textures:       []r.texture,
-	registered_texture_table:  ^c.hashtable(texture_reference),
+	config:                   texture_system_config,
+	default_texture:          r.texture,
+	default_specular_texture: r.texture,
+	default_normal_texture:   r.texture,
+	registered_textures:      []r.texture,
+	registered_texture_table: ^c.hashtable(texture_reference),
 }
 
 texture_reference :: struct {
@@ -234,6 +235,17 @@ texture_system_get_default_specular_texture :: proc() -> ^r.texture {
 	return nil
 }
 
+texture_system_get_default_normal_texture :: proc() -> ^r.texture {
+	if state_ptr != nil {
+		return &state_ptr.default_normal_texture
+	}
+
+	l.log_error(
+		"texture_system_get_default_normal_texture called before texture system initialization! Null pointer returned.",
+	)
+	return nil
+}
+
 create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
 	// This is done in code to eliminate asset dependencies.
@@ -289,6 +301,29 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	ren.renderer_create_texture(spec_slice, &state.default_specular_texture)
 	state.default_specular_texture.generation = r.INVALID_ID
 
+	// Default normal texture: flat normal pointing in +Z (tangent space).
+	// RGB = (0, 0, 255, 255) — decoded as normal (0, 0, 1) meaning no perturbation.
+	l.log_debug("Creating default normal texture...")
+	norm_pixels: [16 * 16 * 4]u8
+	for row in 0 ..< 16 {
+		for col in 0 ..< 16 {
+			index := (row * 16 + col) * 4
+			norm_pixels[index + 0] = 128 // R = x
+			norm_pixels[index + 1] = 128 // G = y
+			norm_pixels[index + 2] = 255 // B = z (pointing straight out)
+			norm_pixels[index + 3] = 255 // A
+		}
+	}
+	norm_slice := norm_pixels[:]
+	state.default_normal_texture.name = k.string_ncopy("default_NORM", r.TEXTURE_NAME_MAX_LENGTH)
+	state.default_normal_texture.width = 16
+	state.default_normal_texture.height = 16
+	state.default_normal_texture.channel_count = 4
+	state.default_normal_texture.generation = r.INVALID_ID
+	state.default_normal_texture.has_transparency = false
+	ren.renderer_create_texture(norm_slice, &state.default_normal_texture)
+	state.default_normal_texture.generation = r.INVALID_ID
+
 	return true
 }
 
@@ -296,6 +331,7 @@ destroy_default_textures :: proc(state: ^texture_system_state) {
 	if state != nil {
 		destroy_texture(&state.default_texture)
 		destroy_texture(&state.default_specular_texture)
+		destroy_texture(&state.default_normal_texture)
 	}
 }
 
