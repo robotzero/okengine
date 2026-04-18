@@ -322,45 +322,46 @@ image_loader_load :: proc(
 ) -> bool {
 	required_channel_count: i32 = 4
 	si.set_flip_vertically_on_load(1)
-	full_path := fmt.aprintf(
-		"%s/%s/%s.png",
-		resource_system_base_path(),
-		self.type_path,
-		name,
-	)
-	defer delete(full_path)
 
-	si_path := strings.clone_to_cstring(full_path)
-	defer delete(si_path)
-
+	extensions := [2]string{".png", ".jpg"}
+	full_path: string
+	si_path: cstring
 	width_i32: i32
 	height_i32: i32
 	channel_count_i32: i32
-	data := si.load(
-		si_path,
-		&width_i32,
-		&height_i32,
-		&channel_count_i32,
-		required_channel_count,
-	)
+	data: [^]byte
 
-	fail_reason := si.failure_reason()
-	if fail_reason != nil {
-		l.log_error(
-			"Image resource loader failed to load file '%s': %s",
-			full_path,
-			fail_reason,
+	for ext in extensions {
+		candidate := fmt.aprintf(
+			"%s/%s/%s%s",
+			resource_system_base_path(),
+			self.type_path,
+			name,
+			ext,
 		)
-		if data != nil {
-			si.image_free(data)
+		c_candidate := strings.clone_to_cstring(candidate)
+		d := si.load(c_candidate, &width_i32, &height_i32, &channel_count_i32, required_channel_count)
+		if d != nil {
+			full_path = candidate
+			si_path = c_candidate
+			data = d
+			break
 		}
-		return false
+		delete(c_candidate)
+		delete(candidate)
 	}
 
 	if data == nil {
-		l.log_error("Image resource loader failed to load file '%s'.", full_path)
+		l.log_error(
+			"Image resource loader failed to load file '%s/%s/%s' (tried .png, .jpg)",
+			resource_system_base_path(),
+			self.type_path,
+			name,
+		)
 		return false
 	}
+	defer delete(full_path)
+	defer delete(si_path)
 
 	resource_data := r.image_resource_data {
 		pixels        = data,
@@ -474,6 +475,11 @@ material_loader_load :: proc(
 				trimmed_value,
 				r.TEXTURE_NAME_MAX_LENGTH,
 			)
+		} else if k.strings_eqali(trimmed_var_name, "specular_map_name") {
+			config.specular_map_name = k.string_ncopy(
+				trimmed_value,
+				r.TEXTURE_NAME_MAX_LENGTH,
+			)
 		} else if k.strings_eqali(trimmed_var_name, "diffuse_colour") {
 			if !k.string_to_vec4(trimmed_value, &config.diffuse_colour) {
 				l.log_warning(
@@ -483,6 +489,11 @@ material_loader_load :: proc(
 			}
 		} else if k.strings_eqali(trimmed_var_name, "shader") {
 			config.shader_name = k.string_ncopy(trimmed_value, r.MATERIAL_NAME_MAX_LENGTH)
+		} else if k.strings_eqali(trimmed_var_name, "shininess") {
+			if !k.string_to_f32(trimmed_value, &config.shininess) {
+				l.log_warning("Error parsing shininess in file '%s'. Using default of 32.0 instead.", full_path)
+				config.shininess = 32.0
+			}
 		}
 
 		// TODO: more fields.

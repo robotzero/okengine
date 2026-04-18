@@ -399,10 +399,12 @@ application_on_debug_event :: proc(
 	listener_inst: rawptr,
 	data: e.event_context,
 ) -> bool {
-	names := [3]string{"cobblestone", "paving", "paving2"}
+	names      := [3]string{"cobblestone", "paving", "paving2"}
+	spec_names := [3]string{"cobblestone_SPEC", "paving_SPEC", "paving2_SPEC"}
 
-	// Save off the old name
-	old_name := names[debug_choice]
+	// Save off the old names
+	old_name      := names[debug_choice]
+	old_spec_name := spec_names[debug_choice]
 
 	debug_choice = debug_choice + 1
 	debug_choice %= 3
@@ -412,15 +414,23 @@ application_on_debug_event :: proc(
 		mat = app_state.test_geometry.material
 	}
 	if mat != nil {
-		// Acquire the new texture
+		// Acquire the new diffuse texture
 		mat.diffuse_map.texture = sys.texture_system_acquire(names[debug_choice], true)
-
 		if mat.diffuse_map.texture == nil {
-			l.log_info("application_on_debug_event no texture! using default")
+			l.log_info("application_on_debug_event no diffuse texture! using default")
 			mat.diffuse_map.texture = sys.texture_system_get_default_texture()
 		}
-		// Release the old texture
+		// Release the old diffuse texture
 		sys.texture_system_release(old_name)
+
+		// Acquire the new specular texture
+		mat.specular_map.texture = sys.texture_system_acquire(spec_names[debug_choice], true)
+		if mat.specular_map.texture == nil {
+			l.log_info("application_on_debug_event no specular texture! using default")
+			mat.specular_map.texture = sys.texture_system_get_default_specular_texture()
+		}
+		// Release the old specular texture
+		sys.texture_system_release(old_spec_name)
 	}
 	return true
 }
@@ -560,7 +570,10 @@ application_run :: proc() -> bool {
 			// TODO: refactor packet creation
 			packet: ren.render_packet
 			packet.delta_time = f32(delta)
-			model := okmath.mat4_translation(okmath.vec3{0, 0, 0})
+			@(static) angle: f32 = 0.0
+			angle += 0.5 * f32(delta)
+			rotation := okmath.quat_from_axis_angle(okmath.vec3{0, 1, 0}, angle, true)
+			model := okmath.quat_to_mat4(rotation)
 			geo_data := ren.geometry_render_data {
 				model    = model,
 				geometry = app_state.test_geometry,

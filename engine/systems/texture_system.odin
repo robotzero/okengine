@@ -12,10 +12,11 @@ texture_system_config :: struct {
 }
 
 texture_system_state :: struct {
-	config:                   texture_system_config,
-	default_texture:          r.texture,
-	registered_textures:      []r.texture,
-	registered_texture_table: ^c.hashtable(texture_reference),
+	config:                    texture_system_config,
+	default_texture:           r.texture,
+	default_specular_texture:  r.texture,
+	registered_textures:       []r.texture,
+	registered_texture_table:  ^c.hashtable(texture_reference),
 }
 
 texture_reference :: struct {
@@ -222,6 +223,17 @@ texture_system_get_default_texture :: proc() -> ^r.texture {
 	return nil
 }
 
+texture_system_get_default_specular_texture :: proc() -> ^r.texture {
+	if state_ptr != nil {
+		return &state_ptr.default_specular_texture
+	}
+
+	l.log_error(
+		"texture_system_get_default_specular_texture called before texture system initialization! Null pointer returned.",
+	)
+	return nil
+}
+
 create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// NOTE: Create default texture, a 256x256 blue/white checkerboard pattern.
 	// This is done in code to eliminate asset dependencies.
@@ -261,12 +273,29 @@ create_default_textures :: proc(state: ^texture_system_state) -> b8 {
 	// Manually set the texture generation to invalid since this is a default texture.
 	state.default_texture.generation = r.INVALID_ID
 
+	// Default specular texture: solid white (full specular reflection).
+	l.log_debug("Creating default specular texture...")
+	spec_pixels: [pixel_count * channels]u8
+	for i in 0 ..< pixel_count * channels {
+		spec_pixels[i] = 255
+	}
+	spec_slice := spec_pixels[:]
+	state.default_specular_texture.name = k.string_ncopy("default_spec", r.TEXTURE_NAME_MAX_LENGTH)
+	state.default_specular_texture.width = tex_dimension
+	state.default_specular_texture.height = tex_dimension
+	state.default_specular_texture.channel_count = 4
+	state.default_specular_texture.generation = r.INVALID_ID
+	state.default_specular_texture.has_transparency = false
+	ren.renderer_create_texture(spec_slice, &state.default_specular_texture)
+	state.default_specular_texture.generation = r.INVALID_ID
+
 	return true
 }
 
 destroy_default_textures :: proc(state: ^texture_system_state) {
 	if state != nil {
 		destroy_texture(&state.default_texture)
+		destroy_texture(&state.default_specular_texture)
 	}
 }
 

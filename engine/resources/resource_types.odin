@@ -46,11 +46,13 @@ image_resource_data :: struct {
 }
 
 material_config :: struct {
-	name:             string,
-	shader_name:      string,
-	auto_release:     bool,
-	diffuse_colour:   okmath.vec4,
-	diffuse_map_name: string,
+	name:              string,
+	shader_name:       string,
+	auto_release:      bool,
+	diffuse_colour:    okmath.vec4,
+	shininess:         f32,
+	diffuse_map_name:  string,
+	specular_map_name: string,
 }
 
 resource :: struct {
@@ -61,8 +63,9 @@ resource :: struct {
 }
 
 texture_use :: enum {
-	TEXTURE_USE_UNKNOWN     = 0x00,
-	TEXTURE_USE_MAP_DIFFUSE = 0x01,
+	TEXTURE_USE_UNKNOWN      = 0x00,
+	TEXTURE_USE_MAP_DIFFUSE  = 0x01,
+	TEXTURE_USE_MAP_SPECULAR = 0x02,
 }
 
 texture_map :: struct {
@@ -77,7 +80,9 @@ material :: struct {
 	shader_id:      u32,
 	name:           string,
 	diffuse_colour: okmath.vec4,
+	shininess:      f32,
 	diffuse_map:    texture_map,
+	specular_map:   texture_map,
 }
 
 geometry :: struct {

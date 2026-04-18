@@ -7,9 +7,12 @@ import res "../../resources"
 import vk "vendor:vulkan"
 
 MATERIAL_SHADER_STAGE_COUNT :: 2
+// Number of Vulkan descriptor set layout bindings (UBO + sampler array = 2).
 VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT :: 2
+// Number of generation-tracking slots per instance (1 UBO + 1 per sampler).
+VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT :: 1 + VULKAN_MATERIAL_SHADER_SAMPLER_COUNT
 VULKAN_MATERIAL_MAX_OBJECT_COUNT :: 1024
-VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 1
+VULKAN_MATERIAL_SHADER_SAMPLER_COUNT :: 2
 VULKAN_MAX_MATERIAL_COUNT :: 1024
 VULKAN_MAX_GEOMETRY_COUNT :: 4096
 INVALID_ID :: res.INVALID_ID
@@ -29,7 +32,8 @@ vulkan_material_shader_global_ubo :: struct {
 	projection:     okmath.mat4,
 	view:           okmath.mat4,
 	ambient_colour: okmath.vec4,
-	v_reserved0:    okmath.vec4,
+	view_position:  okmath.vec3,
+	v_reserved0:    f32, // pad vec3 to vec4
 	v_reserved1:    okmath.vec4,
 	v_reserved2:    okmath.vec4,
 	m_reserved0:    okmath.mat4,
@@ -38,9 +42,12 @@ vulkan_material_shader_global_ubo :: struct {
 
 vulkan_material_shader_instance_ubo :: struct {
 	diffuse_color: okmath.vec4,
-	v_reserved_0:  okmath.vec4,
-	v_reserved_1:  okmath.vec4,
-	v_reserved_2:  okmath.vec4,
+	shininess:     f32,
+	v_reserved_0:  f32, // pad
+	v_reserved_1:  f32, // pad
+	v_reserved_2:  f32, // pad to vec4
+	v_reserved_3:  okmath.vec4,
+	v_reserved_4:  okmath.vec4,
 	m_reserved0:   okmath.mat4,
 	m_reserved1:   okmath.mat4,
 	m_reserved2:   okmath.mat4,
@@ -101,8 +108,8 @@ vulkan_material_shader_instance_state :: struct {
 	// Per swapchain image
 	descriptor_sets:   []vk.DescriptorSet,
 
-	// per descriptor
-	descriptor_states: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vulkan_descriptor_state,
+	// per descriptor (1 UBO + 1 per sampler for generation tracking)
+	descriptor_states: [VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT]vulkan_descriptor_state,
 }
 
 vulkan_ui_shader_instance_state :: struct {
@@ -239,6 +246,7 @@ vulkan_pipeline :: struct {
 vulkan_instance_uniform_staging :: struct {
 	diffuse_colour: okmath.vec4,
 	diffuse_map:    ^texture, // nil = use default
+	specular_map:   ^texture, // nil = use default specular
 	generation:     u32,
 	id:             u32,
 }

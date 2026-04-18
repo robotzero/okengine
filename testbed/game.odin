@@ -99,7 +99,7 @@ game_update :: proc(game_inst: ^c.game, delta_time: f32) -> bool {
 
 	recalculate_view_matrix(state)
 
-	ren.renderer_set_view(state.view)
+	ren.renderer_set_view(state.view, state.camera_position)
 	return true
 }
 

@@ -1431,6 +1431,7 @@ vulkan_renderer_shader_apply_instance :: proc(s: ^res.shader) -> bool {
 		proxy.internal_id = s.bound_instance_id
 		proxy.diffuse_colour = ms.staged.diffuse_colour
 		proxy.diffuse_map.texture = ms.staged.diffuse_map
+		proxy.specular_map.texture = ms.staged.specular_map
 		proxy.generation = INVALID_ID
 		vulkan_material_shader_apply_material(&v_context, ms, &proxy)
 	} else if s.internal_data == &v_context.ui_shader {
@@ -1495,9 +1496,9 @@ vulkan_renderer_set_uniform :: proc(
 	}
 	// Route uniform sets to the appropriate hardcoded shader structs.
 	// Material shader uniform indices (from Shader.Builtin.Material.shadercfg):
-	//   global:   0=projection, 1=view, 2=ambient_colour
-	//   instance: 3=diffuse_colour, 4=diffuse_texture
-	//   local:    5=model
+	//   global:   0=projection, 1=view, 2=ambient_colour, 3=view_position
+	//   instance: 4=diffuse_colour, 5=diffuse_texture, 6=specular_texture, 7=shininess
+	//   local:    8=model
 	if s.internal_data == &v_context.material_shader {
 		ms := &v_context.material_shader
 		switch uniform.scope {
@@ -1508,16 +1509,21 @@ vulkan_renderer_set_uniform :: proc(
 				ms.global_ubo.view = (^okmath.mat4)(value)^
 			} else if uniform.index == 2 {
 				ms.global_ubo.ambient_colour = (^okmath.vec4)(value)^
+			} else if uniform.index == 3 {
+				ms.global_ubo.view_position = (^okmath.vec3)(value)^
 			}
 		case .INSTANCE:
-			if uniform.index == 3 {
+			if uniform.index == 4 {
 				ms.staged.diffuse_colour = (^okmath.vec4)(value)^
-			} else if uniform.index == 4 {
+			} else if uniform.index == 5 {
 				ms.staged.diffuse_map = (^^res.texture)(value)^
+			} else if uniform.index == 6 {
+				ms.staged.specular_map = (^^res.texture)(value)^
 			}
+			// shininess (index 7) is handled via the instance UBO in apply_material directly
 		case .LOCAL:
 			// model matrix push constant — push immediately
-			if uniform.index == 5 {
+			if uniform.index == 8 {
 				image_index := int(v_context.image_index)
 				command_buffer := v_context.graphics_command_buffers[image_index].handle
 				model := (^okmath.mat4)(value)^

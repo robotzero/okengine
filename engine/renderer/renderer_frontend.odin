@@ -9,13 +9,14 @@ static_mesh_data :: struct {
 }
 
 renderer_system_state :: struct {
-	backend:           renderer_backend,
-	projection:        okmath.mat4,
-	view:              okmath.mat4,
-	near_clip:         f32,
-	far_clip:          f32,
-	ui_projection:     okmath.mat4,
-	ui_view:           okmath.mat4,
+	backend:            renderer_backend,
+	projection:         okmath.mat4,
+	view:               okmath.mat4,
+	view_position:      okmath.vec3,
+	near_clip:          f32,
+	far_clip:           f32,
+	ui_projection:      okmath.mat4,
+	ui_view:            okmath.mat4,
 	material_shader_id: u32,
 	ui_shader_id:       u32,
 }
@@ -120,7 +121,7 @@ renderer_get_ui_view :: proc() -> okmath.mat4 {
 
 renderer_draw_frame :: proc(
 	packet: ^render_packet,
-	apply_material_globals: proc(shader_id: u32, proj, view: ^okmath.mat4) -> bool,
+	apply_material_globals: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3) -> bool,
 	apply_material_instance: proc(m: ^res.material) -> bool,
 	apply_material_local: proc(m: ^res.material, model: ^okmath.mat4) -> bool,
 	use_shader_by_id: proc(id: u32) -> bool,
@@ -140,7 +141,8 @@ renderer_draw_frame :: proc(
 
 		proj := state_ptr.projection
 		view := state_ptr.view
-		if !apply_material_globals(state_ptr.material_shader_id, &proj, &view) {
+		view_pos := state_ptr.view_position
+		if !apply_material_globals(state_ptr.material_shader_id, &proj, &view, &view_pos) {
 			l.log_error("renderer_draw_frame: failed to apply material shader globals.")
 			return false
 		}
@@ -182,7 +184,7 @@ renderer_draw_frame :: proc(
 
 		ui_proj := state_ptr.ui_projection
 		ui_view := state_ptr.ui_view
-		if !apply_material_globals(state_ptr.ui_shader_id, &ui_proj, &ui_view) {
+		if !apply_material_globals(state_ptr.ui_shader_id, &ui_proj, &ui_view, nil) {
 			l.log_error("renderer_draw_frame: failed to apply UI shader globals.")
 			return false
 		}
@@ -243,8 +245,9 @@ renderer_on_resized :: proc(width: u16, height: u16) {
 	}
 }
 
-renderer_set_view :: proc(view: okmath.mat4) {
+renderer_set_view :: proc(view: okmath.mat4, view_position: okmath.vec3) {
 	state_ptr.view = view
+	state_ptr.view_position = view_position
 }
 
 renderer_set_ui_view :: proc(view: okmath.mat4) {

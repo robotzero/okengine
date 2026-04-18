@@ -220,6 +220,7 @@ material_system_release :: proc(name: string) {
 load_material :: proc(config: material_config, m: ^r.material) -> bool {
 	m.name = k.string_ncopy(config.name, r.MATERIAL_NAME_MAX_LENGTH)
 	m.diffuse_colour = config.diffuse_colour
+	m.shininess = config.shininess
 
 	if len(config.diffuse_map_name) > 0 {
 		m.diffuse_map.use = r.texture_use.TEXTURE_USE_MAP_DIFFUSE
@@ -231,6 +232,18 @@ load_material :: proc(config: material_config, m: ^r.material) -> bool {
 	} else {
 		m.diffuse_map.use = r.texture_use.TEXTURE_USE_UNKNOWN
 		m.diffuse_map.texture = nil
+	}
+
+	if len(config.specular_map_name) > 0 {
+		m.specular_map.use = r.texture_use.TEXTURE_USE_MAP_SPECULAR
+		m.specular_map.texture = texture_system_acquire(config.specular_map_name, true)
+		if m.specular_map.texture == nil {
+			l.log_warning("Unable to load specular texture '%s' for material '%s', using default.", config.specular_map_name, m.name)
+			m.specular_map.texture = texture_system_get_default_texture()
+		}
+	} else {
+		m.specular_map.use = r.texture_use.TEXTURE_USE_UNKNOWN
+		m.specular_map.texture = nil
 	}
 
 	// Acquire instance resources from the named shader.
@@ -257,6 +270,9 @@ destroy_material :: proc(m: ^r.material) {
 	if m.diffuse_map.texture != nil {
 		texture_system_release(m.diffuse_map.texture.name)
 	}
+	if m.specular_map.texture != nil {
+		texture_system_release(m.specular_map.texture.name)
+	}
 
 	// Release renderer resources via shader system.
 	if m.shader_id != r.INVALID_ID && m.internal_id != r.INVALID_ID {
@@ -282,6 +298,9 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 	state.default_material.diffuse_map.use = r.texture_use.TEXTURE_USE_MAP_DIFFUSE
 	state.default_material.diffuse_map.texture = texture_system_get_default_texture()
 
+	state.default_material.specular_map.use = r.texture_use.TEXTURE_USE_MAP_SPECULAR
+	state.default_material.specular_map.texture = texture_system_get_default_specular_texture()
+
 	// Default material uses the builtin material shader.
 	state.default_material.shader_id = shader_system_get_id(ren.BUILTIN_SHADER_NAME_MATERIAL)
 	if state.default_material.shader_id == r.INVALID_ID {
@@ -299,7 +318,7 @@ create_default_material :: proc(state: ^material_system_state) -> bool {
 
 // ── Shader application helpers (called from renderer_draw_frame callbacks) ────
 
-material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4) -> bool {
+material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4, view_position: ^okmath.vec3) -> bool {
 	s := shader_system_get_by_id(shader_id)
 	if s == nil {
 		return false
@@ -322,6 +341,12 @@ material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4) -
 	if ambient_idx != r.INVALID_ID_U16 {
 		ambient := okmath.vec4{0.25, 0.25, 0.25, 1.0}
 		shader_system_uniform_set_by_index(ambient_idx, &ambient)
+	}
+
+	// Set view position if this shader has it and one was provided.
+	view_pos_idx := shader_system_uniform_index(s, "view_position")
+	if view_pos_idx != r.INVALID_ID_U16 && view_position != nil {
+		shader_system_uniform_set_by_index(view_pos_idx, view_position)
 	}
 
 	return shader_system_apply_global()
@@ -349,6 +374,22 @@ material_system_apply_instance :: proc(m: ^r.material) -> bool {
 			t = texture_system_get_default_texture()
 		}
 		shader_system_uniform_set_by_index(tex_idx, &t)
+	}
+
+	// Specular texture sampler
+	spec_idx := shader_system_uniform_index(s, "specular_texture")
+	if spec_idx != r.INVALID_ID_U16 {
+		st := m.specular_map.texture
+		if st == nil {
+			st = texture_system_get_default_texture()
+		}
+		shader_system_uniform_set_by_index(spec_idx, &st)
+	}
+
+	// Shininess
+	shininess_idx := shader_system_uniform_index(s, "shininess")
+	if shininess_idx != r.INVALID_ID_U16 {
+		shader_system_uniform_set_by_index(shininess_idx, &m.shininess)
 	}
 
 	return shader_system_apply_instance()

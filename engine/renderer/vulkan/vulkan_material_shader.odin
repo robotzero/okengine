@@ -82,18 +82,20 @@ vulkan_material_shader_create :: proc(
 	}
 
 	// Local/Object Descriptors
-	descriptor_types: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.DescriptorType = {
-		.UNIFORM_BUFFER, // Binding 0 - uniform buffer
-		.COMBINED_IMAGE_SAMPLER, // Binding 1 - Diffuse sampler layout.
-	}
-	bindings: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding
-	for i in 0 ..< u32(VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT) {
-		bindings[i] = vk.DescriptorSetLayoutBinding {
-			binding         = i,
+	// Binding 0: uniform buffer; Binding 1: sampler array (diffuse + specular)
+	bindings: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.DescriptorSetLayoutBinding = {
+		{
+			binding         = 0,
 			descriptorCount = 1,
-			descriptorType  = descriptor_types[i],
+			descriptorType  = .UNIFORM_BUFFER,
 			stageFlags      = {.FRAGMENT},
-		}
+		},
+		{
+			binding         = 1,
+			descriptorCount = VULKAN_MATERIAL_SHADER_SAMPLER_COUNT, // array of samplers
+			descriptorType  = .COMBINED_IMAGE_SAMPLER,
+			stageFlags      = {.FRAGMENT},
+		},
 	}
 
 	layout_info := vk.DescriptorSetLayoutCreateInfo {
@@ -143,6 +145,8 @@ vulkan_material_shader_create :: proc(
 
 	// Sampler binding 0 is the material diffuse map.
 	out_shader.sampler_uses[0] = texture_use.TEXTURE_USE_MAP_DIFFUSE
+	// Sampler binding 1 is the material specular map.
+	out_shader.sampler_uses[1] = texture_use.TEXTURE_USE_MAP_SPECULAR
 
 	image_count := int(v_context.swapchain.image_count)
 	out_shader.global_descriptor_sets = make([]vk.DescriptorSet, image_count)
@@ -393,7 +397,7 @@ vulkan_material_shader_apply_material :: proc(
 	object_descriptor_set := object_state.descriptor_sets[image_index]
 
 	// TODO: if needs update
-	descriptor_writes: [VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT]vk.WriteDescriptorSet
+	descriptor_writes: [VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT]vk.WriteDescriptorSet
 	descriptor_count: u32 = 0
 	descriptor_index: u32 = 0
 
@@ -402,8 +406,8 @@ vulkan_material_shader_apply_material :: proc(
 	offset: u64 = range * u64(mat.internal_id) // also the index into the array.
 	obo: vulkan_material_shader_instance_ubo
 
-	// TODO: get diffuse colour from a material.
 	obo.diffuse_color = mat.diffuse_colour
+	obo.shininess = mat.shininess
 
 	// Load the data into the buffer.
 	vulkan_buffer_load_data(v_context, &shader.object_uniform_buffer, offset, range, {}, &obo)
@@ -432,19 +436,23 @@ vulkan_material_shader_apply_material :: proc(
 	}
 	descriptor_index += 1
 
-	// samplers.
-	sampler_count: u32 = 1
-	image_infos: [1]vk.DescriptorImageInfo
+	// samplers — all share binding 1 as an array, indexed by sampler_index (dstArrayElement).
+	sampler_count: u32 = VULKAN_MATERIAL_SHADER_SAMPLER_COUNT
+	image_infos: [VULKAN_MATERIAL_SHADER_SAMPLER_COUNT]vk.DescriptorImageInfo
 	for sampler_index in 0 ..< sampler_count {
 		use := shader.sampler_uses[sampler_index]
 		t: ^texture
 		#partial switch (use) {
 		case texture_use.TEXTURE_USE_MAP_DIFFUSE:
 			t = mat.diffuse_map.texture
+		case texture_use.TEXTURE_USE_MAP_SPECULAR:
+			t = mat.specular_map.texture
 		case:
 			l.log_fatal("Unable to bind sampler to unknown use.")
 			return
 		}
+		// descriptor_states[descriptor_index] tracks the binding slot (always 1 for samplers);
+		// we use sampler_index as a sub-index within that binding's per-sampler generation tracking.
 		descriptor_generation := &object_state.descriptor_states[descriptor_index].generations[image_index]
 		descriptor_id := &object_state.descriptor_states[descriptor_index].ids[image_index]
 
@@ -464,13 +472,15 @@ vulkan_material_shader_apply_material :: proc(
 			image_infos[sampler_index].imageView = internal_data.image.view
 			image_infos[sampler_index].sampler = internal_data.sampler
 
+			// All samplers write to binding 1; dstArrayElement selects the array slot.
 			descriptor := vk.WriteDescriptorSet {
-				sType           = .WRITE_DESCRIPTOR_SET,
-				dstSet          = object_descriptor_set,
-				dstBinding      = descriptor_index,
-				descriptorType  = .COMBINED_IMAGE_SAMPLER,
-				descriptorCount = 1,
-				pImageInfo      = &image_infos[sampler_index],
+				sType            = .WRITE_DESCRIPTOR_SET,
+				dstSet           = object_descriptor_set,
+				dstBinding       = 1,
+				dstArrayElement  = u32(sampler_index),
+				descriptorType   = .COMBINED_IMAGE_SAMPLER,
+				descriptorCount  = 1,
+				pImageInfo       = &image_infos[sampler_index],
 			}
 
 			descriptor_writes[descriptor_count] = descriptor
@@ -481,8 +491,8 @@ vulkan_material_shader_apply_material :: proc(
 				descriptor_generation^ = t.generation
 				descriptor_id^ = t.id
 			}
-			descriptor_index += 1
 		}
+		descriptor_index += 1
 	}
 	if descriptor_count > 0 {
 		vk.UpdateDescriptorSets(
@@ -576,7 +586,7 @@ vulkan_material_shader_acquire_resources :: proc(
 	image_count := int(v_context.swapchain.image_count)
 	object_state := &shader.instance_states[material.internal_id]
 	object_state.descriptor_sets = make([]vk.DescriptorSet, image_count, material_alloc)
-	for i in 0 ..< u32(VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT) {
+	for i in 0 ..< u32(VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT) {
 		//@MEMORY use containers with tagged memory
 		object_state.descriptor_states[i].generations = make([]u32, image_count, material_alloc)
 		object_state.descriptor_states[i].ids = make([]u32, image_count, material_alloc)
@@ -631,7 +641,7 @@ vulkan_material_shader_release_resources :: proc(
 		l.log_error("Error freeing object shader descriptor sets!")
 	}
 
-	for i in 0 ..< u32(VULKAN_MATERIAL_SHADER_DESCRIPTOR_COUNT) {
+	for i in 0 ..< u32(VULKAN_MATERIAL_SHADER_INSTANCE_DESCRIPTOR_COUNT) {
 		for j in 0 ..< u32(3) {
 			instance_state.descriptor_states[i].generations[j] = INVALID_ID
 			instance_state.descriptor_states[i].ids[j] = INVALID_ID
