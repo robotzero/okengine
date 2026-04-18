@@ -496,12 +496,11 @@ application_run :: proc() -> bool {
 
 			// Prepare render data
 			if app_state.test_geometry == nil {
-				// Generate a test plane geometry
-				vertices, indices := sys.geometry_system_generate_plane_config(
+				// Generate a test cube geometry
+				vertices, indices := sys.geometry_system_generate_cube_config(
 					10.0,
 					10.0,
-					1,
-					1,
+					10.0,
 					1.0,
 					1.0,
 				)
@@ -512,7 +511,7 @@ application_run :: proc() -> bool {
 					u32(len(indices)),
 					size_of(u32),
 					raw_data(indices),
-					"test_geometry",
+					"test_cube",
 					"test_material",
 					false,
 				)
@@ -527,14 +526,16 @@ application_run :: proc() -> bool {
 			}
 
 			if app_state.test_ui_geometry == nil {
+				w: f32 = 128.0
+				h: f32 = 32.0
 				ui_verts: [4]okmath.vertex_2d
 				ui_verts[0].position = {0.0, 0.0}
 				ui_verts[0].texcoord = {0.0, 0.0}
-				ui_verts[1].position = {512.0, 512.0}
+				ui_verts[1].position = {w, h}
 				ui_verts[1].texcoord = {1.0, 1.0}
-				ui_verts[2].position = {0.0, 512.0}
+				ui_verts[2].position = {0.0, h}
 				ui_verts[2].texcoord = {0.0, 1.0}
-				ui_verts[3].position = {512.0, 0.0}
+				ui_verts[3].position = {w, 0.0}
 				ui_verts[3].texcoord = {1.0, 0.0}
 				ui_indices: [6]u32 = {0, 1, 2, 0, 3, 1}
 				app_state.test_ui_geometry = sys.geometry_system_acquire_from_config(

@@ -316,6 +316,14 @@ material_system_apply_global :: proc(shader_id: u32, proj, view: ^okmath.mat4) -
 	shader_system_bind_globals()
 	shader_system_uniform_set_by_index(proj_idx, proj)
 	shader_system_uniform_set_by_index(view_idx, view)
+
+	// Set ambient colour if this shader has it (material shader does, UI shader does not).
+	ambient_idx := shader_system_uniform_index(s, "ambient_colour")
+	if ambient_idx != r.INVALID_ID_U16 {
+		ambient := okmath.vec4{0.25, 0.25, 0.25, 1.0}
+		shader_system_uniform_set_by_index(ambient_idx, &ambient)
+	}
+
 	return shader_system_apply_global()
 }
 

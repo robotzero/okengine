@@ -26,10 +26,14 @@ material :: res.material
 
 // Renamed UBO types for material shader (vulkan-specific)
 vulkan_material_shader_global_ubo :: struct {
-	projection:  okmath.mat4,
-	view:        okmath.mat4,
-	m_reserved0: okmath.mat4,
-	m_reserved1: okmath.mat4,
+	projection:     okmath.mat4,
+	view:           okmath.mat4,
+	ambient_colour: okmath.vec4,
+	v_reserved0:    okmath.vec4,
+	v_reserved1:    okmath.vec4,
+	v_reserved2:    okmath.vec4,
+	m_reserved0:    okmath.mat4,
+	m_reserved1:    okmath.mat4,
 }
 
 vulkan_material_shader_instance_ubo :: struct {

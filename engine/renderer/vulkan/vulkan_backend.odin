@@ -1494,26 +1494,30 @@ vulkan_renderer_set_uniform :: proc(
 		return false
 	}
 	// Route uniform sets to the appropriate hardcoded shader structs.
+	// Material shader uniform indices (from Shader.Builtin.Material.shadercfg):
+	//   global:   0=projection, 1=view, 2=ambient_colour
+	//   instance: 3=diffuse_colour, 4=diffuse_texture
+	//   local:    5=model
 	if s.internal_data == &v_context.material_shader {
 		ms := &v_context.material_shader
 		switch uniform.scope {
 		case .GLOBAL:
-			// Projection = uniform index 0, view = index 1 (by convention from shader config).
 			if uniform.index == 0 {
 				ms.global_ubo.projection = (^okmath.mat4)(value)^
 			} else if uniform.index == 1 {
 				ms.global_ubo.view = (^okmath.mat4)(value)^
+			} else if uniform.index == 2 {
+				ms.global_ubo.ambient_colour = (^okmath.vec4)(value)^
 			}
 		case .INSTANCE:
-			// index 2 = diffuse_colour (vec4), index 3 = diffuse_texture (sampler / ^texture)
-			if uniform.index == 2 {
+			if uniform.index == 3 {
 				ms.staged.diffuse_colour = (^okmath.vec4)(value)^
-			} else if uniform.index == 3 {
+			} else if uniform.index == 4 {
 				ms.staged.diffuse_map = (^^res.texture)(value)^
 			}
 		case .LOCAL:
 			// model matrix push constant — push immediately
-			if uniform.index == 4 {
+			if uniform.index == 5 {
 				image_index := int(v_context.image_index)
 				command_buffer := v_context.graphics_command_buffers[image_index].handle
 				model := (^okmath.mat4)(value)^
@@ -1528,6 +1532,10 @@ vulkan_renderer_set_uniform :: proc(
 			}
 		}
 	} else if s.internal_data == &v_context.ui_shader {
+		// UI shader uniform indices (from Shader.Builtin.UI.shadercfg):
+		//   global:   0=projection, 1=view
+		//   instance: 2=diffuse_colour, 3=diffuse_texture
+		//   local:    4=model
 		us := &v_context.ui_shader
 		switch uniform.scope {
 		case .GLOBAL:
@@ -1537,7 +1545,6 @@ vulkan_renderer_set_uniform :: proc(
 				us.global_ubo.view = (^okmath.mat4)(value)^
 			}
 		case .INSTANCE:
-			// index 2 = diffuse_colour (vec4), index 3 = diffuse_texture (sampler / ^texture)
 			if uniform.index == 2 {
 				us.staged.diffuse_colour = (^okmath.vec4)(value)^
 			} else if uniform.index == 3 {

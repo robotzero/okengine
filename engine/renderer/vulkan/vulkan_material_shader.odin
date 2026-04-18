@@ -162,13 +162,13 @@ vulkan_material_shader_create :: proc(
 		extent = {width = v_context.framebuffer_width, height = v_context.framebuffer_height},
 	}
 
-	// Attributes
+	// Attributes: position (vec3), normal (vec3), texcoord (vec2)
 	offset: u32 = 0
-	ATTRIBUTE_COUNT :: 2
+	ATTRIBUTE_COUNT :: 3
 	attribute_descriptions: [ATTRIBUTE_COUNT]vk.VertexInputAttributeDescription
 
-	formats: [ATTRIBUTE_COUNT]vk.Format = {vk.Format.R32G32B32A32_SFLOAT, vk.Format.R32G32_SFLOAT}
-	sizes: [ATTRIBUTE_COUNT]u32 = {size_of(okmath.vec3), size_of(okmath.vec2)}
+	formats: [ATTRIBUTE_COUNT]vk.Format = {vk.Format.R32G32B32_SFLOAT, vk.Format.R32G32B32_SFLOAT, vk.Format.R32G32_SFLOAT}
+	sizes: [ATTRIBUTE_COUNT]u32 = {size_of(okmath.vec3), size_of(okmath.vec3), size_of(okmath.vec2)}
 
 	for i in 0 ..< ATTRIBUTE_COUNT {
 		attribute_descriptions[i].binding = 0

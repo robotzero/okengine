@@ -232,21 +232,25 @@ geometry_system_generate_plane_config :: proc(
 			v_offset := (y * xsc + x) * 4
 			vertices[v_offset + 0].position.x = min_x
 			vertices[v_offset + 0].position.y = min_y
+			vertices[v_offset + 0].normal = {0, 0, 1}
 			vertices[v_offset + 0].texcoord.x = min_uvx
 			vertices[v_offset + 0].texcoord.y = min_uvy
 
 			vertices[v_offset + 1].position.x = max_x
 			vertices[v_offset + 1].position.y = max_y
+			vertices[v_offset + 1].normal = {0, 0, 1}
 			vertices[v_offset + 1].texcoord.x = max_uvx
 			vertices[v_offset + 1].texcoord.y = max_uvy
 
 			vertices[v_offset + 2].position.x = min_x
 			vertices[v_offset + 2].position.y = max_y
+			vertices[v_offset + 2].normal = {0, 0, 1}
 			vertices[v_offset + 2].texcoord.x = min_uvx
 			vertices[v_offset + 2].texcoord.y = max_uvy
 
 			vertices[v_offset + 3].position.x = max_x
 			vertices[v_offset + 3].position.y = min_y
+			vertices[v_offset + 3].normal = {0, 0, 1}
 			vertices[v_offset + 3].texcoord.x = max_uvx
 			vertices[v_offset + 3].texcoord.y = min_uvy
 
@@ -259,6 +263,56 @@ geometry_system_generate_plane_config :: proc(
 			indices[i_offset + 5] = v_offset + 1
 		}
 	}
+
+	return vertices, indices
+}
+
+geometry_system_generate_cube_config :: proc(
+	width: f32,
+	height: f32,
+	depth: f32,
+	tile_x: f32,
+	tile_y: f32,
+) -> ([]okmath.vertex_3d, []u32) {
+	w := width * 0.5
+	h := height * 0.5
+	d := depth * 0.5
+	tx := tile_x
+	ty := tile_y
+
+	// 6 faces * 4 verts = 24 vertices, 6 faces * 6 indices = 36 indices
+	vertices := make([]okmath.vertex_3d, 24)
+	indices := make([]u32, 36)
+
+	// Helper: fill one face's 4 vertices and 6 indices
+	face :: proc(verts: []okmath.vertex_3d, idx: []u32, face_idx: int,
+		p0, p1, p2, p3: okmath.vec3, normal: okmath.vec3, tx, ty: f32) {
+		v := face_idx * 4
+		i := face_idx * 6
+		verts[v+0] = {position = p0, normal = normal, texcoord = {0, 0}}
+		verts[v+1] = {position = p1, normal = normal, texcoord = {tx, ty}}
+		verts[v+2] = {position = p2, normal = normal, texcoord = {0, ty}}
+		verts[v+3] = {position = p3, normal = normal, texcoord = {tx, 0}}
+		idx[i+0] = u32(v + 0)
+		idx[i+1] = u32(v + 1)
+		idx[i+2] = u32(v + 2)
+		idx[i+3] = u32(v + 0)
+		idx[i+4] = u32(v + 3)
+		idx[i+5] = u32(v + 1)
+	}
+
+	// Front  (+Z)
+	face(vertices, indices, 0, {-w, -h, d}, {w, h, d}, {-w, h, d}, {w, -h, d}, {0, 0, 1}, tx, ty)
+	// Back   (-Z)
+	face(vertices, indices, 1, {w, -h, -d}, {-w, h, -d}, {w, h, -d}, {-w, -h, -d}, {0, 0, -1}, tx, ty)
+	// Left   (-X)
+	face(vertices, indices, 2, {-w, -h, -d}, {-w, h, d}, {-w, h, -d}, {-w, -h, d}, {-1, 0, 0}, tx, ty)
+	// Right  (+X)
+	face(vertices, indices, 3, {w, -h, d}, {w, h, -d}, {w, h, d}, {w, -h, -d}, {1, 0, 0}, tx, ty)
+	// Top    (+Y)
+	face(vertices, indices, 4, {-w, h, d}, {w, h, -d}, {-w, h, -d}, {w, h, d}, {0, 1, 0}, tx, ty)
+	// Bottom (-Y)
+	face(vertices, indices, 5, {-w, -h, -d}, {w, -h, d}, {-w, -h, d}, {w, -h, -d}, {0, -1, 0}, tx, ty)
 
 	return vertices, indices
 }
